@@ -15,10 +15,10 @@ echo "Session: $session"
 echo
 
 echo "Agents:"
-printf '%-12s %-10s %-10s %-12s %s\n' "id" "role" "model" "window" "worktree"
-while IFS='|' read -r id role cli model window worktree command; do
+printf '%-12s %-10s %-10s %s\n' "id" "role" "model" "window"
+while IFS='|' read -r id role cli model window command; do
   [[ -n "$id" ]] || continue
-  printf '%-12s %-10s %-10s %-12s %s\n' "$id" "$role" "$model" "$window" "$worktree"
+  printf '%-12s %-10s %-10s %s\n' "$id" "$role" "$model" "$window"
 done < <(team_config_agents)
 echo
 
@@ -36,19 +36,16 @@ while IFS= read -r task_file; do
   task_name="$(basename "$task_file" .md)"
   [[ "$task_name" == "TEMPLATE" ]] && continue
   task_count=$((task_count + 1))
-  claim_file="$TEAM_STATE_DIR/claims/$task_name.claim"
-  owner="unclaimed"
-  [[ -f "$claim_file" ]] && owner="$(<"$claim_file")"
+  owner="unassigned"
   state_file="$TEAM_STATE_DIR/tasks/$task_name.json"
   status="no-state"
-  branch=""
   head_commit=""
   review_decision=""
   integration=""
-  phase="unclaimed"
+  phase="unassigned"
   if [[ -f "$state_file" ]]; then
+    owner="$(team_task_state_field "$task_name" owner)"
     status="$(team_task_state_field "$task_name" status)"
-    branch="$(team_task_state_field "$task_name" branch)"
     head_commit="$(team_task_state_field "$task_name" head_commit)"
     review_decision="$(team_task_state_field "$task_name" review_decision)"
     integration="$(team_task_state_field "$task_name" integration)"
@@ -62,13 +59,13 @@ while IFS= read -r task_file; do
   fi
   short_head="$head_commit"
   [[ ${#short_head} -gt 12 ]] && short_head="${short_head:0:12}"
-  echo "  $task_name owner=$owner phase=$phase branch=${branch:-none} head=${short_head:-none} review=${review_decision:-none} integration=${integration:-none}"
+  echo "  $task_name owner=$owner phase=$phase head=${short_head:-none} review=${review_decision:-none} integration=${integration:-none}"
 done < <(find "$TEAM_QUEUE_DIR/tasks" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$task_count" -gt 0 ]] || echo "  none"
 echo
 
 echo "Inbox:"
-while IFS='|' read -r id role cli model window worktree command; do
+while IFS='|' read -r id role cli model window command; do
   [[ -n "$id" ]] || continue
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0

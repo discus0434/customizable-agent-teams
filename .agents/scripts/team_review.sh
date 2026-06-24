@@ -50,29 +50,21 @@ state_file="$(team_task_state_file "$task_id")"
 
 [[ -f "$task_file" ]] || die "task file not found: $task_file"
 [[ -f "$report_file" ]] || die "report file not found: $report_file"
-[[ -f "$state_file" ]] || die "task is not claimed: $task_id"
+[[ -f "$state_file" ]] || die "task is not assigned: $task_id"
 
 state_owner="$(team_task_state_field "$task_id" owner)"
-worker_worktree="$(team_task_state_field "$task_id" worktree)"
-task_branch="$(team_task_state_field "$task_id" branch)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 previous_integration="$(team_task_state_field "$task_id" integration)"
 
 [[ "$state_owner" == "$worker_id" ]] || die "task $task_id is owned by $state_owner, not $worker_id"
-[[ -n "$worker_worktree" ]] || die "$worker_id worktree is missing"
-[[ -n "$task_branch" ]] || die "task $task_id state is missing branch"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
-abs_worktree="$(abs_path "$worker_worktree")"
-[[ -d "$abs_worktree" ]] || die "worker worktree not found: $abs_worktree"
-current_branch="$(git -C "$abs_worktree" branch --show-current)"
-[[ "$current_branch" == "$task_branch" ]] || die "worker worktree is on $current_branch, expected $task_branch"
 
-if ! team_git_is_clean "$abs_worktree"; then
-  team_git_dirty_summary "$abs_worktree" >&2
-  die "worker worktree must be clean before review: $abs_worktree"
+if ! team_git_is_clean "$TEAM_ROOT"; then
+  team_git_dirty_summary "$TEAM_ROOT" >&2
+  die "team root must be clean before review: $TEAM_ROOT"
 fi
 
-head_commit="$(git -C "$abs_worktree" rev-parse HEAD)"
+head_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
 
 if grep -q '未記入' "$report_file"; then
   die "report still contains 未記入 placeholders: $report_file"
@@ -102,8 +94,8 @@ status_file="$output_dir/${task_id}_${worker_id}_git_status.txt"
 committed_diff_file="$output_dir/${task_id}_${worker_id}_committed_diff.patch"
 exec_log="$output_dir/${task_id}_${worker_id}_review.exec.log"
 
-git -C "$abs_worktree" status --short > "$status_file"
-git -C "$abs_worktree" diff --no-ext-diff "$base_commit..$head_commit" -- . > "$committed_diff_file"
+git -C "$TEAM_ROOT" status --short > "$status_file"
+git -C "$TEAM_ROOT" diff --no-ext-diff "$base_commit..$head_commit" -- . > "$committed_diff_file"
 
 {
 cat <<PROMPT
@@ -116,8 +108,7 @@ Use only the embedded evidence below. Do not run commands, do not inspect files,
 Paths:
 - Task file: $task_file
 - Worker report: $report_file
-- Worker worktree: $abs_worktree
-- Task branch: $task_branch
+- Team root: $TEAM_ROOT
 - Base commit: $base_commit
 - Head commit: $head_commit
 - Git status snapshot: $status_file
@@ -238,7 +229,7 @@ case "$review_cli" in
       --no-session-persistence
       "$prompt"
     )
-    run_review_command "$review_timeout_seconds" "$abs_worktree" "$raw_file" "$exec_log" env CLAUDE_CODE_EFFORT_LEVEL="$review_effort" "${cmd[@]}" || status=$?
+    run_review_command "$review_timeout_seconds" "$TEAM_ROOT" "$raw_file" "$exec_log" env CLAUDE_CODE_EFFORT_LEVEL="$review_effort" "${cmd[@]}" || status=$?
     ;;
   codex)
     cmd=(
@@ -246,7 +237,7 @@ case "$review_cli" in
       exec
       --model "$review_model"
       --dangerously-bypass-approvals-and-sandbox
-      --cd "$abs_worktree"
+      --cd "$TEAM_ROOT"
       -c "model_reasoning_effort=\"$review_effort\""
       --output-last-message "$raw_file"
       "$prompt"
@@ -268,8 +259,7 @@ fi
   echo "Effort: $review_effort"
   echo "Task: $task_file"
   echo "Report: $report_file"
-  echo "Worktree: $abs_worktree"
-  echo "Branch: $task_branch"
+  echo "Team root: $TEAM_ROOT"
   echo "Base commit: $base_commit"
   echo "Head commit: $head_commit"
   echo "Git status: $status_file"
@@ -296,11 +286,9 @@ team_write_task_state \
   "$task_id" \
   "$worker_id" \
   "$next_status" \
-  "$worker_worktree" \
-  "$task_branch" \
   "$base_commit" \
   "$head_commit" \
-  "$(team_task_state_field "$task_id" merge_commit)" \
+  "$(team_task_state_field "$task_id" integration_commit)" \
   "$report_file" \
   "$summary_file" \
   "$previous_integration" \

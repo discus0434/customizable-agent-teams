@@ -1,4 +1,4 @@
-.PHONY: post-change smoke harness-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox claim report review integrate memory-list memory-append
+.PHONY: post-change smoke harness-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox report review integrate memory-list memory-append
 
 post-change:
 	@git diff --check -- .
@@ -62,11 +62,6 @@ inbox:
 	else \
 		./.agents/scripts/team_inbox.sh "$(AGENT)"; \
 	fi
-
-claim:
-	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }
-	./.agents/scripts/team_claim.sh "$(TASK)" "$(AGENT)"
 
 report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }

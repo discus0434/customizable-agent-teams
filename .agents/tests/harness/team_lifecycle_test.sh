@@ -17,12 +17,6 @@ cp "$ROOT/.gitignore" "$TMP_ROOT/.gitignore"
 cp "$ROOT/AGENTS.md" "$TMP_ROOT/AGENTS.md"
 cp -P "$ROOT/CLAUDE.md" "$TMP_ROOT/CLAUDE.md"
 
-expanded_worker_path="$(
-  TEAM_ROOT="$TMP_ROOT" \
-  bash -c 'source "$1"; abs_path "../{team_root}-worktrees/worker-1"' _ "$TMP_ROOT/.agents/scripts/team_common.sh"
-)"
-[[ "$expanded_worker_path" == "$TMP_ROOT/../repo-worktrees/worker-1" ]]
-
 mkdir -p \
   "$TMP_ROOT/.agents/queue/tasks" \
   "$TMP_ROOT/.agents/queue/inbox" \
@@ -43,7 +37,6 @@ smoke:
 	@echo "temp smoke ok"
 MAKE
 
-perl -0pi -e 's#\.\./\{team_root\}-worktrees/#../worktrees/#g' "$TMP_CONFIG_FILE"
 perl -0pi -e 's/(  review:\n    cli: )claude/${1}codex/; s/(  review:\n    cli: codex\n    model: )claude-opus-4-8/${1}gpt-5.5/' "$TMP_CONFIG_FILE"
 mkdir -p "$TMP_BASE/bin"
 
@@ -52,6 +45,9 @@ git -C "$TMP_ROOT" config user.email "agent-team-smoke@example.local"
 git -C "$TMP_ROOT" config user.name "Agent Team Smoke"
 git -C "$TMP_ROOT" add .
 git -C "$TMP_ROOT" commit -qm "Initial template"
+
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh" >/dev/null
+[[ -d "$TMP_ROOT/.agents/queue/state/tmp" ]] || { echo "runtime scratch directory was not created" >&2; exit 1; }
 
 cat > "$TMP_BASE/bin/codex" <<'SH'
 #!/usr/bin/env bash
@@ -145,7 +141,6 @@ identity="$(
   TEAM_AGENT_ROLE=worker \
   TEAM_AGENT_CLI=codex \
   TEAM_AGENT_MODEL=gpt-5.5 \
-  TEAM_AGENT_WORKTREE=../worktrees/worker-1 \
   TEAM_SESSION=agent-team \
   "$TMP_ROOT/.agents/scripts/team_identity.sh"
 )"
@@ -171,6 +166,10 @@ esac
 case "$(<"$TEAM_FAKE_TMUX_LOG")" in
   *"TEAM_AGENT_ID=worker-1"*"TEAM_AGENT_ROLE=worker"*"TEAM_AGENT_MODEL="*) ;;
   *) echo "worker launch env was not passed" >&2; exit 1 ;;
+esac
+case "$(<"$TEAM_FAKE_TMUX_LOG")" in
+  *"new-session"*" -c $TMP_ROOT "*|*"new-window"*" -c $TMP_ROOT "*) ;;
+  *) echo "agents were not launched from TEAM_ROOT" >&2; exit 1 ;;
 esac
 case "$(<"$TEAM_FAKE_TMUX_LOG")" in
   *"send-keys"*"C-m"*) ;;
@@ -245,33 +244,19 @@ esac
 submit_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
 [[ "$submit_enter_count" -ge 3 ]] || { echo "team_submit did not send repeated C-m" >&2; exit 1; }
 
-worker_1="$TMP_BASE/worktrees/worker-1"
-[[ -d "$worker_1/.git" || -f "$worker_1/.git" ]]
-[[ "$(git -C "$worker_1" branch --show-current)" == "agent/worker-1" ]]
-
-printf '%s\n' "root update" > "$TMP_ROOT/root-update.txt"
-git -C "$TMP_ROOT" add root-update.txt
-git -C "$TMP_ROOT" commit -qm "Root update"
-team_restart_log="$TMP_BASE/team_start_restart.log"
-if ! PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_BOOT_NUDGE=0 "$TMP_ROOT/.agents/scripts/team_start.sh" --restart > "$team_restart_log" 2>&1; then
-  cat "$team_restart_log" >&2
-  exit 1
-fi
-[[ "$(git -C "$worker_1" rev-parse HEAD)" == "$(git -C "$TMP_ROOT" rev-parse HEAD)" ]]
-[[ -f "$worker_1/root-update.txt" ]]
-
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 perl -0pi -e 's/T-XXX/T-001/g' "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-BAD.md"
-perl -0pi -e 's/T-XXX/T-BAD/g; s#Branch: task/worker-1/T-BAD#Branch: task/worker-1/wrong#' "$TMP_ROOT/.agents/queue/tasks/T-BAD.md"
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_claim.sh" T-BAD worker-1 >/dev/null 2>&1; then
-  echo "branch mismatch claim unexpectedly succeeded" >&2
+perl -0pi -e 's/T-XXX/T-BAD/g; s/Owner: worker-1/Owner: worker-2/' "$TMP_ROOT/.agents/queue/tasks/T-BAD.md"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" worker-1 task_assigned T-BAD >/dev/null 2>&1; then
+  echo "owner mismatch dispatch unexpectedly succeeded" >&2
   exit 1
 fi
 
 message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" worker-1 task_assigned T-001)"
 [[ -n "$message_id" ]]
+task_base_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 
 pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" worker-1)"
 case "$pending" in
@@ -283,32 +268,27 @@ TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scr
 pending_after_mark="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" worker-1)"
 [[ -z "$pending_after_mark" ]]
 
-team_claim_log="$TMP_BASE/team_claim.log"
-if ! TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_claim.sh" T-001 worker-1 > "$team_claim_log" 2>&1; then
-  cat "$team_claim_log" >&2
-  exit 1
-fi
-[[ "$(git -C "$worker_1" branch --show-current)" == "task/worker-1/T-001" ]]
-task_base_commit="$(git -C "$worker_1" rev-parse HEAD)"
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_claim.sh" T-001 worker-2 >/dev/null 2>&1; then
-  echo "second claim unexpectedly succeeded" >&2
+cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-002.md"
+perl -0pi -e 's/T-XXX/T-002/g' "$TMP_ROOT/.agents/queue/tasks/T-002.md"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" worker-1 task_assigned T-002 >/dev/null 2>&1; then
+  echo "shared root allowed a second active task dispatch" >&2
   exit 1
 fi
 
-printf '%s\n' "worker change" > "$worker_1/integration-smoke.txt"
-report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs-review)"
-[[ -f "$report_file" ]]
-grep -q '^- Result: not run by worker$' "$report_file"
+printf '%s\n' "worker change" > "$TMP_ROOT/integration-smoke.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs-review >/dev/null 2>&1; then
+  echo "dirty root report unexpectedly succeeded" >&2
+  exit 1
+fi
 if PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review.sh" T-001 worker-1 >/dev/null 2>&1; then
-  echo "dirty worktree review unexpectedly succeeded" >&2
+  echo "dirty root review unexpectedly succeeded" >&2
   exit 1
 fi
 
-git -C "$worker_1" add integration-smoke.txt
-git -C "$worker_1" commit -qm "Implement T-001"
-task_head_commit="$(git -C "$worker_1" rev-parse HEAD)"
+git -C "$TMP_ROOT" add integration-smoke.txt
+git -C "$TMP_ROOT" commit -qm "Implement T-001"
+task_head_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs-review)"
-grep -q '^Branch: task/worker-1/T-001$' "$report_file"
 grep -q '^Head commit: ' "$report_file"
 if PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review.sh" T-001 worker-1 >/dev/null 2>&1; then
   echo "placeholder report review unexpectedly succeeded" >&2
@@ -319,7 +299,6 @@ cat > "$report_file" <<REPORT
 # Report: T-001 by worker-1
 
 Status: needs-review
-Branch: task/worker-1/T-001
 Base commit: $task_base_commit
 Head commit: $task_head_commit
 Review: none
@@ -337,7 +316,7 @@ Integration: none
 
 - Command: test -f integration-smoke.txt
 - Result: PASS
-- Evidence: file exists in worker task branch.
+- Evidence: file exists in the shared root commit.
 
 ## Post-change
 
@@ -412,14 +391,13 @@ integration_file="$(PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG
 [[ -f "$integration_file" ]]
 grep -q '^Status: integrated$' "$integration_file"
 [[ -f "$TMP_ROOT/integration-smoke.txt" ]]
-first_merge_commit="$(sed -n 's/^Merge commit: //p' "$integration_file")"
-[[ -n "$first_merge_commit" ]]
+integration_commit="$(sed -n 's/^Integration commit: //p' "$integration_file")"
+[[ "$integration_commit" == "$task_head_commit" ]]
 
 rerun_integration_file="$(PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_integrate.sh" T-001 worker-1)"
 [[ "$rerun_integration_file" == "$integration_file" ]]
 grep -q '^Status: integrated$' "$integration_file"
-grep -q "^Merge commit: $first_merge_commit$" "$integration_file"
-grep -q '^Already integrated: task/worker-1/T-001$' "$TMP_ROOT/.agents/queue/integrations/T-001_worker-1_merge.log"
+grep -q "^Integration commit: $integration_commit$" "$integration_file"
 
 integrated_status="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh")"
 case "$integrated_status" in

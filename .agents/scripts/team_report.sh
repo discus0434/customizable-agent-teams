@@ -28,30 +28,26 @@ fi
 ensure_team_dirs
 report_file="$TEAM_QUEUE_DIR/reports/${task_id}_${agent_id}.md"
 state_file="$(team_task_state_file "$task_id")"
-[[ -f "$state_file" ]] || die "task is not claimed: $task_id"
+[[ -f "$state_file" ]] || die "task is not assigned: $task_id"
 
 owner="$(team_task_state_field "$task_id" owner)"
 current_status="$(team_task_state_field "$task_id" status)"
-worktree="$(team_task_state_field "$task_id" worktree)"
-branch="$(team_task_state_field "$task_id" branch)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
-merge_commit="$(team_task_state_field "$task_id" merge_commit)"
+integration_commit="$(team_task_state_field "$task_id" integration_commit)"
 review_file="$(team_task_state_field "$task_id" review)"
 integration_file="$(team_task_state_field "$task_id" integration)"
 review_decision="$(team_task_state_field "$task_id" review_decision)"
 
 [[ "$owner" == "$agent_id" ]] || die "task $task_id is owned by $owner, not $agent_id"
 [[ "$current_status" != "integrated" ]] || die "task $task_id is already integrated"
-[[ -n "$worktree" ]] || die "task $task_id state is missing worktree"
-[[ -n "$branch" ]] || die "task $task_id state is missing branch"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 
-abs_worktree="$(abs_path "$worktree")"
-[[ -d "$abs_worktree" ]] || die "worker worktree not found: $abs_worktree"
-current_branch="$(git -C "$abs_worktree" branch --show-current)"
-[[ "$current_branch" == "$branch" ]] || die "worker worktree is on $current_branch, expected $branch"
+if [[ "$status" != "blocked" ]] && ! team_git_is_clean "$TEAM_ROOT"; then
+  team_git_dirty_summary "$TEAM_ROOT" >&2
+  die "team root must be clean before report Status $status"
+fi
 
-head_commit="$(git -C "$abs_worktree" rev-parse HEAD)"
+head_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
 
 if [[ "$status" == "done" && "$review_decision" != "OK" ]]; then
   die "report Status done requires review Decision OK"
@@ -62,7 +58,6 @@ if [[ ! -f "$report_file" ]]; then
 # Report: $task_id by $agent_id
 
 Status: $status
-Branch: $branch
 Base commit: $base_commit
 Head commit: $head_commit
 Review: ${review_file:-none}
@@ -120,7 +115,6 @@ Integration: ${integration_file:-none}
 REPORT
 else
   team_update_markdown_field "$report_file" "Status" "$status"
-  team_update_markdown_field "$report_file" "Branch" "$branch"
   team_update_markdown_field "$report_file" "Base commit" "$base_commit"
   team_update_markdown_field "$report_file" "Head commit" "$head_commit"
   team_update_markdown_field "$report_file" "Review" "${review_file:-none}"
@@ -131,11 +125,9 @@ team_write_task_state \
   "$task_id" \
   "$agent_id" \
   "$status" \
-  "$worktree" \
-  "$branch" \
   "$base_commit" \
   "$head_commit" \
-  "$merge_commit" \
+  "$integration_commit" \
   "$report_file" \
   "$review_file" \
   "$integration_file" \

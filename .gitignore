@@ -95,7 +95,6 @@ CMakeCache.txt
 *.pid
 
 # Agent-team runtime. Keep the skeleton in Git, but not live traffic.
-worktrees/
 .agents/queue/inbox/*
 !.agents/queue/inbox/.gitkeep
 .agents/queue/reports/*

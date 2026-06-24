@@ -1,6 +1,6 @@
 ---
 name: team-plan
-description: Use by a lead after the goal is understood and worker delegation is worthwhile, before creating task files that define owner, branch, acceptance, verification, review, and integration order.
+description: Use by a lead after the goal is understood and worker delegation is worthwhile, before creating task files that define owner, acceptance, verification, review, and integration order.
 ---
 
 # team-plan
@@ -17,7 +17,6 @@ description: Use by a lead after the goal is understood and worker delegation is
 - 1 task = 1 natural owner。
 - 同じ file を複数 worker が同時に触らない。
 - `Allowed paths` と `Do not modify` を必ず書く。
-- `Branch` は `task/<owner>/<task_id>` にする。
 - task file だけで着手できる背景、関連 path、制約を含める。
 - acceptance は report だけで判定できる形にする。
 - verification は担当 agent が実行可能な command にする。
@@ -29,7 +28,6 @@ description: Use by a lead after the goal is understood and worker delegation is
 
 - Context
 - Owner
-- Branch
 - Allowed paths
 - Do not modify
 - Goal

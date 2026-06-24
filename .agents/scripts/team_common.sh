@@ -130,11 +130,11 @@ ensure_team_dirs() {
     "$TEAM_QUEUE_DIR/integrations" \
     "$TEAM_QUEUE_DIR/memory_proposals" \
     "$TEAM_STATE_DIR/agents" \
-    "$TEAM_STATE_DIR/claims" \
     "$TEAM_STATE_DIR/integrations" \
     "$TEAM_STATE_DIR/locks" \
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
+    "$TEAM_STATE_DIR/tmp" \
     "$TEAM_STATE_DIR/tasks"
 }
 
@@ -242,15 +242,13 @@ team_write_task_state() {
   local task_id="$1"
   local owner="$2"
   local status="$3"
-  local worktree="$4"
-  local branch="$5"
-  local base_commit="$6"
-  local head_commit="$7"
-  local merge_commit="$8"
-  local report="$9"
-  local review="${10}"
-  local integration="${11}"
-  local review_decision="${12}"
+  local base_commit="$4"
+  local head_commit="$5"
+  local integration_commit="$6"
+  local report="$7"
+  local review="$8"
+  local integration="$9"
+  local review_decision="${10}"
   local state_file
   local updated_at
 
@@ -258,15 +256,13 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","owner":"%s","status":"%s","worktree":"%s","branch":"%s","base_commit":"%s","head_commit":"%s","merge_commit":"%s","report":"%s","review":"%s","integration":"%s","review_decision":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","owner":"%s","status":"%s","base_commit":"%s","head_commit":"%s","integration_commit":"%s","report":"%s","review":"%s","integration":"%s","review_decision":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$owner")" \
     "$(json_string "$status")" \
-    "$(json_string "$worktree")" \
-    "$(json_string "$branch")" \
     "$(json_string "$base_commit")" \
     "$(json_string "$head_commit")" \
-    "$(json_string "$merge_commit")" \
+    "$(json_string "$integration_commit")" \
     "$(json_string "$report")" \
     "$(json_string "$review")" \
     "$(json_string "$integration")" \
@@ -289,12 +285,6 @@ team_task_markdown_field() {
       exit found ? 0 : 1
     }
   ' "$task_file"
-}
-
-team_task_branch() {
-  local task_id="$1"
-  local agent_id="$2"
-  printf 'task/%s/%s\n' "$agent_id" "$task_id"
 }
 
 team_git_is_clean() {

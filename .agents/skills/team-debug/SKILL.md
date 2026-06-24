@@ -12,7 +12,7 @@ description: Use by any agent when tests fail, behavior is unexpected, a build b
 ## Process
 
 1. error / log / stack trace を最後まで読む。
-2. 再現 command、入力、環境、branch、差分を特定する。
+2. 再現 command、入力、環境、差分を特定する。
 3. 最近の変更と、似た working example を見る。
 4. 複数 component が関わる場合は、境界ごとに入力、出力、設定、状態を確認する。
 5. 仮説を1つだけ立てる。

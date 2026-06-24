@@ -13,10 +13,6 @@ team_config_session() {
   awk '/^  session:/ { print $2; exit }' "$TEAM_CONFIG_FILE"
 }
 
-team_config_worktree_strategy() {
-  awk '/^  worktree_strategy:/ { print $2; exit }' "$TEAM_CONFIG_FILE"
-}
-
 team_config_agents() {
   awk '
     function trim(value) {
@@ -30,7 +26,6 @@ team_config_agents() {
       cli = ""
       model = ""
       window = ""
-      worktree = ""
       command = ""
     }
     function emit() {
@@ -38,7 +33,7 @@ team_config_agents() {
         if (role == "") {
           role = "worker"
         }
-        print id "|" role "|" cli "|" model "|" window "|" worktree "|" command
+        print id "|" role "|" cli "|" model "|" window "|" command
       }
     }
     BEGIN {
@@ -113,12 +108,6 @@ team_config_agents() {
       window = trim(value)
       next
     }
-    section != "" && /^[[:space:]]+worktree:/ {
-      value = $0
-      sub(/^[[:space:]]+worktree:[[:space:]]*/, "", value)
-      worktree = trim(value)
-      next
-    }
     section != "" && /^[[:space:]]+command:/ {
       value = $0
       sub(/^[[:space:]]+command:[[:space:]]*/, "", value)
@@ -147,8 +136,7 @@ team_config_agent_field() {
     cli) index=3 ;;
     model) index=4 ;;
     window) index=5 ;;
-    worktree) index=6 ;;
-    command) index=7 ;;
+    command) index=6 ;;
     *) die "unknown agent field: $field" ;;
   esac
 
@@ -192,9 +180,6 @@ team_config_main() {
     session)
       team_config_session
       ;;
-    worktree-strategy)
-      team_config_worktree_strategy
-      ;;
     agents)
       team_config_agents
       ;;
@@ -215,7 +200,6 @@ team_config_main() {
 usage:
   team_config.sh name
   team_config.sh session
-  team_config.sh worktree-strategy
   team_config.sh agents
   team_config.sh agent <agent_id>
   team_config.sh field <agent_id> <field>

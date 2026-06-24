@@ -55,7 +55,7 @@ bootstrap では、template の初期記述を実プロジェクトの contract 
 - `AGENTS.md`: 選んだ stack の command、package dir、test/smoke 期待値、ownership note。
 - `Makefile`: project の `post-change` と `smoke`。
 - package metadata: package name、version、description、entrypoint、build backend、lockfile。
-- `.agents/config/agent-team.yaml`: default が合わない場合の team name、tmux session、model、command、worktree path。
+- `.agents/config/agent-team.yaml`: default が合わない場合の team name、tmux session、model、command。
 
 project-facing docs から、古い example、toy name、未使用 stack command、template 固有の文言を消す。
 

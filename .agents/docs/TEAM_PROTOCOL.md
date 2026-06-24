@@ -10,7 +10,8 @@
 - `.agents/queue/state/tasks/<task_id>.json`: lifecycle state.
 - `.agents/queue/state/processed/<agent_id>/<message_id>`: processed inbox marker.
 
-All queue paths are canonical under `TEAM_ROOT`. Worker worktrees may contain an empty or stale `.agents/queue/` skeleton; use helper scripts or absolute paths from messages for shared state.
+All queue paths are canonical under `TEAM_ROOT`. All lead and worker panes start in the same repository root.
+Private scratch files belong in `/tmp`. Team-visible temporary state belongs in `.agents/queue/state/tmp/`. Repository-root scratch files block clean-root dispatch, review, and integration gates.
 
 tmux carries only short nudges:
 
@@ -46,7 +47,7 @@ Use mailbox plus tmux nudge for:
 - lead-to-worker task dispatch
 - worker-to-lead questions
 - verifier-to-worker review results
-- direct lightweight requests that do not require claim or integration
+- direct lightweight requests that do not require integration
 
 ## Identity
 
@@ -62,19 +63,15 @@ Expected fields:
 - `TEAM_AGENT_ROLE`
 - `TEAM_AGENT_CLI`
 - `TEAM_AGENT_MODEL`
-- `TEAM_AGENT_WORKTREE`
 - `TEAM_SESSION`
 - `TEAM_ROOT`
 - `TEAM_CONFIG_FILE`
 
-## Branches
+## Root Sharing
 
-- Parking branch for each worker worktree: `agent/<agent_id>`.
-- Task branch for implementation: `task/<agent_id>/<task_id>`.
-- Task branches are created from lead root `HEAD` at claim time.
-- A task file `Branch:` must exactly match `task/<agent_id>/<task_id>`.
+Implementation tasks run in the shared root checkout. `TYPE=task_assigned` dispatch creates task state and allows only one active implementation task at a time, so workers do not edit the same working tree concurrently.
 
-Git cannot store both `agent/<agent_id>` and `agent/<agent_id>/<task_id>` as branch refs. Keep parking and task branches in separate namespaces.
+Clean root is part of the lifecycle contract. Before task dispatch, review, or integration, remove local throwaway files or move them to `/tmp` or `.agents/queue/state/tmp/`.
 
 ## Lead Direct Work
 
@@ -96,7 +93,6 @@ Create a task from `.agents/queue/tasks/TEMPLATE.md`.
 Required fields:
 
 - `Owner`
-- `Branch`
 - `Allowed paths`
 - `Do not modify`
 - `Goal`
@@ -111,24 +107,17 @@ make team-send TO=<agent_id> TYPE=task_assigned TASK=<task_id>
 make team-status
 ```
 
-For direct lightweight requests without a task file, send `TYPE=note`, `TYPE=retro`, or another explicit type with `TASK=-`. The receiver follows the inbox body and does not claim, commit, review, or integrate unless the body says to create a task.
+For direct lightweight requests without a task file, send `TYPE=note`, `TYPE=retro`, or another explicit type with `TASK=-`. The receiver follows the inbox body and does not commit, review, or integrate unless the body says to create a task.
 After writing the requested artifact, the receiver marks the message processed with `make inbox AGENT=<agent_id> MARK=<message_id>`.
 
 ## Worker Lifecycle
 
-Claim:
-
-```bash
-make claim TASK=<task_id> AGENT=<agent_id>
-```
-
-Claim checks:
+Dispatch checks:
 
 - task exists.
 - `Owner` equals agent id.
-- `Branch` equals `task/<agent_id>/<task_id>`.
-- worker worktree exists and is clean.
-- task is unclaimed or already claimed by the same agent.
+- root checkout is clean.
+- no other implementation task is active.
 
 Work:
 
@@ -152,7 +141,7 @@ Review handling:
 
 After review, recheck inbox and mark the verifier notification when the review artifact has already been handled.
 
-Review refuses dirty worker worktrees. The review target is the committed diff from task base commit to worker head. The review prompt embeds the task, report, git status, and committed diff; verifier agents should decide from that evidence.
+Review refuses dirty root state. The review target is the committed diff from task base commit to root `HEAD`. The review prompt embeds the task, report, git status, and committed diff; verifier agents should decide from that evidence.
 
 `team.review.cli` supports:
 
@@ -171,18 +160,15 @@ make integrate TASK=<task_id> AGENT=<agent_id>
 
 Integration checks:
 
-- claim owner matches the agent.
+- task owner matches the agent.
 - report exists and has `Status: done`.
 - review exists and has `Decision: OK`.
-- worker branch equals state branch.
-- worker worktree is clean.
-- worker `HEAD` still equals report/state head commit.
-- lead worktree is clean.
+- root checkout is clean.
+- root `HEAD` still equals report/state head commit.
 
 Integration performs:
 
 ```bash
-git merge --no-ff task/<agent_id>/<task_id>
 make post-change
 make smoke
 ```
@@ -193,7 +179,7 @@ Result is written to:
 .agents/queue/integrations/<task_id>_<agent_id>.md
 ```
 
-If merge or checks fail, the task remains unintegrated. Lead fixes the root state or sends a follow-up task to the worker.
+If checks fail, the task remains unintegrated. Lead fixes the root state or sends a follow-up task to the worker.
 
 ## Memory
 

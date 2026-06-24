@@ -12,7 +12,6 @@ Primary identity:
 - `TEAM_AGENT_ROLE`
 - `TEAM_AGENT_CLI`
 - `TEAM_AGENT_MODEL`
-- `TEAM_AGENT_WORKTREE`
 - `TEAM_SESSION`
 
 Read before task work:
@@ -21,7 +20,8 @@ Read before task work:
 2. `.agents/docs/MEMORY.md`
 3. `$TEAM_ROOT/.agents/queue/tasks/<task_id>.md`
 
-Queue, inbox, report, review, and integration artifacts live under `TEAM_ROOT`. In a worker worktree, use the Make targets or absolute paths from messages instead of treating the local `.agents/queue/` directory as canonical.
+Queue, inbox, report, review, and integration artifacts live under `TEAM_ROOT`. All agents start in the same repository root.
+Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only when temporary state must be visible to the team. Do not create scratch files in the repository root.
 
 ## Tooling
 
@@ -59,41 +59,32 @@ make post-change
 make smoke
 ```
 
-Use workers when isolation, parallelism, review follow-up, or separate ownership is useful.
+Use workers when separate context, review follow-up, or explicit ownership is useful.
 
 ### worker
 
 - Read inbox and task file.
-- Claim the task before changing files.
-- Work only on the task branch checked out by `make claim`.
+- Work in `TEAM_ROOT`; only one implementation task may be active at a time.
 - Respect `Allowed paths` and `Do not modify`.
 - Run task-specific verification, `make post-change`, and `make smoke`.
-- Commit the finished task branch before review.
+- Commit the finished root change before review.
 - Fill the report with summary, changed files, verification commands, results, and evidence before review.
 - Run noninteractive review and handle the result.
 - Report blockers, questions, verification gaps, and memory proposals.
 - Submit memory changes as proposals. Lead edits `.agents/docs/MEMORY.md`.
 
-Direct lightweight requests without a task file, such as `TYPE=retro` or `TYPE=note`, do not use claim, commit, review, or integration. Follow the inbox body, write the requested artifact, and mark the message processed.
+Direct lightweight requests without a task file, such as `TYPE=retro` or `TYPE=note`, do not use commit, review, or integration. Follow the inbox body, write the requested artifact, and mark the message processed.
 
 ### verifier
 
 - Runs only through `make review`.
 - Reviews task, report, committed diff, and verification evidence.
 - Returns `Decision: OK`, `Decision: FIX`, or `Decision: ASK_LEAD`.
-- Does not edit files or own a worktree.
+- Does not edit files.
 
 ## Worker Flow
 
-```bash
-make claim TASK=<task_id> AGENT=<agent_id>
-```
-
-`make claim` checks `Owner`, `Branch`, clean worker worktree, claim state, and checks out:
-
-```text
-task/<agent_id>/<task_id>
-```
+When lead dispatches `TYPE=task_assigned`, task state is created from the current clean root `HEAD`. Do not start implementation if another implementation task is active.
 
 After implementation:
 
@@ -141,11 +132,10 @@ Integration requires:
 
 - report `Status: done`
 - review `Decision: OK`
-- clean worker worktree
-- clean lead worktree
-- unchanged worker head since report
+- clean root
+- unchanged root `HEAD` since report
 
-`make integrate` performs a `--no-ff` merge, runs `make post-change` and `make smoke`, and writes `.agents/queue/integrations/<task_id>_<agent_id>.md`.
+`make integrate` records the reviewed root commit, runs `make post-change` and `make smoke`, and writes `.agents/queue/integrations/<task_id>_<agent_id>.md`.
 
 ## Memory
 

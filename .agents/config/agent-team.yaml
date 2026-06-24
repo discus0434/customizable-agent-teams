@@ -1,16 +1,12 @@
 team:
   name: customizable-agent-teams
   session: agent-team
-  worktree_strategy: git-worktree
-  # Keep linked worktrees outside this repository so parent git status, search,
-  # formatters, and IDEs do not walk into nested checkouts by default.
   lead:
     id: lead
     role: lead
     cli: claude
     model: claude-opus-4-8
     window: lead
-    worktree: .
     command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
   workers:
     - id: worker-1
@@ -18,21 +14,18 @@ team:
       cli: codex
       model: gpt-5.5
       window: worker-1
-      worktree: ../{team_root}-worktrees/worker-1
       command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
     - id: worker-2
       role: worker
       cli: codex
       model: gpt-5.5
       window: worker-2
-      worktree: ../{team_root}-worktrees/worker-2
       command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
     - id: worker-3
       role: worker
       cli: codex
       model: gpt-5.5
       window: worker-3
-      worktree: ../{team_root}-worktrees/worker-3
       command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
   review:
     cli: claude

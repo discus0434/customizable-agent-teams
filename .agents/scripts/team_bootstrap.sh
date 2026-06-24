@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 lead_id=""
-while IFS='|' read -r id role _cli _model _window _worktree _command; do
+while IFS='|' read -r id role _cli _model _window _command; do
   [[ -n "$id" ]] || continue
   if [[ "$role" == "lead" ]]; then
     [[ -z "$lead_id" ]] || die "multiple lead agents configured in $TEAM_CONFIG_FILE"

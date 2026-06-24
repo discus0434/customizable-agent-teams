@@ -1,7 +1,6 @@
 # T-XXX: Task title
 
 Owner: worker-1
-Branch: task/worker-1/T-XXX
 
 ## Context
 
