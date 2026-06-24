@@ -8,10 +8,10 @@ team:
     id: lead
     role: lead
     cli: claude
-    model: claude-fable-5
+    model: claude-opus-4-8
     window: lead
     worktree: .
-    command: claude --dangerously-skip-permissions --model claude-fable-5
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
   workers:
     - id: worker-1
       role: worker
