@@ -62,6 +62,7 @@ case "$command" in
         "task $task_id cannot be marked done" \
         "the worker report is missing or the recorded report path does not exist" \
         "worker must run make report TASK=$task_id AGENT=$owner STATUS=needs_review and fill the report evidence"
+      team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$head_commit"
       [[ -n "$review_file" && -f "$review_file" ]] || die_rule \
         "task $task_id cannot be marked done" \
         "the review artifact is missing or the recorded review path does not exist" \
@@ -93,6 +94,7 @@ case "$command" in
       "$architecture_required" \
       "$architecture" \
       "$release_bundle"
+    team_mark_inbox_processed "$manager" "$task_id" ""
     echo "$state_file"
     ;;
   -h|--help)

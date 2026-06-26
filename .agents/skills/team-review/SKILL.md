@@ -23,6 +23,7 @@ description: Use by a reviewer while supervising an assigned task, or by a manag
 - Ask architect directly when task-local design direction is unclear.
 - Escalate to manager for scope changes, acceptance changes, cross-task impact, unresolved disagreement, task-external strategy impact, stopped work, repeated evidence gaps, or inability to continue supervising.
 - Check acceptance, explicit constraints, changed files, verification evidence, and scope discipline.
+- Check source/docs/tooling references separately from runtime state such as `.agents/queue/` and `.agents/state/STATE.md`.
 - Do not edit project files.
 - Write `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
 - Record one decision:
@@ -66,6 +67,7 @@ make team-send FROM=<reviewer_id> TO=architect TASK=<task_id> BODY="..."
 - `Allowed paths` and `Do not modify` are respected.
 - Verification evidence is concrete and current.
 - `make post-change` and `make smoke` results are recorded.
+- Report base/head commits match task state.
 - The worker did not silently change user-visible scope or contract.
 - Reviewer feedback, strategy artifacts, and architecture notes are reflected in the report when used.
 - Follow-up action is clear.

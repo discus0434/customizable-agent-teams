@@ -50,6 +50,7 @@ Manager:
 
 1. Read the release request and bundle artifact.
 2. Check included tasks, reports, reviews, architecture notes, strategy artifacts, diffs, verification evidence, and STATE Intent.
-3. Decide `SHIP`, `FIX`, or `BLOCKED`.
-4. Write `.agents/queue/releases/<bundle_id>_review.md`.
-5. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.
+3. Check cleanup and stale-reference claims against source/docs/tooling separately from runtime state such as `.agents/queue/` and `.agents/state/STATE.md`.
+4. Decide `SHIP`, `FIX`, or `BLOCKED`.
+5. Write `.agents/queue/releases/<bundle_id>_review.md`.
+6. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.

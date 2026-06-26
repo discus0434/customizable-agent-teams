@@ -550,3 +550,5 @@ if [[ -n "$cc_to" ]]; then
   printf 'cc_to=%s\n' "$cc_to"
   printf 'cc_message_id=%s\n' "$cc_message_id"
 fi
+
+team_mark_inbox_processed "$from" "$task_id" "$bundle_id"

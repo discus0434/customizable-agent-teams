@@ -56,12 +56,12 @@ team_tmux_cancel_mode_if_needed() {
 
 team_tmux_submit() {
   local pane="$1"
-  local count="${2:-5}"
+  local count="${2:-3}"
   local _index
 
   for _index in $(seq 1 "$count"); do
     tmux send-keys -t "$pane" C-m
-    sleep 0.15
+    sleep 0.5
   done
 }
 
@@ -353,6 +353,53 @@ extract_json_field() {
   sed -n "s/.*\"$field\":\"\\([^\"]*\\)\".*/\\1/p"
 }
 
+team_mark_inbox_processed() {
+  local agent_id="$1"
+  local task_id="$2"
+  local bundle_id="$3"
+  shift 3
+
+  local inbox_file="$TEAM_QUEUE_DIR/inbox/$agent_id.jsonl"
+  local processed_dir="$TEAM_STATE_DIR/processed/$agent_id"
+  local line message_id message_task message_bundle message_type wanted_type type_matches
+
+  if [[ ( -z "$task_id" || "$task_id" == "-" ) && ( -z "$bundle_id" || "$bundle_id" == "-" ) && $# -eq 0 ]]; then
+    return 0
+  fi
+
+  [[ -f "$inbox_file" ]] || return 0
+  mkdir -p "$processed_dir"
+
+  while IFS= read -r line; do
+    message_id="$(printf '%s\n' "$line" | extract_json_field id)"
+    [[ -n "$message_id" ]] || continue
+
+    if [[ -n "$task_id" && "$task_id" != "-" ]]; then
+      message_task="$(printf '%s\n' "$line" | extract_json_field task_id)"
+      [[ "$message_task" == "$task_id" ]] || continue
+    fi
+
+    if [[ -n "$bundle_id" && "$bundle_id" != "-" ]]; then
+      message_bundle="$(printf '%s\n' "$line" | extract_json_field bundle_id)"
+      [[ "$message_bundle" == "$bundle_id" ]] || continue
+    fi
+
+    if [[ $# -gt 0 ]]; then
+      message_type="$(printf '%s\n' "$line" | extract_json_field type)"
+      type_matches=0
+      for wanted_type in "$@"; do
+        if [[ "$message_type" == "$wanted_type" ]]; then
+          type_matches=1
+          break
+        fi
+      done
+      [[ "$type_matches" == "1" ]] || continue
+    fi
+
+    printf '%s\n' "$(team_now_utc)" > "$processed_dir/$message_id"
+  done < "$inbox_file"
+}
+
 team_task_state_file() {
   local task_id="$1"
   printf '%s/tasks/%s.json\n' "$TEAM_STATE_DIR" "$task_id"
@@ -482,6 +529,33 @@ team_report_field() {
       exit found ? 0 : 1
     }
   ' "$report_file"
+}
+
+team_require_report_field() {
+  local report_file="$1"
+  local field="$2"
+  local expected="$3"
+  local actual
+
+  actual="$(team_report_field "$report_file" "$field" || true)"
+  [[ "$actual" == "$expected" ]] || die_rule \
+    "report field mismatch: $field" \
+    "$report_file has '$field: ${actual:-missing}', but task state requires '$field: $expected'" \
+    "run make report for the task again, then preserve the generated $field value when filling evidence"
+}
+
+team_require_report_matches_task_state() {
+  local task_id="$1"
+  local report_file="$2"
+  local base_commit="$3"
+  local head_commit="$4"
+
+  [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
+    "report file not found for $task_id" \
+    "task state points to a report that does not exist" \
+    "worker must run make report TASK=$task_id AGENT=<worker_id> STATUS=needs_review"
+  team_require_report_field "$report_file" "Base commit" "$base_commit"
+  team_require_report_field "$report_file" "Head commit" "$head_commit"
 }
 
 team_update_markdown_field() {

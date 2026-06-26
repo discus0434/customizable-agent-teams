@@ -32,6 +32,8 @@ If the prompt is visible in a pane but has not submitted, run:
 make team-submit AGENT=<agent_id>
 ```
 
+Task and release action commands mark the related inbox messages processed. Use manual `MARK=<message_id>` only for lightweight notes that have no task or release command.
+
 For multi-line or quote-heavy messages, write the body to a file and send:
 
 ```bash
@@ -410,6 +412,7 @@ Decision meaning:
 - `ASK_MANAGER`: reviewer or worker needs manager judgment.
 
 Final decisions are delivered as `review_result` messages by `make review-report`.
+`make review-report` also checks that the report's recorded base/head commits match task state.
 
 ## Done
 
@@ -494,6 +497,8 @@ Manager:
 
 ## Ship note
 ```
+
+When checking stale references or cleanup completeness, report source/docs/tooling matches separately from runtime artifacts such as `.agents/queue/` and `.agents/state/STATE.md`. `STATE.md` may mention current work while it is being pruned; it is not proof that a source reference remains.
 
 After `SHIP`, manager sends lead:
 

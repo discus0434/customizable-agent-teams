@@ -171,4 +171,6 @@ team_write_task_state \
   "$architecture" \
   "$release_bundle"
 
+team_mark_inbox_processed "$agent_id" "$task_id" ""
+
 echo "$report_file"

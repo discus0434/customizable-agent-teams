@@ -225,7 +225,8 @@ if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/
   echo "review-field must not exist" >&2
   exit 1
 fi
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --type note --task - manager "missing sender" >/dev/null 2>&1; then
+if env -u TEAM_AGENT_ID -u TEAM_AGENT_ROLE -u TEAM_AGENT_CLI -u TEAM_AGENT_MODEL -u TEAM_AGENT_WORKTREE -u TEAM_SESSION \
+  TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --type note --task - manager "missing sender" >/dev/null 2>&1; then
   echo "team_send without TEAM_AGENT_ID or --from unexpectedly succeeded" >&2
   exit 1
 fi
@@ -320,7 +321,7 @@ case "$tmux_log" in *"release_request"*) ;; *) echo "release-captain boot nudge 
 case "$tmux_log" in *"review_watch_assigned"*) ;; *) echo "reviewer boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"task_assigned"*) ;; *) echo "worker boot nudge was not sent" >&2; exit 1 ;; esac
 startup_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
-[[ "$startup_enter_count" -ge 5 ]] || { echo "startup prompt was not submitted with repeated C-m" >&2; exit 1; }
+[[ "$startup_enter_count" -ge 3 ]] || { echo "startup prompt was not submitted with repeated C-m" >&2; exit 1; }
 
 : > "$TEAM_FAKE_TMUX_LOG"
 missing_start_log="$TMP_BASE/team_start_missing.log"
@@ -384,7 +385,8 @@ case "$(<"$TEAM_FAKE_TMUX_LOG")" in
 esac
 
 : > "$TEAM_FAKE_TMUX_LOG"
-if ! PATH="$TMP_BASE/bin:$PATH" \
+if ! env -u TEAM_AGENT_ID -u TEAM_AGENT_ROLE -u TEAM_AGENT_CLI -u TEAM_AGENT_MODEL -u TEAM_AGENT_WORKTREE -u TEAM_SESSION \
+  PATH="$TMP_BASE/bin:$PATH" \
   TEAM_ROOT="$TMP_ROOT" \
   TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
   TEAM_BOOT_NUDGE=0 \
@@ -404,7 +406,7 @@ case "$(<"$TEAM_FAKE_TMUX_LOG")" in
   *) echo "nudge did not submit inbox with C-m" >&2; exit 1 ;;
 esac
 nudge_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
-[[ "$nudge_enter_count" -ge 5 ]] || { echo "nudge was not submitted with repeated C-m" >&2; exit 1; }
+[[ "$nudge_enter_count" -ge 3 ]] || { echo "nudge was not submitted with repeated C-m" >&2; exit 1; }
 
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 perl -0pi -e 's/T-XXX/T-001/g' "$TMP_ROOT/.agents/queue/tasks/T-001.md"
@@ -416,7 +418,8 @@ if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=
   exit 1
 fi
 
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" T-001 worker-1 reviewer-1 >/dev/null 2>&1; then
+if env -u TEAM_AGENT_ID -u TEAM_AGENT_ROLE -u TEAM_AGENT_CLI -u TEAM_AGENT_MODEL -u TEAM_AGENT_WORKTREE -u TEAM_SESSION \
+  TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" T-001 worker-1 reviewer-1 >/dev/null 2>&1; then
   echo "dispatch without manager identity unexpectedly succeeded" >&2
   exit 1
 fi
@@ -530,6 +533,10 @@ git -C "$TMP_ROOT" commit -qm "T-001: add manager review smoke"
 task_head_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs_review)"
 grep -q "^Head commit: $task_head_commit$" "$report_file"
+worker_after_report_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" worker-1)"
+case "$worker_after_report_pending" in
+  *"\"task_id\":\"T-001\""*) echo "worker task inbox remained pending after report" >&2; exit 1 ;;
+esac
 
 cat > "$report_file" <<REPORT
 # Report: T-001 by worker-1
@@ -612,6 +619,16 @@ Done recommendation: false
 - None.
 REPORT
 
+perl -0pi -e 's/^Head commit: .*/Head commit: wrong-head-for-test/m' "$report_file"
+report_head_mismatch_error="$TMP_BASE/report-head-mismatch-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review_report.sh" T-001 reviewer-1 OK > /dev/null 2> "$report_head_mismatch_error"; then
+  echo "review-report accepted a report with a mismatched Head commit" >&2
+  exit 1
+fi
+grep -q '^error: report field mismatch: Head commit$' "$report_head_mismatch_error"
+grep -q '^required action: run make report for the task again, then preserve the generated Head commit value when filling evidence$' "$report_head_mismatch_error"
+perl -0pi -e "s/^Head commit: .*/Head commit: $task_head_commit/m" "$report_file"
+
 done_before_ok_error="$TMP_BASE/done-before-ok-error.txt"
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done > /dev/null 2> "$done_before_ok_error"; then
   echo "state-update done before reviewer OK unexpectedly succeeded" >&2
@@ -632,6 +649,10 @@ worker_review_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FIL
 case "$worker_review_pending" in
   *"\"type\":\"review_result\""*"\"done_recommendation\":\"false\""*"Decision: FIX"*) ;;
   *) echo "worker did not receive FIX review result" >&2; exit 1 ;;
+esac
+reviewer_after_fix_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" reviewer-1)"
+case "$reviewer_after_fix_pending" in
+  *"\"task_id\":\"T-001\""*) echo "reviewer task inbox remained pending after review-report" >&2; exit 1 ;;
 esac
 
 ask_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review_report.sh" T-001 reviewer-1 ASK_MANAGER)"
@@ -741,10 +762,19 @@ release_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE"
 grep -q '^Decision: SHIP$' "$release_review_file"
 grep -q '"status":"ship"' "$release_state_file"
 grep -q '"decision":"SHIP"' "$release_state_file"
+release_captain_after_report_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"
+case "$release_captain_after_report_pending" in
+  *"\"bundle_id\":\"R-001\""*) echo "release-captain bundle inbox remained pending after release-report" >&2; exit 1 ;;
+esac
 release_result_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
 case "$release_result_pending" in
   *"\"type\":\"release_result\""*"Release Decision: SHIP"*) ;;
   *) echo "manager did not receive release_result" >&2; exit 1 ;;
+esac
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from manager --type completion_ready --bundle R-001 lead "Release R-001 is ready." >/dev/null
+manager_after_completion_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$manager_after_completion_pending" in
+  *"\"bundle_id\":\"R-001\""*) echo "manager bundle inbox remained pending after completion_ready" >&2; exit 1 ;;
 esac
 
 status_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh")"

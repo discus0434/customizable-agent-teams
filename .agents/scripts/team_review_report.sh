@@ -49,6 +49,7 @@ release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 [[ -n "$head_commit" ]] || die "task $task_id state is missing head_commit; worker must run make report first"
 [[ -n "$report_file" && -f "$report_file" ]] || die "report file not found for $task_id: $report_file"
+team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$head_commit"
 
 review_file="$TEAM_QUEUE_DIR/reviews/${task_id}_${reviewer_id}.md"
 case "$decision" in
@@ -148,5 +149,7 @@ team_write_task_state \
   "$release_bundle"
 
 "$SCRIPT_DIR/team_send.sh" --from "$reviewer_id" --type review_result --task "$task_id" --done-recommendation "$done_recommendation" "$target" "$message" >/dev/null
+
+team_mark_inbox_processed "$reviewer_id" "$task_id" ""
 
 echo "$review_file"

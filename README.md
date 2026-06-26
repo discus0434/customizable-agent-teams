@@ -138,7 +138,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | --- | --- | --- |
 | チーム起動 / 再起動 | `make team-start` → `tmux attach -t agent-team` | 人間 |
 | 状態確認 | `make team-status` / `make state` | Manager / Lead |
-| inbox 確認 / 既読 | `make inbox AGENT=worker-1` / `make inbox AGENT=worker-1 MARK=<id>` | 全員 |
+| inbox 確認 | `make inbox AGENT=worker-1` | 全員 |
 | 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
 | agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
 | 長文の agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=/tmp/message.md` | 全員 |

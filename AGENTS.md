@@ -43,6 +43,7 @@ Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for tem
 make inbox AGENT=<agent_id>
 ```
 
+- Task and release commands close the related inbox messages. Use `MARK=<message_id>` for lightweight notes only.
 - If a pane shows an unsubmitted `inbox <agent_id>` prompt, submit it with:
 
 ```bash
@@ -121,3 +122,4 @@ make team-submit AGENT=<agent_id>
 - Lead is the only editor of `MEMORY.md`.
 - Other roles write durable lessons to `.agents/queue/memory_proposals/`.
 - Reviewer, architect, and strategist may propose new project skills in `.agents/queue/skill_proposals/` when they observe recurring stuck patterns.
+- When checking stale references, separate source/docs/tooling matches from `.agents/queue/` and `.agents/state/STATE.md`.
