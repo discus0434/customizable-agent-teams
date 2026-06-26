@@ -55,6 +55,33 @@ Lead uses that focus for:
 Lead sends actionable work to manager with `make team-send`. Lead does not implement or dispatch.
 Before sending a follow-up nudge, lead checks `make team-status` and `.agents/state/STATE.md`.
 
+## Escalation
+
+Escalation follows the narrowest role that can decide:
+
+```text
+Worker -> Reviewer -> Manager -> Lead -> Human
+```
+
+Side channels:
+
+```text
+Reviewer / Manager / Lead -> Architect
+Reviewer / Manager / Architect / Lead -> Strategist
+Release Captain -> Architect
+```
+
+Rules:
+
+- Worker asks the assigned reviewer first for blockers, uncertainty, low confidence, task boundary questions, or technical doubts.
+- Reviewer answers task-local questions, gives feedback, asks architect or strategist when useful, and escalates to manager when task scope, acceptance, cross-task impact, blocker, or supervision ability changes.
+- Manager owns decomposition, dispatch, status, dependency order, done decisions, and release bundle preparation.
+- Manager escalates to lead only for human approval, product intent, user-visible behavior, scope, priority, or trade-off decisions.
+- Lead talks to the human and returns a decision to manager.
+- Architect decisions normally settle technical direction. If a technical direction conflicts with human intent, lead resolves it with the human.
+- Strategist artifacts inform the requester. The requester decides how to apply them within that requester's role boundary.
+- Release Captain returns `SHIP`, `FIX`, or `BLOCKED` to manager. Manager decides the next owner or escalates to lead when human judgment is needed.
+
 ## Identity
 
 `make team-start` provides each pane with an identity.
@@ -91,7 +118,9 @@ Expected fields:
 - Owns team operation.
 - Primary editor of `.agents/state/STATE.md`.
 - Creates task files, assigns worker/reviewer pairs, and dispatches tasks.
+- Maps dependencies before dispatch and sends independent tasks in the same batch.
 - Tracks reports, review decisions, blockers, and next actions.
+- Uses reviewer supervision, architect input, or strategist input to bound uncertainty instead of serializing unrelated work.
 - Requests strategist input when heavy analysis is useful.
 - Requests architect input when technical direction or design consistency needs a named owner.
 - Intervenes in worker/reviewer pairs only for escalation, blockers, unusual strategy requests, and done decisions.
@@ -146,7 +175,7 @@ Expected fields:
 - Receives `task_assigned`.
 - Implements in shared root.
 - May work concurrently with other workers.
-- Coordinates first with the assigned reviewer.
+- Coordinates first with the assigned reviewer when blocked, unsure, low-confidence, or tempted to change scope.
 - Runs verification, commits, writes report, and asks reviewer for review.
 
 ## State And Memory
@@ -321,7 +350,7 @@ Task state status values:
 
 ## Worker Lifecycle
 
-Worker reads the task file and talks to the assigned reviewer when blocked or unsure.
+Worker reads the task file and talks to the assigned reviewer when blocked, unsure, low-confidence, or tempted to change scope.
 
 Worker sends task-local questions to the assigned reviewer first.
 Worker records reviewer feedback handling in the report.

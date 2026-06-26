@@ -50,6 +50,14 @@ make inbox AGENT=<agent_id>
 make team-submit AGENT=<agent_id>
 ```
 
+## Escalation
+
+- Worker asks the assigned reviewer first for blockers, uncertainty, low confidence, or task boundary questions.
+- Reviewer answers task-local questions, asks architect or strategist when useful, and escalates to manager when the task cannot proceed cleanly.
+- Manager escalates to lead only for human approval, product intent, user-visible behavior, scope, priority, or trade-offs.
+- Lead talks to the human and returns a decision to manager.
+- Architect owns technical direction. Strategist owns focused deep analysis. Release Captain owns whole-system readiness.
+
 ## Roles
 
 ### lead
@@ -67,6 +75,8 @@ make team-submit AGENT=<agent_id>
 - Team operation owner.
 - Primary editor of `.agents/state/STATE.md`.
 - Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, marks done, and prepares release bundles.
+- Maps dependencies before dispatch and sends independent tasks in the same batch.
+- Uses reviewer supervision, architect input, or strategist input to bound uncertainty instead of serializing unrelated work.
 - Does not normally enter worker/reviewer task-local details.
 - Does not edit project code.
 
@@ -105,7 +115,7 @@ make team-submit AGENT=<agent_id>
 ### worker
 
 - Implements assigned tasks in the shared repository root.
-- Asks the assigned reviewer first when blocked or unsure.
+- Asks the assigned reviewer first when blocked, unsure, low-confidence, or tempted to change scope.
 - Respects `Allowed paths` and `Do not modify`.
 - Records reviewer feedback handling and strategy artifacts in the report.
 - Records architecture notes when used.

@@ -41,6 +41,15 @@ Human
   -> Lead reports completion
 ```
 
+Escalation は狭い範囲で決められる role から順に上がります。
+
+```text
+Worker -> Reviewer -> Manager -> Lead -> Human
+Reviewer / Manager / Lead -> Architect
+Reviewer / Manager / Architect / Lead -> Strategist
+Release Captain -> Architect
+```
+
 ## 必要なツール
 
 チームの起動には `git` `make` `bash` `tmux` `direnv` と、使う coding agent の CLI（`claude` / `codex` など）が必要です。GitHub 操作は `gh` を使います。

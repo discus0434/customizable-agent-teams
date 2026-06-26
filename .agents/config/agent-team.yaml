@@ -42,19 +42,19 @@ team:
       cli: claude
       model: claude-opus-4-8
       window: reviewer-1
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
     - id: reviewer-2
       role: reviewer
       cli: claude
       model: claude-opus-4-8
       window: reviewer-2
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
     - id: reviewer-3
       role: reviewer
       cli: claude
       model: claude-opus-4-8
       window: reviewer-3
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
   workers:
     - id: worker-1
       role: worker

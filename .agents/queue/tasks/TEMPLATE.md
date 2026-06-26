@@ -48,10 +48,10 @@ Architecture required: false
 ## Worker Flow
 
 1. この task と `.agents/docs/TEAM_PROTOCOL.md` を読む。
-2. 実装中に迷ったら担当 reviewer に相談する。
+2. 詰まり、不確実さ、低い自信、scope 変更の誘惑があれば担当 reviewer に相談する。
 3. 実装、検証、commit を行う。
 4. `make report TASK=T-XXX AGENT=worker-1 STATUS=needs_review` を実行する。
-5. report の未記入欄を埋め、reviewer feedback と strategy artifact の扱いも記録する。
+5. report の未記入欄を埋め、reviewer feedback、strategy artifact、architecture note の扱いも記録する。
 6. reviewer に `ready_for_review` を送る。
 
 ## Reviewer Flow
