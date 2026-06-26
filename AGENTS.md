@@ -17,7 +17,7 @@ Before task work, read:
 3. `.agents/state/STATE.md`
 4. `$TEAM_ROOT/.agents/queue/tasks/<task_id>.md`
 
-Queue, inbox, report, review, strategy, and machine state artifacts live under `TEAM_ROOT`. All team panes work in the same repository root.
+Queue, inbox, report, review, strategy, architecture, release, proposal, and state artifacts live under `TEAM_ROOT`. All team panes work in the same repository root.
 
 Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for temporary state that must be visible to the team.
 
@@ -36,7 +36,7 @@ Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for tem
 ## Communication
 
 - Human users talk only to the lead pane.
-- Agents use file mailbox plus tmux nudges.
+- Agents send messages with `make team-send`.
 - When a pane receives `inbox <agent_id>`, run:
 
 ```bash
@@ -55,23 +55,31 @@ make team-submit AGENT=<agent_id>
 
 - Human-facing intent owner.
 - Clarifies ambiguous requests one question at a time.
-- Sends manager the human's intent, constraints, preferences, and approvals.
+- Sends manager the human's intent, constraints, preferences, and approvals with `make team-send`.
 - Answers manager escalations that require human judgment.
-- May edit `.agents/state/STATE.md` only for important human-derived facts and decisions.
+- Edits `.agents/state/STATE.md` Intent when human-derived goal, acceptance, or escalation rules change.
+- Reviews memory and skill proposals.
 - Does not edit project code or dispatch tasks.
 
 ### manager
 
 - Team operation owner.
 - Primary editor of `.agents/state/STATE.md`.
-- Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, and marks done.
+- Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, marks done, and prepares release bundles.
 - Does not normally enter worker/reviewer task-local details.
 - Does not edit project code.
 
 ### strategist
 
-- Handles deep debugging, architecture design, option comparison, and execution planning.
+- Handles deep debugging, option comparison, execution planning, and focused analysis.
 - Writes the requested strategy artifact.
+- Does not manage progress, dispatch tasks, edit project code, or edit `STATE.md`.
+
+### architect
+
+- Owns technical direction and design consistency.
+- Writes architecture notes when requested.
+- Can ask strategist for deep investigation or option comparison.
 - Does not manage progress, dispatch tasks, edit project code, or edit `STATE.md`.
 
 ### reviewer
@@ -80,9 +88,18 @@ make team-submit AGENT=<agent_id>
 - Receives worker questions first.
 - Gives task-local feedback during implementation.
 - Requests strategist input when deep task-local analysis is needed.
+- Requests architect input when task-local design direction is unclear.
 - Escalates to manager when the task boundary, acceptance, cross-task impact, blocker, or supervision ability changes.
 - Writes final review artifacts and decisions.
 - Does not edit project code.
+
+### release-captain
+
+- Reviews release bundles.
+- Decides `SHIP`, `FIX`, or `BLOCKED`.
+- Asks architect when whole-system technical consistency is unclear.
+- Returns release results to manager.
+- Does not edit project code or `STATE.md`.
 
 ### worker
 
@@ -90,15 +107,17 @@ make team-submit AGENT=<agent_id>
 - Asks the assigned reviewer first when blocked or unsure.
 - Respects `Allowed paths` and `Do not modify`.
 - Records reviewer feedback handling and strategy artifacts in the report.
+- Records architecture notes when used.
 - Runs verification, commits, and writes the report.
 - Proposes memory changes instead of editing `.agents/state/MEMORY.md`.
 
 ## State And Memory
 
 - `.agents/state/STATE.md` is the current whole picture.
-- Manager is the primary `STATE.md` editor.
-- Lead may edit `STATE.md` only for important human-derived facts and decisions.
-- Worker, reviewer, and strategist do not edit `STATE.md`.
+- Lead owns Intent in `STATE.md`.
+- Manager owns execution state in `STATE.md`.
+- Other roles do not edit `STATE.md`.
 - `.agents/state/MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences.
 - Lead is the only editor of `MEMORY.md`.
 - Other roles write durable lessons to `.agents/queue/memory_proposals/`.
+- Reviewer, architect, and strategist may propose new project skills in `.agents/queue/skill_proposals/` when they observe recurring stuck patterns.

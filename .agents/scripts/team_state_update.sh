@@ -45,6 +45,9 @@ case "$command" in
     review_file="$(team_task_state_field "$task_id" review)"
     review_decision="$(team_task_state_field "$task_id" review_decision)"
     done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
+    architecture_required="$(team_task_state_field "$task_id" architecture_required)"
+    architecture="$(team_task_state_field "$task_id" architecture)"
+    release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 
     if [[ "$next_status" == "done" ]]; then
       [[ "$review_decision" == "OK" ]] || die_rule \
@@ -63,6 +66,16 @@ case "$command" in
         "task $task_id cannot be marked done" \
         "the review artifact is missing or the recorded review path does not exist" \
         "reviewer must run make review-report TASK=$task_id REVIEWER=$reviewer DECISION=OK"
+      if [[ "$architecture_required" == "true" ]]; then
+        [[ -n "$architecture" ]] || die_rule \
+          "task $task_id cannot be marked done" \
+          "architecture_required=true but task state has no architecture artifact path" \
+          "send an architecture request and wait for the architect to write the architecture note"
+        [[ -f "$TEAM_ROOT/$architecture" || -f "$architecture" ]] || die_rule \
+          "task $task_id cannot be marked done" \
+          "architecture_required=true but the recorded architecture note does not exist: $architecture" \
+          "architect must write the architecture note at the recorded path before manager marks done"
+      fi
     fi
 
     team_write_task_state \
@@ -76,7 +89,10 @@ case "$command" in
       "$report_file" \
       "$review_file" \
       "$review_decision" \
-      "$done_recommendation"
+      "$done_recommendation" \
+      "$architecture_required" \
+      "$architecture" \
+      "$release_bundle"
     echo "$state_file"
     ;;
   -h|--help)

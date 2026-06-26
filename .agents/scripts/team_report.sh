@@ -40,6 +40,9 @@ base_commit="$(team_task_state_field "$task_id" base_commit)"
 review_file="$(team_task_state_field "$task_id" review)"
 review_decision="$(team_task_state_field "$task_id" review_decision)"
 done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
+architecture_required="$(team_task_state_field "$task_id" architecture_required)"
+architecture="$(team_task_state_field "$task_id" architecture)"
+release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 
 [[ "$owner" == "$agent_id" ]] || die "task $task_id is owned by $owner, not $agent_id"
 [[ -n "$manager" ]] || die "task $task_id state is missing manager"
@@ -66,6 +69,9 @@ Head commit: $head_commit
 Review: ${review_file:-none}
 Review decision: ${review_decision:-none}
 Done recommendation: ${done_recommendation:-false}
+Architecture required: ${architecture_required:-false}
+Architecture: ${architecture:-none}
+Release bundle: ${release_bundle:-none}
 
 ## Summary
 
@@ -114,6 +120,12 @@ $(if [[ -n "$commits" ]]; then printf '%s\n' "$commits" | sed 's/^/- /'; else pr
 - Adoption decision:
 - Task-external impact:
 
+## Architecture
+
+- Required: ${architecture_required:-false}
+- Artifact path: ${architecture:-none}
+- Adoption decision:
+
 ## Blockers
 
 - 未記入
@@ -138,6 +150,9 @@ else
   team_update_markdown_field "$report_file" "Review" "${review_file:-none}"
   team_update_markdown_field "$report_file" "Review decision" "${review_decision:-none}"
   team_update_markdown_field "$report_file" "Done recommendation" "${done_recommendation:-false}"
+  team_update_markdown_field "$report_file" "Architecture required" "${architecture_required:-false}"
+  team_update_markdown_field "$report_file" "Architecture" "${architecture:-none}"
+  team_update_markdown_field "$report_file" "Release bundle" "${release_bundle:-none}"
 fi
 
 team_write_task_state \
@@ -151,6 +166,9 @@ team_write_task_state \
   "$report_file" \
   "$review_file" \
   "$review_decision" \
-  "${done_recommendation:-false}"
+  "${done_recommendation:-false}" \
+  "${architecture_required:-false}" \
+  "$architecture" \
+  "$release_bundle"
 
 echo "$report_file"

@@ -1,15 +1,29 @@
 # STATE
 
-## Current Goal
+## Intent
 
-- 現在のチーム目標は未設定。
+### Goal
 
-## Active Work
+- 未設定。
+
+### Acceptance
+
+- 未設定。
+
+### Human escalation rules
+
+- 未設定。
+
+## Execution
+
+- Lead が人間からの依頼を受けるまで待機。
+
+## Active Tasks
 
 | Task | Owner | Reviewer | Status | Next Action |
 | --- | --- | --- | --- | --- |
 
-## Decisions Needed
+## Bundles
 
 - なし。
 
@@ -17,7 +31,7 @@
 
 - なし。
 
-## Recent Changes
+## Recent Decisions
 
 - なし。
 

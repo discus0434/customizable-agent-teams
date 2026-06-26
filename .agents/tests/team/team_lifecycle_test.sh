@@ -23,8 +23,11 @@ mkdir -p \
   "$TMP_ROOT/.agents/queue/reports" \
   "$TMP_ROOT/.agents/queue/reviews" \
   "$TMP_ROOT/.agents/queue/strategy" \
+  "$TMP_ROOT/.agents/queue/architecture" \
+  "$TMP_ROOT/.agents/queue/releases" \
   "$TMP_ROOT/.agents/queue/memory_proposals" \
-  "$TMP_ROOT/.agents/queue/state"
+  "$TMP_ROOT/.agents/queue/skill_proposals" \
+  "$TMP_ROOT/.agents/queue/state/releases"
 cp "$ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md"
 
 cat > "$TMP_ROOT/Makefile" <<'MAKE'
@@ -88,7 +91,7 @@ git -C "$TMP_ROOT" config user.name "Agent Team Smoke"
 git -C "$TMP_ROOT" add .
 git -C "$TMP_ROOT" commit -qm "Initial template"
 
-# These equality checks are deliberate interface drift guards for the supported harness surface.
+# These equality checks guard the supported team command surface.
 expected_scripts="$(printf '%s\n' \
   team_bootstrap.sh \
   team_common.sh \
@@ -98,6 +101,8 @@ expected_scripts="$(printf '%s\n' \
   team_inbox.sh \
   team_memory_update.sh \
   team_nudge.sh \
+  team_release_report.sh \
+  team_release_request.sh \
   team_report.sh \
   team_review_report.sh \
   team_send.sh \
@@ -108,16 +113,19 @@ expected_scripts="$(printf '%s\n' \
   team_submit.sh)"
 actual_scripts="$(find "$ROOT/.agents/scripts" -maxdepth 1 -type f -name '*.sh' -exec basename {} \; | sort)"
 [[ "$actual_scripts" == "$expected_scripts" ]] || {
-  echo "script entrypoints differ from the supported harness interface" >&2
+  echo "script entrypoints differ from the supported team interface" >&2
   printf 'expected:\n%s\nactual:\n%s\n' "$expected_scripts" "$actual_scripts" >&2
   exit 1
 }
 
 expected_queue_dirs="$(printf '%s\n' \
+  architecture \
   inbox \
   memory_proposals \
+  releases \
   reports \
   reviews \
+  skill_proposals \
   state \
   strategy \
   tasks)"
@@ -132,11 +140,12 @@ expected_make_targets="$(printf '%s\n' \
   bootstrap \
   bootstrap-finish \
   dispatch \
-  harness-test \
   inbox \
   memory-append \
   memory-list \
   post-change \
+  release-report \
+  release-request \
   report \
   review-report \
   smoke \
@@ -148,7 +157,8 @@ expected_make_targets="$(printf '%s\n' \
   team-start \
   team-status \
   team-stop \
-  team-submit)"
+  team-submit \
+  template-test)"
 actual_make_targets="$(
   awk '/^\.PHONY:/ {
     for (i = 2; i <= NF; i++) {
@@ -157,7 +167,7 @@ actual_make_targets="$(
   }' "$ROOT/Makefile" | sort
 )"
 [[ "$actual_make_targets" == "$expected_make_targets" ]] || {
-  echo "Make targets differ from the supported harness interface" >&2
+  echo "Make targets differ from the supported team interface" >&2
   printf 'expected:\n%s\nactual:\n%s\n' "$expected_make_targets" "$actual_make_targets" >&2
   exit 1
 }
@@ -172,7 +182,10 @@ TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scr
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent lead >/dev/null
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent manager >/dev/null
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent strategist >/dev/null
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent architect >/dev/null
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent release-captain >/dev/null
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent reviewer-1 >/dev/null
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent reviewer-3 >/dev/null
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" agent worker-1 >/dev/null
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_config.sh" review-field model >/dev/null 2>&1; then
   echo "review-field must not exist" >&2
@@ -193,7 +206,7 @@ esac
 strategist_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" strategist)"
 case "$strategist_pending" in
   *"\"type\":\"strategy_request\""*"\"subtype\":\"lead_intake\""*"Strategy artifact path: .agents/queue/strategy/general_lead_intake_"*) ;;
-  *) echo "lead-to-strategist strategy request was not auto-typed" >&2; exit 1 ;;
+  *) echo "lead-to-strategist message was not handled as a strategy request" >&2; exit 1 ;;
 esac
 worker_strategy_error="$TMP_BASE/worker-strategy-error.txt"
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from worker-1 strategist "bad worker strategy" > /dev/null 2> "$worker_strategy_error"; then
@@ -229,11 +242,16 @@ tmux_log="$(<"$TEAM_FAKE_TMUX_LOG")"
 case "$tmux_log" in *"TEAM_AGENT_ID=lead"*"TEAM_AGENT_ROLE=lead"*) ;; *) echo "lead launch env was not passed" >&2; exit 1 ;; esac
 case "$tmux_log" in *"TEAM_AGENT_ID=manager"*"TEAM_AGENT_ROLE=manager"*) ;; *) echo "manager launch env was not passed" >&2; exit 1 ;; esac
 case "$tmux_log" in *"TEAM_AGENT_ID=strategist"*"TEAM_AGENT_ROLE=strategist"*) ;; *) echo "strategist launch env was not passed" >&2; exit 1 ;; esac
+case "$tmux_log" in *"TEAM_AGENT_ID=architect"*"TEAM_AGENT_ROLE=architect"*) ;; *) echo "architect launch env was not passed" >&2; exit 1 ;; esac
+case "$tmux_log" in *"TEAM_AGENT_ID=release-captain"*"TEAM_AGENT_ROLE=release-captain"*) ;; *) echo "release-captain launch env was not passed" >&2; exit 1 ;; esac
 case "$tmux_log" in *"TEAM_AGENT_ID=reviewer-1"*"TEAM_AGENT_ROLE=reviewer"*) ;; *) echo "reviewer launch env was not passed" >&2; exit 1 ;; esac
+case "$tmux_log" in *"TEAM_AGENT_ID=reviewer-3"*"TEAM_AGENT_ROLE=reviewer"*) ;; *) echo "reviewer-3 launch env was not passed" >&2; exit 1 ;; esac
 case "$tmux_log" in *"TEAM_AGENT_ID=worker-1"*"TEAM_AGENT_ROLE=worker"*) ;; *) echo "worker launch env was not passed" >&2; exit 1 ;; esac
 case "$tmux_log" in *"実装や dispatch はせず"*) ;; *) echo "lead boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"STATE の主編集者"*) ;; *) echo "manager boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"strategy_request"*) ;; *) echo "strategist boot nudge was not sent" >&2; exit 1 ;; esac
+case "$tmux_log" in *"architecture_request"*) ;; *) echo "architect boot nudge was not sent" >&2; exit 1 ;; esac
+case "$tmux_log" in *"release_request"*) ;; *) echo "release-captain boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"review_watch_assigned"*) ;; *) echo "reviewer boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"task_assigned"*) ;; *) echo "worker boot nudge was not sent" >&2; exit 1 ;; esac
 startup_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
@@ -302,6 +320,7 @@ grep -q '"owner":"worker-1"' "$message_state"
 grep -q '"reviewer":"reviewer-1"' "$message_state"
 grep -q '"status":"dispatched"' "$message_state"
 grep -q '"done_recommendation":"false"' "$message_state"
+grep -q '"architecture_required":"false"' "$message_state"
 task_base_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 grep -q "\"base_commit\":\"$task_base_commit\"" "$message_state"
 
@@ -353,6 +372,45 @@ case "$manager_cc_pending" in
 esac
 mkdir -p "$TMP_ROOT/$(dirname "$strategy_artifact")"
 printf '%s\n' "# Strategy artifact" > "$TMP_ROOT/$strategy_artifact"
+
+reviewer_architecture_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from reviewer-1 --task T-001 architect "Need scoped architecture from reviewer.")"
+case "$reviewer_architecture_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "reviewer architecture request did not report manager CC" >&2; exit 1 ;;
+esac
+reviewer_architecture_id="$(printf '%s\n' "$reviewer_architecture_output" | sed -n 's/^message_id=//p')"
+reviewer_architecture_message="$TMP_ROOT/.agents/queue/state/messages/$reviewer_architecture_id.json"
+grep -q '"type":"architecture_request"' "$reviewer_architecture_message"
+grep -q '"subtype":"reviewer_supervision"' "$reviewer_architecture_message"
+architecture_artifact="$(sed -n 's/.*"artifact_path":"\([^"]*\)".*/\1/p' "$reviewer_architecture_message")"
+case "$architecture_artifact" in
+  .agents/queue/architecture/T-001_reviewer_supervision_*.md) ;;
+  *) echo "reviewer architecture artifact path was not task-scoped" >&2; exit 1 ;;
+esac
+grep -q '"architecture_required":"true"' "$message_state"
+grep -q "\"architecture\":\"$architecture_artifact\"" "$message_state"
+manager_architecture_cc_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$manager_architecture_cc_pending" in
+  *"\"type\":\"architecture_request\""*"\"cc_of\":\"$reviewer_architecture_id\""*) ;;
+  *) echo "manager did not receive reviewer architecture CC" >&2; exit 1 ;;
+esac
+bad_architecture_result_error="$TMP_BASE/bad-architecture-result-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from architect --type architecture_result --task T-001 reviewer-2 "Architecture result for wrong reviewer." > /dev/null 2> "$bad_architecture_result_error"; then
+  echo "architecture_result to wrong reviewer unexpectedly succeeded" >&2
+  exit 1
+fi
+grep -q '^error: architecture_result reviewer mismatch for T-001$' "$bad_architecture_result_error"
+architecture_result_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from architect --type architecture_result --task T-001 reviewer-1 "Architecture result for assigned reviewer.")"
+case "$architecture_result_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "architecture_result to assigned reviewer did not report manager CC" >&2; exit 1 ;;
+esac
+worker_architecture_error="$TMP_BASE/worker-architecture-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from worker-1 architect "bad worker architecture" > /dev/null 2> "$worker_architecture_error"; then
+  echo "worker-to-architect architecture request unexpectedly succeeded" >&2
+  exit 1
+fi
+grep -q '^error: worker cannot send architecture_request directly$' "$worker_architecture_error"
 
 printf '%s\n' "worker change" > "$TMP_ROOT/manager-review-smoke.txt"
 dirty_report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs_review)"
@@ -422,6 +480,12 @@ Done recommendation: false
 - Artifact path: $strategy_artifact
 - Adoption decision: no code change needed for smoke task.
 - Task-external impact: none.
+
+## Architecture
+
+- Required: true
+- Artifact path: $architecture_artifact
+- Adoption decision: follow architecture note.
 
 ## Blockers
 
@@ -525,13 +589,59 @@ grep -q '"status":"review_ok"' "$message_state"
 grep -q '"review_decision":"OK"' "$message_state"
 grep -q '"done_recommendation":"true"' "$message_state"
 
+architecture_missing_error="$TMP_BASE/architecture-missing-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done > /dev/null 2> "$architecture_missing_error"; then
+  echo "state-update done without architecture note unexpectedly succeeded" >&2
+  exit 1
+fi
+grep -q '^error: task T-001 cannot be marked done$' "$architecture_missing_error"
+grep -q '^reason: architecture_required=true but the recorded architecture note does not exist:' "$architecture_missing_error"
+mkdir -p "$TMP_ROOT/$(dirname "$architecture_artifact")"
+printf '%s\n' "# Architecture artifact" > "$TMP_ROOT/$architecture_artifact"
+
 done_state="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done)"
 [[ "$done_state" == "$message_state" ]]
 grep -q '"status":"done"' "$message_state"
 
+release_request_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_request.sh" --manager manager --release-captain release-captain R-001 T-001)"
+case "$release_request_output" in
+  *"bundle=.agents/queue/releases/R-001.md"*"review=.agents/queue/releases/R-001_review.md"*) ;;
+  *) echo "release request did not print bundle and review paths" >&2; exit 1 ;;
+esac
+release_state_file="$TMP_ROOT/.agents/queue/state/releases/R-001.json"
+grep -q '"status":"requested"' "$release_state_file"
+grep -q '"manager":"manager"' "$release_state_file"
+grep -q '"release_captain":"release-captain"' "$release_state_file"
+grep -q '"release_bundle":"R-001"' "$message_state"
+release_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"
+case "$release_pending" in
+  *"\"type\":\"release_request\""*"Release bundle path: .agents/queue/releases/R-001.md"*) ;;
+  *) echo "release-captain did not receive release_request" >&2; exit 1 ;;
+esac
+release_architecture_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from release-captain --bundle R-001 architect "Need release architecture check.")"
+case "$release_architecture_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "release-captain architecture request did not report manager CC" >&2; exit 1 ;;
+esac
+release_architecture_result_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from architect --type architecture_result --bundle R-001 release-captain "Release architecture result.")"
+case "$release_architecture_result_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "architecture_result to release-captain did not report manager CC" >&2; exit 1 ;;
+esac
+release_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP)"
+[[ "$release_review_file" == "$TMP_ROOT/.agents/queue/releases/R-001_review.md" ]]
+grep -q '^Decision: SHIP$' "$release_review_file"
+grep -q '"status":"ship"' "$release_state_file"
+grep -q '"decision":"SHIP"' "$release_state_file"
+release_result_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$release_result_pending" in
+  *"\"type\":\"release_result\""*"Release Decision: SHIP"*) ;;
+  *) echo "manager did not receive release_result" >&2; exit 1 ;;
+esac
+
 status_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh")"
 case "$status_output" in
-  *"T-001 manager=manager owner=worker-1 reviewer=reviewer-1 status=done"*"done_recommendation=true"*"strategy=$strategy_artifact"*) ;;
+  *"T-001 manager=manager owner=worker-1 reviewer=reviewer-1 status=done"*"done_recommendation=true"*"strategy=$strategy_artifact"*"architecture_required=true"*"architecture=$architecture_artifact"*"release_bundle=R-001"*"R-001 manager=manager release_captain=release-captain status=ship decision=SHIP"*) ;;
   *) echo "status did not show done task" >&2; exit 1 ;;
 esac
 

@@ -143,11 +143,15 @@ ensure_team_dirs() {
     "$TEAM_QUEUE_DIR/reports" \
     "$TEAM_QUEUE_DIR/reviews" \
     "$TEAM_QUEUE_DIR/strategy" \
+    "$TEAM_QUEUE_DIR/architecture" \
+    "$TEAM_QUEUE_DIR/releases" \
     "$TEAM_QUEUE_DIR/memory_proposals" \
+    "$TEAM_QUEUE_DIR/skill_proposals" \
     "$TEAM_STATE_DIR/agents" \
     "$TEAM_STATE_DIR/locks" \
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
+    "$TEAM_STATE_DIR/releases" \
     "$TEAM_STATE_DIR/tmp" \
     "$TEAM_STATE_DIR/tasks"
 }
@@ -195,6 +199,10 @@ team_relative_path() {
   fi
 }
 
+team_sanitize_token() {
+  printf '%s' "$1" | sed 's/[^A-Za-z0-9._-]/_/g'
+}
+
 team_strategy_artifact_path() {
   local task_id="$1"
   local subtype="$2"
@@ -206,9 +214,38 @@ team_strategy_artifact_path() {
   else
     scope="$task_id"
   fi
-  scope="$(printf '%s' "$scope" | sed 's/[^A-Za-z0-9._-]/_/g')"
+  scope="$(team_sanitize_token "$scope")"
   timestamp="$(team_now_compact_utc)"
   printf '.agents/queue/strategy/%s_%s_%s.md\n' "$scope" "$subtype" "$timestamp"
+}
+
+team_architecture_artifact_path() {
+  local task_id="$1"
+  local bundle_id="$2"
+  local subtype="$3"
+  local scope
+  local timestamp
+
+  if [[ -n "$task_id" && "$task_id" != "-" ]]; then
+    scope="$task_id"
+  elif [[ -n "$bundle_id" && "$bundle_id" != "-" ]]; then
+    scope="release-$bundle_id"
+  else
+    scope="general"
+  fi
+  scope="$(team_sanitize_token "$scope")"
+  timestamp="$(team_now_compact_utc)"
+  printf '.agents/queue/architecture/%s_%s_%s.md\n' "$scope" "$subtype" "$timestamp"
+}
+
+team_release_bundle_file() {
+  local bundle_id="$1"
+  printf '%s/releases/%s.md\n' "$TEAM_QUEUE_DIR" "$bundle_id"
+}
+
+team_release_review_file() {
+  local bundle_id="$1"
+  printf '%s/releases/%s_review.md\n' "$TEAM_QUEUE_DIR" "$bundle_id"
 }
 
 team_root_name() {
@@ -281,6 +318,20 @@ team_task_state_field() {
   extract_json_field "$field" < "$state_file"
 }
 
+team_release_state_file() {
+  local bundle_id="$1"
+  printf '%s/releases/%s.json\n' "$TEAM_STATE_DIR" "$bundle_id"
+}
+
+team_release_state_field() {
+  local bundle_id="$1"
+  local field="$2"
+  local state_file
+  state_file="$(team_release_state_file "$bundle_id")"
+  [[ -f "$state_file" ]] || return 0
+  extract_json_field "$field" < "$state_file"
+}
+
 team_write_task_state() {
   local task_id="$1"
   local manager="$2"
@@ -293,6 +344,9 @@ team_write_task_state() {
   local review="$9"
   local review_decision="${10}"
   local done_recommendation="${11}"
+  local architecture_required="${12}"
+  local architecture="${13}"
+  local release_bundle="${14}"
   local state_file
   local updated_at
 
@@ -300,7 +354,7 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","manager":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","done_recommendation":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","manager":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$manager")" \
     "$(json_string "$owner")" \
@@ -312,6 +366,37 @@ team_write_task_state() {
     "$(json_string "$review")" \
     "$(json_string "$review_decision")" \
     "$(json_string "$done_recommendation")" \
+    "$(json_string "$architecture_required")" \
+    "$(json_string "$architecture")" \
+    "$(json_string "$release_bundle")" \
+    "$updated_at" > "$state_file"
+}
+
+team_write_release_state() {
+  local bundle_id="$1"
+  local manager="$2"
+  local release_captain="$3"
+  local status="$4"
+  local decision="$5"
+  local bundle_artifact="$6"
+  local review_artifact="$7"
+  local tasks="$8"
+  local state_file
+  local updated_at
+
+  state_file="$(team_release_state_file "$bundle_id")"
+  updated_at="$(team_now_utc)"
+  mkdir -p "$(dirname "$state_file")"
+
+  printf '{"bundle_id":"%s","manager":"%s","release_captain":"%s","status":"%s","decision":"%s","bundle_artifact":"%s","review_artifact":"%s","tasks":"%s","updated_at":"%s"}\n' \
+    "$(json_string "$bundle_id")" \
+    "$(json_string "$manager")" \
+    "$(json_string "$release_captain")" \
+    "$(json_string "$status")" \
+    "$(json_string "$decision")" \
+    "$(json_string "$bundle_artifact")" \
+    "$(json_string "$review_artifact")" \
+    "$(json_string "$tasks")" \
     "$updated_at" > "$state_file"
 }
 

@@ -22,6 +22,20 @@ team:
     model: claude-opus-4-8
     window: strategist
     command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+  architect:
+    id: architect
+    role: architect
+    cli: claude
+    model: claude-opus-4-8
+    window: architect
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+  release-captain:
+    id: release-captain
+    role: release-captain
+    cli: claude
+    model: claude-opus-4-8
+    window: release-captain
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
   reviewers:
     - id: reviewer-1
       role: reviewer
@@ -34,6 +48,12 @@ team:
       cli: claude
       model: claude-opus-4-8
       window: reviewer-2
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
+    - id: reviewer-3
+      role: reviewer
+      cli: claude
+      model: claude-opus-4-8
+      window: reviewer-3
       command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
   workers:
     - id: worker-1

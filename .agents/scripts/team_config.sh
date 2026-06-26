@@ -42,7 +42,7 @@ team_config_agents() {
       }
     }
     function known_section(name) {
-      return name == "lead" || name == "manager" || name == "strategist" || name == "reviewers" || name == "workers"
+      return name == "lead" || name == "manager" || name == "strategist" || name == "architect" || name == "release-captain" || name == "reviewers" || name == "workers"
     }
     BEGIN {
       section = ""

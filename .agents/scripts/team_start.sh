@@ -82,13 +82,19 @@ send_boot_nudge() {
   case "$role" in
     lead)
       team_tmux_wait_for_ready "$pane" "$cli" 30
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=lead agent_id=$id として待機してください。人間の指示はこの pane に直接来ます。実装や dispatch はせず、必要な擦り合わせをしてから manager に mailbox で依頼します。agent 間通知は inbox $id です。"
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=lead agent_id=$id として待機してください。人間の指示はこの pane に直接来ます。実装や dispatch はせず、必要な擦り合わせをしてから manager に依頼します。agent 間通知は inbox $id です。"
       ;;
     manager)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=manager agent_id=$id として待機してください。STATE の主編集者として task 分解、dispatch、進捗、review 受領を担当します。通知は inbox $id です。"
       ;;
     strategist)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=strategist agent_id=$id として待機してください。strategy_request を受けたら .agents/queue/strategy/ に成果物を書きます。通知は inbox $id です。"
+      ;;
+    architect)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=architect agent_id=$id として待機してください。architecture_request を受けたら .agents/queue/architecture/ に技術判断を書きます。通知は inbox $id です。"
+      ;;
+    release-captain)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=release-captain agent_id=$id として待機してください。release_request を受けたら release bundle を確認し、SHIP/FIX/BLOCKED を返します。通知は inbox $id です。"
       ;;
     reviewer)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=reviewer agent_id=$id として待機してください。review_watch_assigned を受けたら worker と直接やりとりし、review artifact を書きます。通知は inbox $id です。"

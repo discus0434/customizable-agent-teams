@@ -39,6 +39,9 @@ assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 head_commit="$(team_task_state_field "$task_id" head_commit)"
 report_file="$(team_task_state_field "$task_id" report)"
+architecture_required="$(team_task_state_field "$task_id" architecture_required)"
+architecture="$(team_task_state_field "$task_id" architecture)"
+release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 
 [[ "$assigned_reviewer" == "$reviewer_id" ]] || die "task $task_id reviewer is $assigned_reviewer, not $reviewer_id"
 [[ -n "$manager" ]] || die "task $task_id state is missing manager"
@@ -139,7 +142,10 @@ team_write_task_state \
   "$report_file" \
   "$review_file" \
   "$decision" \
-  "$done_recommendation"
+  "$done_recommendation" \
+  "$architecture_required" \
+  "$architecture" \
+  "$release_bundle"
 
 "$SCRIPT_DIR/team_send.sh" --from "$reviewer_id" --type review_result --task "$task_id" --done-recommendation "$done_recommendation" "$target" "$message" >/dev/null
 

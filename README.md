@@ -1,19 +1,20 @@
 # customizable-agent-teams
 
-ローカルの tmux 上で、Claude Code / Codex などの coding agent を **Lead / Manager / Strategist / Reviewer / Worker** のチームとして動かすためのプロジェクトテンプレートです。
+ローカルの tmux 上で、Claude Code / Codex などの coding agent を **Lead / Manager / Strategist / Architect / Release Captain / Reviewer / Worker** のチームとして動かすためのプロジェクトテンプレートです。
 
-人間は Lead にだけ話します。Lead は曖昧な依頼を丁寧に擦り合わせ、Manager が task 分解・dispatch・done 判定を持ち、Worker が実装し、Reviewer が task-local supervisor として並走します。重い設計や調査は Strategist に分離します。
+人間は Lead にだけ話します。Lead は曖昧な依頼を丁寧に擦り合わせ、Manager が task 分解と進行管理を持ち、Worker と Reviewer がペアで実装を進めます。Strategist は深い調査、Architect は技術方針、Release Captain は完了前の全体確認を担当します。
 
 ![customizable-agent-teams workflow](.agents/assets/agent-team-flow.png)
 
 ## 特徴
 
 - **Lead は人間との共同思考に集中** — Lead は実装も dispatch もせず、質問、承認取得、意図の翻訳に専念します。
-- **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、escalation、done 判定、`STATE.md` 更新を担当します。
-- **Strategist を常駐** — 深い bug 調査、設計、比較、実行計画を `.agents/queue/strategy/` に成果物として残します。
+- **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、escalation、done 判定、release bundle 作成、`STATE.md` 更新を担当します。
+- **Strategist を常駐** — 深い bug 調査、比較、実行計画を成果物として残します。
+- **Architect が技術方針を所有** — 抽象化、境界、テスト方針、統合時の一貫性を見ます。
+- **Release Captain が全体確認** — task 単位の OK とは別に、bundle が人間へ完了報告できる状態かを判定します。
 - **Reviewer が task-local supervisor** — 常駐 reviewer が worker の相談窓口になり、途中 feedback、strategy 相談、final review を担当します。
 - **shared root** — 全 agent が同じ repo root で動きます。venv / node_modules / `.env` / direnv を重複させません。
-- **file mailbox + tmux nudge** — agent 間の本文は file が正本。tmux には短い `inbox <agent_id>` だけを流します。
 - **CLI / model の混在** — `.agents/config/agent-team.yaml` で役割ごとに CLI・model・起動コマンドを変更できます。
 
 ## 仕組み
@@ -21,8 +22,10 @@
 | 役割 | 配置 | 責務 |
 | --- | --- | --- |
 | **Lead** | tmux `lead` pane | 人間の唯一の窓口。曖昧な依頼を擦り合わせ、必要な判断を人間に確認し、Manager に依頼する。project code は編集しない。 |
-| **Manager** | tmux `manager` pane | task 分解、worker/reviewer 割当、dispatch、escalation 対応、done 判定、`.agents/state/STATE.md` の主編集者。project code は編集しない。 |
-| **Strategist** | tmux `strategist` pane | 深い調査、設計、複数案比較、実行計画。成果物は `.agents/queue/strategy/` に書く。 |
+| **Manager** | tmux `manager` pane | task 分解、worker/reviewer 割当、dispatch、escalation 対応、done 判定、release bundle 作成、`.agents/state/STATE.md` の主編集者。project code は編集しない。 |
+| **Strategist** | tmux `strategist` pane | 深い調査、複数案比較、実行計画。 |
+| **Architect** | tmux `architect` pane | 技術方針、設計一貫性、境界、テスト期待値を判断する。 |
+| **Release Captain** | tmux `release-captain` pane | 複数 task のまとまりを確認し、`SHIP` / `FIX` / `BLOCKED` を返す。 |
 | **Reviewer** | tmux `reviewer-N` pane | worker の task-local supervisor。質問受付、途中 feedback、strategy 相談、final review を担当する。project code は編集しない。 |
 | **Worker** | tmux `worker-N` pane | shared root で実装、検証、commit、report を担当する。 |
 
@@ -31,14 +34,16 @@ Human
   -> Lead
   -> Manager
   -> Worker + Reviewer pair
-  -> Strategist when scoped deep thinking is needed
+  -> Strategist / Architect when deeper thinking is needed
   -> Reviewer OK/FIX/ASK_MANAGER
   -> Manager marks done
+  -> Release Captain SHIP/FIX/BLOCKED
+  -> Lead reports completion
 ```
 
 ## 必要なツール
 
-Harness の起動には `git` `make` `bash` `tmux` `direnv` と、使う coding agent の CLI（`claude` / `codex` など）が必要です。GitHub 操作は `gh` を使います。
+チームの起動には `git` `make` `bash` `tmux` `direnv` と、使う coding agent の CLI（`claude` / `codex` など）が必要です。GitHub 操作は `gh` を使います。
 
 日常の repo 調査には `ripgrep` `fd` `bat` `git-delta` があると便利です。選んだ stack の toolchain（例: Python なら `uv`、TypeScript なら `pnpm` / `node`）も bootstrap で使います。
 
@@ -113,7 +118,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
    make bootstrap-finish
    ```
 
-   完了すると、Lead / Manager / Strategist / Reviewer / Worker を含む tmux session に attach されます。以降は Lead pane に依頼を入力します。
+   完了すると、全 role を含む tmux session に attach されます。以降は Lead pane に依頼を入力します。
 
 ## チームの設定
 
@@ -122,6 +127,8 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 - `team.lead` — Lead の CLI / model / window / command
 - `team.manager` — Manager の CLI / model / window / command
 - `team.strategist` — Strategist の CLI / model / window / command
+- `team.architect` — Architect の CLI / model / window / command
+- `team.release-captain` — Release Captain の CLI / model / window / command
 - `team.reviewers` — Reviewer pool
 - `team.workers` — Worker pool
 
@@ -133,17 +140,21 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | 状態確認 | `make team-status` / `make state` | Manager / Lead |
 | inbox 確認 / 既読 | `make inbox AGENT=worker-1` / `make inbox AGENT=worker-1 MARK=<id>` | 全員 |
 | 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
-| mailbox 送信 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
+| agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |
 | reviewer feedback | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=review_feedback TASK=T-001 BODY="..."` | Reviewer |
 | strategist 相談 | `make team-send FROM=reviewer-1 TO=strategist TASK=T-001 BODY="..."` | Lead / Manager / Reviewer |
+| architect 相談 | `make team-send FROM=reviewer-1 TO=architect TASK=T-001 BODY="..."` | Lead / Manager / Reviewer / Release Captain |
 | worker report | `make report TASK=T-001 AGENT=worker-1 STATUS=needs_review` | Worker |
 | reviewer decision | `make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK` | Reviewer |
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
+| release review 依頼 | `make release-request BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
+| release decision | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
+| 完了報告準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BODY="..."` | Manager |
 | 停止 | `make team-stop` | 人間 |
 
-team pane の中では `TEAM_AGENT_ID` が sender になります。repo shell から直接 mailbox を送る場合は `FROM=<agent_id>` を指定します。
+team pane の中では `TEAM_AGENT_ID` が sender になります。repo shell から直接送る場合は `FROM=<agent_id>` を指定します。
 repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指定します。
 
 ## Repository Layout
@@ -156,16 +167,16 @@ repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指�
 | `.agents/state/STATE.md` | 現在の whole picture |
 | `.agents/state/MEMORY.md` | 中長期の rules / tips / pitfalls / user preferences |
 | `.agents/skills/` | Claude Code / Codex 共通の skill（`.claude/skills`・`.codex/skills` は symlink） |
-| `.agents/scripts/` | harness を構成する各コマンドの実体 |
-| `.agents/queue/` | tasks / inbox / reports / reviews / strategy / state |
-| `.agents/tests/harness/` | harness 自体の test |
+| `.agents/scripts/` | 各コマンドの実体 |
+| `.agents/queue/` | tasks / inbox / reports / reviews / strategy / architecture / releases / proposals / state |
+| `.agents/tests/team/` | テンプレートの test |
 | `Makefile` | 操作 entrypoint |
 
-## Harness 自体を変更したとき
+## テンプレートを変更したとき
 
 ```bash
 make post-change
-make harness-test
+make template-test
 ```
 
 ## ドキュメント

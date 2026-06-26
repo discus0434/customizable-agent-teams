@@ -53,6 +53,9 @@ while IFS= read -r task_file; do
   review_decision=""
   done_recommendation=""
   strategy_artifact=""
+  architecture_required=""
+  architecture=""
+  release_bundle=""
   state_file="$TEAM_STATE_DIR/tasks/$task_name.json"
   if [[ -f "$state_file" ]]; then
     manager="$(team_task_state_field "$task_name" manager)"
@@ -62,6 +65,9 @@ while IFS= read -r task_file; do
     head_commit="$(team_task_state_field "$task_name" head_commit)"
     review_decision="$(team_task_state_field "$task_name" review_decision)"
     done_recommendation="$(team_task_state_field "$task_name" done_recommendation)"
+    architecture_required="$(team_task_state_field "$task_name" architecture_required)"
+    architecture="$(team_task_state_field "$task_name" architecture)"
+    release_bundle="$(team_task_state_field "$task_name" release_bundle)"
   fi
   while IFS= read -r candidate; do
     strategy_artifact="$(team_relative_path "$candidate")"
@@ -71,6 +77,15 @@ while IFS= read -r task_file; do
   line="  $task_name manager=${manager:-none} owner=${owner:-none} reviewer=${reviewer:-none} status=$status head=${short_head:-none} review=${review_decision:-none} done_recommendation=${done_recommendation:-false}"
   if [[ -n "$strategy_artifact" ]]; then
     line="$line strategy=$strategy_artifact"
+  fi
+  if [[ "$architecture_required" == "true" || -n "$architecture" ]]; then
+    line="$line architecture_required=${architecture_required:-false}"
+    if [[ -n "$architecture" ]]; then
+      line="$line architecture=$architecture"
+    fi
+  fi
+  if [[ -n "$release_bundle" ]]; then
+    line="$line release_bundle=$release_bundle"
   fi
   echo "$line"
 done < <(find "$TEAM_QUEUE_DIR/tasks" -maxdepth 1 -type f -name '*.md' | sort)
@@ -124,6 +139,31 @@ done < <(find "$TEAM_QUEUE_DIR/strategy" -maxdepth 1 -type f -name '*.md' | sort
 [[ "$strategy_count" -gt 0 ]] || echo "  none"
 echo
 
+echo "Architecture:"
+architecture_count=0
+while IFS= read -r architecture_file; do
+  architecture_count=$((architecture_count + 1))
+  echo "  $(basename "$architecture_file")"
+done < <(find "$TEAM_QUEUE_DIR/architecture" -maxdepth 1 -type f -name '*.md' | sort)
+[[ "$architecture_count" -gt 0 ]] || echo "  none"
+echo
+
+echo "Releases:"
+release_count=0
+while IFS= read -r release_state_file; do
+  release_count=$((release_count + 1))
+  bundle_id="$(basename "$release_state_file" .json)"
+  release_manager="$(team_release_state_field "$bundle_id" manager)"
+  release_captain="$(team_release_state_field "$bundle_id" release_captain)"
+  release_status="$(team_release_state_field "$bundle_id" status)"
+  release_decision="$(team_release_state_field "$bundle_id" decision)"
+  bundle_artifact="$(team_release_state_field "$bundle_id" bundle_artifact)"
+  review_artifact="$(team_release_state_field "$bundle_id" review_artifact)"
+  echo "  $bundle_id manager=${release_manager:-none} release_captain=${release_captain:-none} status=${release_status:-none} decision=${release_decision:-none} bundle=$(team_relative_path "$bundle_artifact") review=$(team_relative_path "$review_artifact")"
+done < <(find "$TEAM_STATE_DIR/releases" -maxdepth 1 -type f -name '*.json' | sort)
+[[ "$release_count" -gt 0 ]] || echo "  none"
+echo
+
 echo "Memory proposals:"
 proposal_count=0
 while IFS= read -r proposal_file; do
@@ -131,3 +171,12 @@ while IFS= read -r proposal_file; do
   echo "  $(basename "$proposal_file")"
 done < <(find "$TEAM_QUEUE_DIR/memory_proposals" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$proposal_count" -gt 0 ]] || echo "  none"
+
+echo
+echo "Skill proposals:"
+skill_proposal_count=0
+while IFS= read -r proposal_file; do
+  skill_proposal_count=$((skill_proposal_count + 1))
+  echo "  $(basename "$proposal_file")"
+done < <(find "$TEAM_QUEUE_DIR/skill_proposals" -maxdepth 1 -type f -name '*.md' | sort)
+[[ "$skill_proposal_count" -gt 0 ]] || echo "  none"

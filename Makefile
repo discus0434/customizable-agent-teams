@@ -1,4 +1,4 @@
-.PHONY: post-change smoke harness-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox dispatch report review-report state state-update memory-list memory-append
+.PHONY: post-change smoke template-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
 
 post-change:
 	@git diff --check -- .
@@ -7,10 +7,10 @@ smoke:
 	@echo "Define project smoke during team-bootstrap." >&2
 	@exit 1
 
-harness-test:
+template-test:
 	@bash -n .agents/scripts/*.sh
-	@bash -n .agents/tests/harness/*.sh
-	./.agents/tests/harness/team_lifecycle_test.sh
+	@bash -n .agents/tests/team/*.sh
+	./.agents/tests/team/team_lifecycle_test.sh
 
 bootstrap:
 	direnv allow
@@ -49,9 +49,9 @@ team-status:
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
 	@if [ -n "$(FROM)" ]; then \
-		./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
+		./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
 	else \
-		./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
+		./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
 	fi
 
 team-submit:
@@ -87,6 +87,25 @@ review-report:
 	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
 	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
 	@./.agents/scripts/team_review_report.sh "$(TASK)" "$(REVIEWER)" "$(DECISION)"
+
+release-request:
+	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
+	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
+	@if [ -n "$(MANAGER)" ] && [ -n "$(RELEASE_CAPTAIN)" ]; then \
+		./.agents/scripts/team_release_request.sh --manager "$(MANAGER)" --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
+	elif [ -n "$(MANAGER)" ]; then \
+		./.agents/scripts/team_release_request.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
+	elif [ -n "$(RELEASE_CAPTAIN)" ]; then \
+		./.agents/scripts/team_release_request.sh --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
+	else \
+		./.agents/scripts/team_release_request.sh "$(BUNDLE)" $(TASKS); \
+	fi
+
+release-report:
+	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
+	@test -n "$(RELEASE_CAPTAIN)" || { echo "RELEASE_CAPTAIN is required" >&2; exit 2; }
+	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
+	@./.agents/scripts/team_release_report.sh "$(BUNDLE)" "$(RELEASE_CAPTAIN)" "$(DECISION)"
 
 state:
 	@./.agents/scripts/team_state_update.sh show

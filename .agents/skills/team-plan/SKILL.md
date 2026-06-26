@@ -12,6 +12,7 @@ description: Use by a manager after a lead intake is clear enough to decompose w
 - `.agents/state/MEMORY.md`
 - `.agents/queue/tasks/TEMPLATE.md`
 - relevant strategy artifacts in `.agents/queue/strategy/`
+- relevant architecture notes in `.agents/queue/architecture/`
 
 ## Split Rules
 
@@ -21,13 +22,15 @@ description: Use by a manager after a lead intake is clear enough to decompose w
 - `Allowed paths` and `Do not modify` must be explicit.
 - Task files must include enough context, constraints, acceptance, and verification for the worker and reviewer to start without asking lead.
 - Escalate to lead only when human approval, product intent, scope change, or user-visible trade-off needs confirmation.
-- Request strategist input when architecture, deep debugging, option comparison, or execution planning is heavy enough to benefit from a separate context.
+- Request architect input when technical direction or design consistency needs a named owner.
+- Request strategist input when deep debugging, option comparison, or execution planning benefits from separate analysis.
 
 ## Required Fields
 
 - Context
 - Owner
 - Reviewer
+- Architecture required
 - Allowed paths
 - Do not modify
 - Goal
@@ -54,5 +57,5 @@ When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
 - owner と reviewer が config 上の正しい role。
 - 各 task が検証 command または未検証理由を持つ。
 - report evidence requirement が明記されている。
-- reviewer が task-local supervisor として動けるように checkpoint、escalation、strategy、evidence expectation が書かれている。
+- reviewer が task-local supervisor として動けるように checkpoint、escalation、strategy、architecture、evidence expectation が書かれている。
 - manager が `.agents/state/STATE.md` に next action を反映できる。

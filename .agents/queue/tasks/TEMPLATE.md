@@ -2,6 +2,7 @@
 
 Owner: worker-1
 Reviewer: reviewer-1
+Architecture required: false
 
 ## Context
 
@@ -9,6 +10,7 @@ Reviewer: reviewer-1
 - 現在確認済みの事実:
 - 関連 docs:
 - 関連 strategy artifact:
+- 関連 architecture note:
 
 ## Allowed paths
 
@@ -40,6 +42,7 @@ Reviewer: reviewer-1
 - Checkpoints: worker が相談したい節目。大きい task では具体的に書く。小さい task は `worker initiated`。
 - Escalation: task 固有の manager escalation 条件。共通条件は AGENTS.md / TEAM_PROTOCOL.md に従う。
 - Strategy: strategist に相談すべき task 固有の条件。
+- Architecture: architect に相談すべき task 固有の条件。不要なら `none`。
 - Evidence expectation: reviewer が `OK` を出すために必要な evidence。
 
 ## Worker Flow
@@ -65,7 +68,7 @@ decision は `OK` / `FIX` / `ASK_MANAGER` のいずれか。
 ## Report
 
 完了時は `.agents/queue/reports/T-XXX_worker-1.md` に report を書く。
-summary、changed files、verification、post-change、smoke、reviewer supervision、strategy artifacts の result/evidence を埋める。
+summary、changed files、verification、post-change、smoke、reviewer supervision、strategy artifacts、architecture の result/evidence を埋める。
 
 ## Memory
 

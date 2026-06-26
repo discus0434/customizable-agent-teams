@@ -85,8 +85,19 @@ reviewer_role="$(team_config_agent_field "$reviewer_id" role)"
 
 task_owner="$(team_task_markdown_field "$task_file" Owner)" || die "task Owner is missing: $task_file"
 task_reviewer="$(team_task_markdown_field "$task_file" Reviewer)" || die "task Reviewer is missing: $task_file"
+architecture_required="$(team_task_markdown_field "$task_file" "Architecture required")" || die_rule \
+  "task Architecture required is missing: $task_file" \
+  "dispatch needs to know whether architect review is required for the done gate" \
+  "add 'Architecture required: true' or 'Architecture required: false' to the task file"
 [[ "$task_owner" == "$worker_id" ]] || die "task Owner mismatch: expected $worker_id, got $task_owner"
 [[ "$task_reviewer" == "$reviewer_id" ]] || die "task Reviewer mismatch: expected $reviewer_id, got $task_reviewer"
+case "$architecture_required" in
+  true|false) ;;
+  *) die_rule \
+    "invalid Architecture required value: $architecture_required" \
+    "Architecture required must be true or false" \
+    "set Architecture required to true or false" ;;
+esac
 
 git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die "git HEAD does not exist yet. Commit the template before dispatching tasks."
 base_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
@@ -103,7 +114,10 @@ team_write_task_state \
   "" \
   "" \
   "" \
-  "false"
+  "false" \
+  "$architecture_required" \
+  "" \
+  ""
 release_team_lock
 
 worker_body="$task_file を読み、担当 reviewer は ${reviewer_id}、task manager は ${manager_id} です。実装、検証、commit、report 作成後、ready_for_review を ${reviewer_id} に送ってください。"

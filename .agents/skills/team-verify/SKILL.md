@@ -27,4 +27,5 @@ description: Use by any agent immediately before saying work is done, fixed, pas
 - worker report
 - reviewer `OK` 判断
 - manager の `done` 判断
+- release-captain の `SHIP` 判断
 - lead のユーザー向け完了報告
