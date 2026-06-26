@@ -31,4 +31,5 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
   die "tmux session is not running: $session"
 fi
 
+team_tmux_require_pane "$agent_id" "$pane" "$session" "${window:-$agent_id}"
 team_tmux_submit "$pane"

@@ -38,6 +38,11 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
   exit 1
 fi
 
+if ! team_tmux_pane_exists "$pane"; then
+  warn "tmux pane is not running for $agent_id: $pane"
+  exit 1
+fi
+
 tmux send-keys -t "$pane" C-u
 tmux send-keys -t "$pane" -l "inbox $agent_id"
 team_tmux_submit "$pane"

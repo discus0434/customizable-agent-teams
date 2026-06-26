@@ -208,7 +208,7 @@ done
 release_team_lock
 
 body="Release bundle $bundle_id を確認してください。"
-"$SCRIPT_DIR/team_send.sh" --from "$manager_id" --type release_request --bundle "$bundle_id" "$release_captain_id" "$body" >/dev/null
+team_send_with_body_file "$manager_id" release_request "" "$bundle_id" "$release_captain_id" "$body" >/dev/null
 
 printf 'bundle=%s\n' "$bundle_rel"
 printf 'review=%s\n' "$review_rel"

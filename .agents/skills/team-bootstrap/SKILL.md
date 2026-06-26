@@ -174,11 +174,38 @@ post-change: post-change-py post-change-ts
 	@git diff --check -- .
 ```
 
-## Finish
+## Manager Handoff
 
-- Run `make post-change`.
-- Run `make smoke`.
-- package/app build が成果物に必要なら、build command が `make post-change` に含まれていることを確認する。
-- Confirm `README.md`, `AGENTS.md`, `Makefile`, package metadata, and `.agents/config/agent-team.yaml` no longer contain stale template names or unused stack commands.
-- Delete `.agents/skills/team-bootstrap/` after bootstrap is complete.
-- Ask manager to create and dispatch implementation tasks after the bootstrap contract is clear.
+When the bootstrap contract is clear, send manager an `intake` message that includes:
+
+- project name, goal, and first user-visible behavior
+- selected stack and required package/tool commands
+- entrypoint and package metadata
+- `make post-change` contract
+- `make smoke` behavior
+- README and AGENTS updates required for the initialized project
+- cleanup required after bootstrap implementation
+
+Tell the human to detach from tmux and run:
+
+```bash
+make bootstrap-team
+```
+
+This keeps the lead pane alive and starts the remaining roles.
+
+## Bootstrap Implementation Done
+
+Manager owns this work after intake.
+
+Done means:
+
+- `make post-change` passes.
+- `make smoke` passes.
+- package/app build is included in `make post-change` when the deliverable needs it.
+- `README.md`, `AGENTS.md`, `Makefile`, package metadata, and `.agents/config/agent-team.yaml` describe the initialized project.
+- selected stack files, source layout, tests, and lockfiles exist.
+- unused scaffold, unused stack commands, and placeholder project names are gone.
+- `.agents/skills/team-bootstrap/` is removed.
+- bootstrap-only Make targets are removed.
+- `.agents/scripts/team_bootstrap.sh` and `.agents/scripts/team_bootstrap_team.sh` are removed.

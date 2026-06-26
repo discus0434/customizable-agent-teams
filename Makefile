@@ -1,10 +1,10 @@
-.PHONY: post-change smoke template-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
+.PHONY: post-change smoke template-test bootstrap bootstrap-team team-identity team-start team-stop team-status team-send team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
 
 post-change:
 	@git diff --check -- .
 
 smoke:
-	@echo "Define project smoke during team-bootstrap." >&2
+	@echo "Define project smoke during bootstrap." >&2
 	@exit 1
 
 template-test:
@@ -15,27 +15,15 @@ template-test:
 bootstrap:
 	direnv allow
 	$(MAKE) post-change
-	$(MAKE) team-bootstrap
+	./.agents/scripts/team_bootstrap.sh
 	@session="$$(./.agents/scripts/team_config.sh session)"; tmux attach -t "$$session"
 
-bootstrap-finish:
-	$(MAKE) post-change
-	$(MAKE) smoke
-	rm -rf .agents/skills/team-bootstrap
-	git add -A
-	@if git diff --cached --quiet; then \
-		echo "no bootstrap changes to commit" >&2; \
-		exit 1; \
-	fi
-	git commit -m "Bootstrap project"
-	$(MAKE) team-start
+bootstrap-team:
+	./.agents/scripts/team_bootstrap_team.sh
 	@session="$$(./.agents/scripts/team_config.sh session)"; tmux attach -t "$$session"
 
 team-identity:
 	./.agents/scripts/team_identity.sh
-
-team-bootstrap:
-	./.agents/scripts/team_bootstrap.sh
 
 team-start:
 	./.agents/scripts/team_start.sh --restart
@@ -48,10 +36,22 @@ team-status:
 
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
-	@if [ -n "$(FROM)" ]; then \
-		./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+	@if [ -n "$(BODY_FILE)" ] && [ -n "$(BODY)" ]; then \
+		echo "BODY and BODY_FILE cannot both be set" >&2; \
+		exit 2; \
+	fi
+	@if [ -n "$(BODY_FILE)" ]; then \
+		if [ -n "$(FROM)" ]; then \
+			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)" "$(TO)"; \
+		else \
+			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)" "$(TO)"; \
+		fi; \
 	else \
-		./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+		if [ -n "$(FROM)" ]; then \
+			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+		else \
+			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+		fi; \
 	fi
 
 team-submit:

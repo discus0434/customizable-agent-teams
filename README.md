@@ -112,13 +112,13 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 
    attach すると `lead` pane が「何を作るか」を最初の 1 問として聞いてきます。Lead は一度に質問を並べず、回答ごとに作るもの・stack・entrypoint・`make post-change`・`make smoke` を狭めます。
 
-4. bootstrap が固まったら tmux から detach（`Ctrl-b` のあと `d`）し、repo root で次を実行する。
+4. Lead が bootstrap 方針を固め、Manager に初期化依頼を送ったら、tmux から detach（`Ctrl-b` のあと `d`）し、repo root で次を実行する。
 
    ```bash
-   make bootstrap-finish
+   make bootstrap-team
    ```
 
-   完了すると、全 role を含む tmux session に attach されます。以降は Lead pane に依頼を入力します。
+   既存の Lead pane はそのまま、残りの role が起動します。以降は Lead pane で進行を見守り、Lead から質問されたときだけ答えます。
 
 ## チームの設定
 
@@ -141,6 +141,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | inbox 確認 / 既読 | `make inbox AGENT=worker-1` / `make inbox AGENT=worker-1 MARK=<id>` | 全員 |
 | 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
 | agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
+| 長文の agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=/tmp/message.md` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |
 | reviewer feedback | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=review_feedback TASK=T-001 BODY="..."` | Reviewer |

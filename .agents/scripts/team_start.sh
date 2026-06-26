@@ -8,6 +8,7 @@ source "$SCRIPT_DIR/team_config.sh"
 
 restart=0
 lead_only=0
+complete_existing=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,9 +20,13 @@ while [[ $# -gt 0 ]]; do
       lead_only=1
       shift
       ;;
+    --complete-existing)
+      complete_existing=1
+      shift
+      ;;
     -h|--help)
       cat <<'USAGE'
-usage: team_start.sh [--restart] [--lead-only]
+usage: team_start.sh [--restart] [--lead-only] [--complete-existing]
 
 Starts the tmux session described in .agents/config/agent-team.yaml.
 USAGE
@@ -66,6 +71,27 @@ set_pane_metadata() {
   tmux set-option -p -t "$pane" @agent_id "$id" >/dev/null
   tmux set-option -p -t "$pane" @role "$role" >/dev/null
   tmux set-option -p -t "$pane" @model "$model" >/dev/null
+}
+
+agent_state_is_live() {
+  local id="$1"
+  local configured_session="$2"
+  local state_file="$TEAM_STATE_DIR/agents/$id.env"
+  local pane=""
+  local state_session=""
+  local session=""
+
+  [[ -f "$state_file" ]] || return 1
+
+  pane=""
+  session=""
+  # shellcheck disable=SC1090
+  source "$state_file"
+  state_session="${session:-}"
+  session="$configured_session"
+
+  [[ -n "${pane:-}" && "$state_session" == "$configured_session" ]] || return 1
+  team_tmux_pane_exists "$pane"
 }
 
 send_boot_nudge() {
@@ -134,21 +160,34 @@ main() {
   local session
   session="$(team_config_session)"
   [[ -n "$session" ]] || die "team.session is missing in $TEAM_CONFIG_FILE"
+  [[ "$restart" -eq 0 || "$complete_existing" -eq 0 ]] || die_rule \
+    "conflicting start options" \
+    "--restart replaces the session while --complete-existing preserves live panes" \
+    "choose either --restart or --complete-existing"
 
+  local session_exists=0
   if tmux has-session -t "$session" 2>/dev/null; then
+    session_exists=1
     if [[ "$restart" -eq 1 ]]; then
       tmux kill-session -t "$session"
+      session_exists=0
     else
-      die "tmux session already exists: $session. Use --restart to replace it."
+      [[ "$complete_existing" -eq 1 ]] || die "tmux session already exists: $session. Use --restart to replace it."
     fi
   fi
 
-  rm -f "$TEAM_STATE_DIR/agents/"*.env 2>/dev/null || true
+  if [[ "$complete_existing" -eq 0 || "$session_exists" -eq 0 ]]; then
+    rm -f "$TEAM_STATE_DIR/agents/"*.env 2>/dev/null || true
+  fi
 
   local first=1
+  [[ "$session_exists" -eq 1 ]] && first=0
   while IFS='|' read -r id role cli model window command; do
     [[ -n "$id" ]] || continue
     if [[ "$lead_only" -eq 1 && "$role" != "lead" ]]; then
+      continue
+    fi
+    if [[ "$complete_existing" -eq 1 && "$session_exists" -eq 1 ]] && agent_state_is_live "$id" "$session"; then
       continue
     fi
     [[ -n "$window" ]] || window="$id"
@@ -165,11 +204,19 @@ main() {
     fi
 
     local pane
-    pane="$(tmux display-message -p -t "$session:$window.0" '#{pane_id}')"
+    if ! pane="$(tmux display-message -p -t "$session:$window.0" '#{pane_id}')"; then
+      die_rule \
+        "tmux pane is not running for agent $id" \
+        "the configured window $window in session $session exited or could not be found" \
+        "fix the agent command in $TEAM_CONFIG_FILE, then run make team-start again"
+    fi
+    team_tmux_require_pane "$id" "$pane" "$session" "$window"
     set_pane_metadata "$pane" "$id" "$role" "$model"
     write_agent_state "$id" "$role" "$cli" "$model" "$window" "$command" "$pane" "$session"
     team_tmux_accept_startup_prompt "$pane" "$cli" 10
+    team_tmux_require_pane "$id" "$pane" "$session" "$window"
     send_boot_nudge "$pane" "$id" "$role" "$cli"
+    team_tmux_require_pane "$id" "$pane" "$session" "$window"
   done < <(team_config_agents)
 
   tmux set-option -t "$session" status on >/dev/null

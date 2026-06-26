@@ -112,6 +112,6 @@ team_write_release_state \
   "$tasks"
 
 message="Release Decision: $decision. $review_file を確認してください。SHIP の場合、Manager が内容を確認して Lead に completion_ready を送ってください。"
-"$SCRIPT_DIR/team_send.sh" --from "$release_captain_id" --type release_result --bundle "$bundle_id" "$manager" "$message" >/dev/null
+team_send_with_body_file "$release_captain_id" release_result "" "$bundle_id" "$manager" "$message" >/dev/null
 
 echo "$review_file"

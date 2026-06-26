@@ -9,25 +9,64 @@ source "$SCRIPT_DIR/team_config.sh"
 ensure_team_dirs
 
 session="$(team_config_session)"
+session_running=0
 
 echo "Team: $(team_config_name)"
 echo "Session: $session"
 echo
 
 echo "Agents:"
-printf '%-12s %-12s %-18s %s\n' "id" "role" "model" "window"
+printf '%-16s %-16s %-18s %s\n' "id" "role" "model" "window"
 while IFS='|' read -r id role cli model window command; do
   [[ -n "$id" ]] || continue
-  printf '%-12s %-12s %-18s %s\n' "$id" "$role" "$model" "$window"
+  printf '%-16s %-16s %-18s %s\n' "$id" "$role" "$model" "$window"
 done < <(team_config_agents)
 echo
 
 if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$session" 2>/dev/null; then
+  session_running=1
   echo "tmux panes:"
   tmux list-panes -t "$session" -a -F '  #{pane_id} #{window_name} agent=#{@agent_id} role=#{@role} model=#{@model}'
 else
   echo "tmux panes: not running"
 fi
+echo
+
+echo "Agent pane status:"
+while IFS='|' read -r id role cli model window command; do
+  [[ -n "$id" ]] || continue
+  state_file="$TEAM_STATE_DIR/agents/$id.env"
+  pane=""
+  state_session=""
+  status=""
+  detail=""
+  if [[ "$session_running" -ne 1 ]]; then
+    status="not-running"
+    detail="session=$session"
+  elif [[ ! -f "$state_file" ]]; then
+    status="missing-state"
+    detail="window=$window"
+  else
+    configured_session="$session"
+    pane=""
+    session=""
+    # shellcheck disable=SC1090
+    source "$state_file"
+    state_session="${session:-}"
+    session="$configured_session"
+    if [[ -z "${pane:-}" || -z "$state_session" ]]; then
+      status="incomplete-state"
+      detail="window=$window"
+    elif team_tmux_pane_exists "$pane"; then
+      status="live"
+      detail="pane=$pane"
+    else
+      status="missing-pane"
+      detail="pane=$pane window=$window"
+    fi
+  fi
+  printf '  %-16s %-16s %s %s\n' "$id" "$role" "$status" "$detail"
+done < <(team_config_agents)
 echo
 
 echo "Current STATE.md:"
@@ -98,6 +137,9 @@ while IFS='|' read -r id role cli model window command; do
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0
   pending=0
+  latest_pending_id=""
+  latest_pending_type=""
+  latest_pending_from=""
   if [[ -f "$inbox_file" ]]; then
     while IFS= read -r line; do
       message_id="$(printf '%s\n' "$line" | extract_json_field id)"
@@ -105,10 +147,17 @@ while IFS='|' read -r id role cli model window command; do
       total=$((total + 1))
       if [[ ! -f "$TEAM_STATE_DIR/processed/$id/$message_id" ]]; then
         pending=$((pending + 1))
+        latest_pending_id="$message_id"
+        latest_pending_type="$(printf '%s\n' "$line" | extract_json_field type)"
+        latest_pending_from="$(printf '%s\n' "$line" | extract_json_field from)"
       fi
     done < "$inbox_file"
   fi
-  echo "  $id pending=$pending total=$total"
+  if [[ "$pending" -gt 0 ]]; then
+    echo "  $id pending=$pending total=$total latest=$latest_pending_id type=$latest_pending_type from=$latest_pending_from"
+  else
+    echo "  $id pending=0 total=$total"
+  fi
 done < <(team_config_agents)
 echo
 

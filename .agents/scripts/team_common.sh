@@ -56,13 +56,32 @@ team_tmux_cancel_mode_if_needed() {
 
 team_tmux_submit() {
   local pane="$1"
-  local count="${2:-3}"
+  local count="${2:-5}"
   local _index
 
   for _index in $(seq 1 "$count"); do
     tmux send-keys -t "$pane" C-m
-    sleep 0.2
+    sleep 0.15
   done
+}
+
+team_tmux_pane_exists() {
+  local pane="$1"
+  tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1
+}
+
+team_tmux_require_pane() {
+  local agent_id="$1"
+  local pane="$2"
+  local session="$3"
+  local window="$4"
+
+  if ! team_tmux_pane_exists "$pane"; then
+    die_rule \
+      "tmux pane is not running for agent $agent_id" \
+      "the configured window $window in session $session exited or could not be found" \
+      "fix the agent command in $TEAM_CONFIG_FILE, then run make team-start again"
+  fi
 }
 
 team_tmux_send_text() {
@@ -73,6 +92,36 @@ team_tmux_send_text() {
   tmux send-keys -t "$pane" C-u
   tmux send-keys -t "$pane" -l "$text"
   team_tmux_submit "$pane"
+}
+
+team_send_with_body_file() {
+  local from="$1"
+  local type="$2"
+  local task_id="$3"
+  local bundle_id="$4"
+  local to="$5"
+  local body="$6"
+  local body_file
+  local status
+
+  ensure_team_dirs
+  body_file="$(mktemp "$TEAM_STATE_DIR/tmp/message-body.XXXXXX")"
+  printf '%s\n' "$body" > "$body_file"
+
+  if "$TEAM_COMMON_DIR/team_send.sh" \
+    --from "$from" \
+    --type "$type" \
+    --task "$task_id" \
+    --bundle "$bundle_id" \
+    --body-file "$body_file" \
+    "$to"; then
+    rm -f "$body_file"
+    return 0
+  else
+    status=$?
+    rm -f "$body_file"
+    return "$status"
+  fi
 }
 
 team_tmux_content_is_ready() {

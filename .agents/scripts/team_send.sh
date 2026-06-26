@@ -139,6 +139,10 @@ if [[ -z "$type" ]]; then
 fi
 
 if [[ -n "$body_file" ]]; then
+  [[ -z "$body" ]] || die_rule \
+    "body and body file were both provided" \
+    "message body has two sources, so the delivered text would be ambiguous" \
+    "pass either BODY or BODY_FILE, not both"
   [[ -f "$body_file" ]] || die_rule \
     "body file not found: $body_file" \
     "the requested --body-file path does not exist" \

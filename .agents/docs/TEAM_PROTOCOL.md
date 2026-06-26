@@ -32,6 +32,12 @@ If the prompt is visible in a pane but has not submitted, run:
 make team-submit AGENT=<agent_id>
 ```
 
+For multi-line or quote-heavy messages, write the body to a file and send:
+
+```bash
+make team-send FROM=<from_id> TO=<to_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=/tmp/message.md
+```
+
 ## Human To Lead
 
 Human users interact only with the lead pane.
@@ -45,6 +51,7 @@ Lead uses that focus for:
 - translating manager escalations into human-facing choices
 
 Lead sends actionable work to manager with `make team-send`. Lead does not implement or dispatch.
+Before sending a follow-up nudge, lead checks `make team-status` and `.agents/state/STATE.md`.
 
 ## Identity
 
@@ -73,6 +80,7 @@ Expected fields:
 - Sends manager `intake`, `approval`, or `decision` messages.
 - Edits `.agents/state/STATE.md` Intent when human-derived Goal, Acceptance, or Human escalation rules change.
 - Reviews `.agents/queue/memory_proposals/` and `.agents/queue/skill_proposals/`.
+- Reviews proposals after manager sends `completion_ready`.
 - Does not edit project files.
 - Does not dispatch worker tasks.
 
@@ -494,6 +502,7 @@ make team-send FROM=<manager_id> TO=lead TYPE=completion_ready BODY="..."
 ```
 
 Include user-facing summary, evidence summary, release review path, and unresolved caveats.
+Lead checks memory and skill proposals before reporting completion to the human.
 
 ## Memory
 

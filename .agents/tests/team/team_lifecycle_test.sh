@@ -44,6 +44,36 @@ mkdir -p "$TMP_BASE/bin"
 
 cat > "$TMP_BASE/bin/tmux" <<'SH'
 #!/usr/bin/env bash
+target_window() {
+  local target=""
+  local previous=""
+  local arg
+  for arg in "$@"; do
+    if [[ "$previous" == "-t" ]]; then
+      target="$arg"
+      previous=""
+      continue
+    fi
+    if [[ "$arg" == "-t" ]]; then
+      previous="-t"
+    fi
+  done
+  target="${target#*:}"
+  target="${target%%.*}"
+  target="${target#%fake-}"
+  printf '%s\n' "$target"
+}
+
+window_is_missing() {
+  local window="$1"
+  local missing
+  IFS=',' read -r -a missing <<< "${TEAM_FAKE_TMUX_MISSING_WINDOWS:-}"
+  for item in "${missing[@]}"; do
+    [[ "$item" == "$window" ]] && return 0
+  done
+  return 1
+}
+
 case "$1" in
   has-session)
     if [[ "${TEAM_FAKE_TMUX_HAS_SESSION:-0}" == "1" ]]; then
@@ -56,8 +86,12 @@ case "$1" in
     exit 0
     ;;
   display-message)
+    window="$(target_window "$@")"
+    if window_is_missing "$window"; then
+      exit 1
+    fi
     if [[ "$*" == *"#{pane_id}"* ]]; then
-      printf '%%fake-pane\n'
+      printf '%%fake-%s\n' "$window"
     elif [[ "$*" == *"#{pane_in_mode}"* ]]; then
       printf '0\n'
     fi
@@ -94,6 +128,7 @@ git -C "$TMP_ROOT" commit -qm "Initial template"
 # These equality checks guard the supported team command surface.
 expected_scripts="$(printf '%s\n' \
   team_bootstrap.sh \
+  team_bootstrap_team.sh \
   team_common.sh \
   team_config.sh \
   team_dispatch.sh \
@@ -138,7 +173,7 @@ actual_queue_dirs="$(find "$ROOT/.agents/queue" -mindepth 1 -maxdepth 1 -type d 
 
 expected_make_targets="$(printf '%s\n' \
   bootstrap \
-  bootstrap-finish \
+  bootstrap-team \
   dispatch \
   inbox \
   memory-append \
@@ -151,7 +186,6 @@ expected_make_targets="$(printf '%s\n' \
   smoke \
   state \
   state-update \
-  team-bootstrap \
   team-identity \
   team-send \
   team-start \
@@ -197,6 +231,37 @@ if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=
 fi
 explicit_message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead --type note --task - manager "explicit sender")"
 [[ -n "$explicit_message_id" ]]
+
+body_file="$TMP_BASE/message-body.md"
+printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' 'line three' > "$body_file"
+body_file_output="$(
+  cd "$TMP_ROOT"
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=1 \
+  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=note TASK=- BODY_FILE="$body_file"
+)"
+case "$body_file_output" in
+  *"message_id="*) ;;
+  *) echo "make team-send BODY_FILE did not return message id" >&2; exit 1 ;;
+esac
+manager_body_file_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$manager_body_file_pending" in
+  *"line one\\nrequires-python >=3.14 \\\"quoted\\\"\\nline three"*) ;;
+  *) echo "BODY_FILE message body was not delivered exactly enough for JSONL transport" >&2; exit 1 ;;
+esac
+body_ambiguity_error="$TMP_BASE/body-ambiguity-error.txt"
+if (
+  cd "$TMP_ROOT"
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=1 \
+  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=note TASK=- BODY=inline BODY_FILE="$body_file"
+) >/dev/null 2> "$body_ambiguity_error"; then
+  echo "make team-send accepted BODY and BODY_FILE together" >&2
+  exit 1
+fi
+grep -q '^BODY and BODY_FILE cannot both be set$' "$body_ambiguity_error"
 
 lead_strategy_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead strategist "lead strategy")"
 case "$lead_strategy_output" in
@@ -255,7 +320,29 @@ case "$tmux_log" in *"release_request"*) ;; *) echo "release-captain boot nudge 
 case "$tmux_log" in *"review_watch_assigned"*) ;; *) echo "reviewer boot nudge was not sent" >&2; exit 1 ;; esac
 case "$tmux_log" in *"task_assigned"*) ;; *) echo "worker boot nudge was not sent" >&2; exit 1 ;; esac
 startup_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
-[[ "$startup_enter_count" -ge 3 ]] || { echo "startup prompt was not submitted with repeated C-m" >&2; exit 1; }
+[[ "$startup_enter_count" -ge 5 ]] || { echo "startup prompt was not submitted with repeated C-m" >&2; exit 1; }
+
+: > "$TEAM_FAKE_TMUX_LOG"
+missing_start_log="$TMP_BASE/team_start_missing.log"
+if PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_BOOT_NUDGE_DELAY=0 \
+  TEAM_FAKE_TMUX_MISSING_WINDOWS=worker-2 \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --restart > "$missing_start_log" 2>&1; then
+  echo "team_start unexpectedly succeeded with a missing configured pane" >&2
+  exit 1
+fi
+grep -q '^error: tmux pane is not running for agent worker-2$' "$missing_start_log"
+grep -q '^required action: fix the agent command in ' "$missing_start_log"
+missing_status="$(
+  PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  "$TMP_ROOT/.agents/scripts/team_status.sh"
+)"
+printf '%s\n' "$missing_status" | grep -Eq '^  worker-2[[:space:]]+worker[[:space:]]+missing-state'
 
 : > "$TEAM_FAKE_TMUX_LOG"
 team_bootstrap_log="$TMP_BASE/team_bootstrap.log"
@@ -268,11 +355,32 @@ if ! PATH="$TMP_BASE/bin:$PATH" \
   exit 1
 fi
 case "$(<"$TEAM_FAKE_TMUX_LOG")" in
-  *"send-keys"*"team-bootstrap"*"何を作るか"*"1問"*) ;;
+  *"send-keys"*"bootstrap"*"何を作るか"*"1問"*) ;;
   *) echo "bootstrap prompt was not sent to lead" >&2; exit 1 ;;
 esac
 case "$(<"$TEAM_FAKE_TMUX_LOG")" in
   *"TEAM_AGENT_ID=manager"*) echo "bootstrap should start only the lead agent" >&2; exit 1 ;;
+esac
+
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead --type intake --task - manager "bootstrap contract is ready" >/dev/null
+: > "$TEAM_FAKE_TMUX_LOG"
+bootstrap_team_log="$TMP_BASE/team_bootstrap_team.log"
+if ! PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_BOOT_NUDGE_DELAY=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  "$TMP_ROOT/.agents/scripts/team_bootstrap_team.sh" > "$bootstrap_team_log" 2>&1; then
+  cat "$bootstrap_team_log" >&2
+  exit 1
+fi
+grep -q '^nudged manager pending=' "$bootstrap_team_log"
+case "$(<"$TEAM_FAKE_TMUX_LOG")" in
+  *"TEAM_AGENT_ID=manager"*"inbox manager"*) ;;
+  *) echo "bootstrap-team did not start and nudge manager" >&2; exit 1 ;;
+esac
+case "$(<"$TEAM_FAKE_TMUX_LOG")" in
+  *"TEAM_AGENT_ID=lead"*) echo "bootstrap-team should preserve the existing lead pane" >&2; exit 1 ;;
 esac
 
 : > "$TEAM_FAKE_TMUX_LOG"
@@ -296,7 +404,7 @@ case "$(<"$TEAM_FAKE_TMUX_LOG")" in
   *) echo "nudge did not submit inbox with C-m" >&2; exit 1 ;;
 esac
 nudge_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
-[[ "$nudge_enter_count" -ge 3 ]] || { echo "nudge was not submitted with repeated C-m" >&2; exit 1; }
+[[ "$nudge_enter_count" -ge 5 ]] || { echo "nudge was not submitted with repeated C-m" >&2; exit 1; }
 
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 perl -0pi -e 's/T-XXX/T-001/g' "$TMP_ROOT/.agents/queue/tasks/T-001.md"
