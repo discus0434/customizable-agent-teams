@@ -24,7 +24,7 @@ case "$command" in
     [[ $# -eq 2 ]] || { usage; exit 2; }
     proposal_file="$2"
     [[ -f "$proposal_file" ]] || die "proposal file not found: $proposal_file"
-    memory_file="$TEAM_ROOT/.agents/docs/MEMORY.md"
+    memory_file="$(team_memory_file)"
     [[ -f "$memory_file" ]] || die "memory file not found: $memory_file"
     {
       printf '\n## Accepted Proposal %s\n\n' "$(team_now_utc)"

@@ -2,16 +2,18 @@
 
 ## Artifacts
 
+- `.agents/state/STATE.md`: current whole picture.
+- `.agents/state/MEMORY.md`: medium/long-term rules, tips, pitfalls, and user preferences.
 - `.agents/queue/tasks/<task_id>.md`: task body.
 - `.agents/queue/inbox/<agent_id>.jsonl`: agent messages.
-- `.agents/queue/reports/<task_id>_<agent_id>.md`: worker report.
-- `.agents/queue/reviews/<task_id>_<agent_id>_review.md`: verifier result.
-- `.agents/queue/integrations/<task_id>_<agent_id>.md`: lead integration result.
-- `.agents/queue/state/tasks/<task_id>.json`: lifecycle state.
+- `.agents/queue/reports/<task_id>_<worker_id>.md`: worker report.
+- `.agents/queue/reviews/<task_id>_<reviewer_id>.md`: reviewer result.
+- `.agents/queue/strategy/<strategy_id>.md`: strategist artifact.
+- `.agents/queue/state/tasks/<task_id>.json`: machine-readable task lifecycle state.
 - `.agents/queue/state/processed/<agent_id>/<message_id>`: processed inbox marker.
 
-All queue paths are canonical under `TEAM_ROOT`. All lead and worker panes start in the same repository root.
-Private scratch files belong in `/tmp`. Team-visible temporary state belongs in `.agents/queue/state/tmp/`. Repository-root scratch files block clean-root dispatch, review, and integration gates.
+All queue paths are canonical under `TEAM_ROOT`. All panes start in the same repository root.
+Private scratch files belong in `/tmp`. Team-visible temporary state belongs in `.agents/queue/state/tmp/`.
 
 tmux carries only short nudges:
 
@@ -33,21 +35,16 @@ make team-submit AGENT=<agent_id>
 
 ## Human To Lead
 
-Human users interact with the lead through the lead tmux pane.
+Human users interact only with the lead pane.
 
-Use the lead pane for:
+Lead uses that focus for:
 
-- project requests
-- bootstrap conversations
-- scope decisions
-- integration decisions
+- intent clarification
+- one-question-at-a-time narrowing
+- approval requests
+- translating manager escalations into human-facing choices
 
-Use mailbox plus tmux nudge for:
-
-- lead-to-worker task dispatch
-- worker-to-lead questions
-- verifier-to-worker review results
-- direct lightweight requests that do not require integration
+Lead sends actionable work to manager through the mailbox. Lead does not implement or dispatch.
 
 ## Identity
 
@@ -67,128 +64,209 @@ Expected fields:
 - `TEAM_ROOT`
 - `TEAM_CONFIG_FILE`
 
-## Root Sharing
+## Roles
 
-Implementation tasks run in the shared root checkout. `TYPE=task_assigned` dispatch creates task state and allows only one active implementation task at a time, so workers do not edit the same working tree concurrently.
+### Lead
 
-Clean root is part of the lifecycle contract. Before task dispatch, review, or integration, remove local throwaway files or move them to `/tmp` or `.agents/queue/state/tmp/`.
+- Sole human-facing role.
+- Clarifies ambiguous instructions.
+- Sends manager `intake`, `approval`, or `decision` messages.
+- May edit `.agents/state/STATE.md` only for important human-derived facts and decisions.
+- Does not edit project files.
+- Does not dispatch worker tasks.
 
-## Lead Direct Work
+### Manager
 
-Lead may work directly when the change is small, single-owner, and not worth a task/report/review cycle.
+- Owns team operation.
+- Primary editor of `.agents/state/STATE.md`.
+- Creates task files, assigns worker/reviewer pairs, and dispatches tasks.
+- Tracks reports, review decisions, blockers, and next actions.
+- Requests strategist input when heavy analysis is useful.
+- Marks task state `done` after reviewer `OK` and sufficient report evidence.
+- Escalates to lead when human judgment is needed.
+- Does not edit project files.
 
-Direct work gate:
+### Strategist
 
-```bash
-make post-change
-make smoke
+- Receives `strategy_request` messages.
+- Writes `.agents/queue/strategy/<strategy_id>.md`.
+- Notifies manager with the artifact path.
+- Does not edit project files, dispatch tasks, or edit `STATE.md`.
+
+### Reviewer
+
+- Receives `review_watch_assigned`.
+- Communicates directly with the assigned worker.
+- Writes `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
+- Records `OK`, `FIX`, or `ASK_MANAGER` with `make review-report`.
+- Does not edit project files.
+
+### Worker
+
+- Receives `task_assigned`.
+- Implements in shared root.
+- May work concurrently with other workers.
+- Coordinates first with the assigned reviewer.
+- Runs verification, commits, writes report, and asks reviewer for review.
+
+## State And Memory
+
+`STATE.md` is short-lived current state. Manager keeps it current and removes stale completed details.
+
+Recommended shape:
+
+```md
+# STATE
+
+## Current Goal
+
+## Active Work
+
+| Task | Owner | Reviewer | Status | Next Action |
+
+## Decisions Needed
+
+## Blockers
+
+## Recent Changes
+
+## Next Actions
 ```
 
-Run task-specific checks before `make post-change` when they exist.
+`MEMORY.md` is medium/long-term agent memory. Lead edits it after reviewing proposals from `.agents/queue/memory_proposals/`.
+
+## Strategy Requests
+
+Lead or manager may send:
+
+```bash
+make team-send TO=strategist TYPE=strategy_request TASK=- BODY="..."
+```
+
+Strategist writes:
+
+```text
+.agents/queue/strategy/<strategy_id>.md
+```
+
+Then strategist notifies manager with the path and a short summary.
 
 ## Task Dispatch
 
-Create a task from `.agents/queue/tasks/TEMPLATE.md`.
+Manager creates a task from `.agents/queue/tasks/TEMPLATE.md`.
 
 Required fields:
 
 - `Owner`
+- `Reviewer`
 - `Allowed paths`
 - `Do not modify`
 - `Goal`
 - `Acceptance`
 - `Verification`
+- `Worker Flow`
+- `Reviewer Flow`
 - `Report`
 
-Send:
+Dispatch:
 
 ```bash
-make team-send TO=<agent_id> TYPE=task_assigned TASK=<task_id>
-make team-status
+make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
 ```
 
-For direct lightweight requests without a task file, send `TYPE=note`, `TYPE=retro`, or another explicit type with `TASK=-`. The receiver follows the inbox body and does not commit, review, or integrate unless the body says to create a task.
-After writing the requested artifact, the receiver marks the message processed with `make inbox AGENT=<agent_id> MARK=<message_id>`.
+Dispatch writes task state with:
+
+- owner
+- reviewer
+- status `dispatched`
+- base commit
+
+Dispatch sends:
+
+- `task_assigned` to worker
+- `review_watch_assigned` to reviewer
+
+Multiple workers can work in the shared root at the same time. Manager, task ownership, reviewer coordination, and reports define the working boundary.
 
 ## Worker Lifecycle
 
-Dispatch checks:
+Worker reads the task file and talks to the assigned reviewer when blocked or unsure.
 
-- task exists.
-- `Owner` equals agent id.
-- root checkout is clean.
-- no other implementation task is active.
-
-Work:
+After implementation:
 
 ```bash
 make post-change
 make smoke
 git add <changed-files>
 git commit -m "<task_id>: <summary>"
-make report TASK=<task_id> AGENT=<agent_id> STATUS=needs-review
-# Edit .agents/queue/reports/<task_id>_<agent_id>.md with concrete verification evidence.
-make review TASK=<task_id> AGENT=<agent_id>
+make report TASK=<task_id> AGENT=<worker_id> STATUS=needs_review
 ```
 
-The report must include summary, changed files, task-specific verification, `make post-change`, and `make smoke` evidence before review.
+The report must include:
 
-Review handling:
+- summary
+- changed files
+- commit information
+- task-specific verification command/result/evidence
+- `make post-change` result/evidence
+- `make smoke` result/evidence
+- reviewer coordination
+- blockers or questions
 
-- `Decision: OK`: `make report TASK=<task_id> AGENT=<agent_id> STATUS=done`.
-- `Decision: FIX`: fix, rerun checks, commit, report `needs-review`, and review again.
-- `Decision: ASK_LEAD`: write the question in the report and notify lead.
-
-After review, recheck inbox and mark the verifier notification when the review artifact has already been handled.
-
-Review refuses dirty root state. The review target is the committed diff from task base commit to root `HEAD`. The review prompt embeds the task, report, git status, and committed diff; verifier agents should decide from that evidence.
-
-`team.review.cli` supports:
-
-- `claude`: runs `claude --print`.
-- `codex`: runs `codex exec` and writes the final response to the review artifact.
-
-`team.review.timeout_seconds` is required. A timed-out review fails instead of leaving the task in an invisible running state.
-
-## Integration
-
-Lead integrates only tasks shown by `make team-status` as `ready-to-integrate`.
+Worker sends the assigned reviewer:
 
 ```bash
-make integrate TASK=<task_id> AGENT=<agent_id>
+make team-send TO=<reviewer_id> TYPE=ready_for_review TASK=<task_id> BODY="..."
 ```
 
-Integration checks:
+## Reviewer Lifecycle
 
-- task owner matches the agent.
-- report exists and has `Status: done`.
-- review exists and has `Decision: OK`.
-- root checkout is clean.
-- root `HEAD` still equals report/state head commit.
+Reviewer reads:
 
-Integration performs:
+- task file
+- worker report
+- relevant diff/commits
+- verification evidence
+- worker questions or checkpoint messages
 
-```bash
-make post-change
-make smoke
-```
-
-Result is written to:
+Reviewer writes:
 
 ```text
-.agents/queue/integrations/<task_id>_<agent_id>.md
+.agents/queue/reviews/<task_id>_<reviewer_id>.md
 ```
 
-If checks fail, the task remains unintegrated. Lead fixes the root state or sends a follow-up task to the worker.
+Then records the decision:
+
+```bash
+make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=OK
+make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=FIX
+make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=ASK_MANAGER
+```
+
+Decision meaning:
+
+- `OK`: report and implementation evidence are sufficient.
+- `FIX`: worker must fix and repeat verification/report/review.
+- `ASK_MANAGER`: reviewer or worker needs manager judgment.
+
+## Done
+
+Manager marks a task done after reviewer `OK` and sufficient report evidence:
+
+```bash
+make state-update TASK=<task_id> STATUS=done
+```
+
+Manager also updates `.agents/state/STATE.md` so the whole picture stays current.
+
+The worker commit is the shared-root result. Manager records completion after the review and report are sufficient.
 
 ## Memory
 
-Workers submit memory proposals. Lead edits `.agents/docs/MEMORY.md`.
-
-Memory proposal path:
+Proposal path:
 
 ```text
-.agents/queue/memory_proposals/<task_id>_<agent_id>_<short-slug>.md
+.agents/queue/memory_proposals/<source>_<agent_id>_<short-slug>.md
 ```
 
-Lead reviews proposals and edits `.agents/docs/MEMORY.md` only when the lesson is durable, sourced, non-secret, and not a duplicate.
+Lead reviews proposals and edits `.agents/state/MEMORY.md` only when the lesson is durable, sourced, non-secret, and not a duplicate.

@@ -1,13 +1,13 @@
 ---
 name: team-memory
-description: Use by a lead agent when .agents/queue/memory_proposals contains proposals that may be integrated into .agents/docs/MEMORY.md.
+description: Use by a lead agent when .agents/queue/memory_proposals contains proposals that may be appended to .agents/state/MEMORY.md.
 ---
 
 # team-memory
 
 ## Inputs
 
-- `.agents/docs/MEMORY.md`
+- `.agents/state/MEMORY.md`
 - `.agents/queue/memory_proposals/*.md`
 - proposal の source task / report
 
@@ -26,7 +26,7 @@ make memory-list
 ```
 
 1. proposal を読む。
-2. `.agents/docs/MEMORY.md` を検索して重複や supersede 対象を確認する。
+2. `.agents/state/MEMORY.md` を検索して重複や supersede 対象を確認する。
 3. 採択する内容だけを整形して統合する。
 4. 必要なら proposal file に対応済みであることを report に残す。
 

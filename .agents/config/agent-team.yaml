@@ -8,6 +8,33 @@ team:
     model: claude-opus-4-8
     window: lead
     command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+  manager:
+    id: manager
+    role: manager
+    cli: claude
+    model: claude-opus-4-8
+    window: manager
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+  strategist:
+    id: strategist
+    role: strategist
+    cli: claude
+    model: claude-opus-4-8
+    window: strategist
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+  reviewers:
+    - id: reviewer-1
+      role: reviewer
+      cli: claude
+      model: claude-opus-4-8
+      window: reviewer-1
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
+    - id: reviewer-2
+      role: reviewer
+      cli: claude
+      model: claude-opus-4-8
+      window: reviewer-2
+      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
   workers:
     - id: worker-1
       role: worker
@@ -27,9 +54,3 @@ team:
       model: gpt-5.5
       window: worker-3
       command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
-  review:
-    cli: claude
-    model: claude-opus-4-8
-    effort: medium
-    timeout_seconds: 180
-    output_dir: .agents/queue/reviews

@@ -1,6 +1,6 @@
 ---
 name: team-review
-description: Use only when a verifier result is ambiguous, disputed, or says ASK_LEAD, and a worker or lead must decide whether to fix, accept risk, split scope, or change the task contract.
+description: Use by a reviewer while assigned to a task, or by a manager when handling ASK_MANAGER, to decide OK, FIX, or escalation from worker evidence and task constraints.
 ---
 
 # team-review
@@ -8,25 +8,37 @@ description: Use only when a verifier result is ambiguous, disputed, or says ASK
 ## Inputs
 
 - `.agents/queue/tasks/<task_id>.md`
-- `.agents/queue/reports/<task_id>_<agent_id>.md`
-- `.agents/queue/reviews/<task_id>_<agent_id>_review.md`
-- `.agents/docs/MEMORY.md`
+- `.agents/queue/reports/<task_id>_<worker_id>.md`
+- `.agents/queue/reviews/<task_id>_<reviewer_id>.md`
+- `.agents/state/MEMORY.md`
+- relevant commits / diffs / files
 
-## Worker Handling
+## Reviewer Handling
 
-- 明確な `OK` / `FIX` は AGENTS.md の flow に従う。
-- scope、contract、ownership、user-visible behavior に関わる判断だけここで扱う。
-- 判断に迷う Minor / Info は、直す理由または直さない理由を report に書く。
+- Talk directly with the assigned worker.
+- Check acceptance, explicit constraints, changed files, verification evidence, and scope discipline.
+- Do not edit project files.
+- Write `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
+- Record one decision:
+  - `OK`
+  - `FIX`
+  - `ASK_MANAGER`
 
-## Lead Handling
+```bash
+make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=<OK|FIX|ASK_MANAGER>
+```
 
-- worker の相談に対して、fix / accept risk / split task を決める。
-- 統合判断は `make integrate` と `.agents/docs/TEAM_PROTOCOL.md` の Integration gate で行う。
-- review result だけで統合せず、worker report、state、verification evidence も見る。
+## Manager Handling
 
-## Decision
+- For `OK`, confirm report/review evidence is sufficient, then mark task state `done`.
+- For `FIX`, ensure the worker has a clear next action.
+- For `ASK_MANAGER`, decide whether to answer directly, request strategist input, split scope, or escalate to lead.
 
-- `needs-fix`
-- `needs-lead-decision`
-- `ready-to-integrate`
-- `split-task`
+## Review Criteria
+
+- Task acceptance is satisfied.
+- `Allowed paths` and `Do not modify` are respected.
+- Verification evidence is concrete and current.
+- `make post-change` and `make smoke` results are recorded.
+- The worker did not silently change user-visible scope or contract.
+- Follow-up action is clear.

@@ -1,6 +1,6 @@
 ---
 name: team-bootstrap
-description: Use by a lead agent when initializing a new project from this template, before direct implementation or worker dispatch, to decide product shape and stack, initialize project-facing docs and metadata, and configure packaging, format, lint, test, make post-change, and make smoke.
+description: Use by a lead agent when initializing a new project from this template, before asking manager to implement bootstrap, to decide product shape and stack through one-question-at-a-time collaboration.
 ---
 
 # team-bootstrap
@@ -11,6 +11,8 @@ description: Use by a lead agent when initializing a new project from this templ
 - `README.md`
 - `Makefile`
 - `.agents/docs/TEAM_PROTOCOL.md`
+- `.agents/state/STATE.md`
+- `.agents/state/MEMORY.md`
 - existing project files: `pyproject.toml`, `package.json`, `pnpm-workspace.yaml`, `src/`, `tests/`
 
 ## Ask
@@ -22,7 +24,7 @@ Ask one question at a time.
 - 既存 repo や user request から確定できることは採用し、聞かない。
 - 質問は user が判断しやすい粒度にする。必要なら推奨案を添える。
 - 一度に questionnaire を並べない。
-- implementation や worker dispatch は、bootstrap contract が固まるまで行わない。
+- implementation や dispatch 依頼は、bootstrap contract が固まるまで行わない。
 
 必要に応じて次を順番に狭める。
 
@@ -49,7 +51,7 @@ Ask one question at a time.
 
 ## Initialize Template Surfaces
 
-bootstrap では、template の初期記述を実プロジェクトの contract に置き換える。
+bootstrap 実装では、template の初期記述を実プロジェクトの contract に置き換える。
 
 - `README.md`: project name、目的、install、run command、`make post-change`、`make smoke`、主要 entrypoint。
 - `AGENTS.md`: 選んだ stack の command、package dir、test/smoke 期待値、ownership note。
@@ -179,4 +181,4 @@ post-change: post-change-py post-change-ts
 - package/app build が成果物に必要なら、build command が `make post-change` に含まれていることを確認する。
 - Confirm `README.md`, `AGENTS.md`, `Makefile`, package metadata, and `.agents/config/agent-team.yaml` no longer contain stale template names or unused stack commands.
 - Delete `.agents/skills/team-bootstrap/` after bootstrap is complete.
-- Dispatch implementation tasks only after the bootstrap checks pass.
+- Ask manager to create and dispatch implementation tasks after the bootstrap contract is clear.

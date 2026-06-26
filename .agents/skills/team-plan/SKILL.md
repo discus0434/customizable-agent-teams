@@ -1,6 +1,6 @@
 ---
 name: team-plan
-description: Use by a lead after the goal is understood and worker delegation is worthwhile, before creating task files that define owner, acceptance, verification, review, and integration order.
+description: Use by a manager after a lead intake is clear enough to decompose work, assign worker/reviewer pairs, and prepare dispatchable task files.
 ---
 
 # team-plan
@@ -8,41 +8,48 @@ description: Use by a lead after the goal is understood and worker delegation is
 ## Inputs
 
 - `.agents/docs/TEAM_PROTOCOL.md`
-- `.agents/docs/MEMORY.md`
-- `.agents/queue/tasks/TEMPLATE.md` if needed
+- `.agents/state/STATE.md`
+- `.agents/state/MEMORY.md`
+- `.agents/queue/tasks/TEMPLATE.md`
+- relevant strategy artifacts in `.agents/queue/strategy/`
 
 ## Split Rules
 
-- 小さい変更は task 化せず lead が直接行う。
-- 1 task = 1 natural owner。
-- 同じ file を複数 worker が同時に触らない。
-- `Allowed paths` と `Do not modify` を必ず書く。
-- task file だけで着手できる背景、関連 path、制約を含める。
-- acceptance は report だけで判定できる形にする。
-- verification は担当 agent が実行可能な command にする。
-- worker completion gate として `make post-change`, `make smoke`, `make review` を含める。
-- `make review` 前に report へ summary、changed files、verification result/evidence を書く gate を含める。
-- dependency / integration order があれば明記する。
+- 1 task = 1 natural implementation owner.
+- Assign exactly one worker and one reviewer to each implementation task.
+- Multiple workers may edit the shared root concurrently.
+- `Allowed paths` and `Do not modify` must be explicit.
+- Task files must include enough context, constraints, acceptance, and verification for the worker and reviewer to start without asking lead.
+- Escalate to lead only when human approval, product intent, scope change, or user-visible trade-off needs confirmation.
+- Request strategist input when architecture, deep debugging, option comparison, or execution planning is heavy enough to benefit from a separate context.
 
 ## Required Fields
 
 - Context
 - Owner
+- Reviewer
 - Allowed paths
 - Do not modify
 - Goal
 - Acceptance
 - Verification
-- Post-change / smoke / review gate
+- Worker Flow
+- Reviewer Flow
 - Report path
-- Report evidence requirement
 - Memory proposal policy
+
+## Dispatch
+
+```bash
+make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
+```
 
 ## Quality Check
 
 - `TBD`、`TODO`、未確定 acceptance がない。
 - 重要 requirement が task か acceptance に対応している。
-- ownership が重ならない。
+- owner と reviewer が config 上の正しい role。
 - 各 task が検証 command または未検証理由を持つ。
-- report evidence が review 前 gate として明記されている。
-- scope が user request と acceptance に対応している。
+- report evidence requirement が明記されている。
+- reviewer が worker と直接やりとりできるように task に判断境界が書かれている。
+- manager が `.agents/state/STATE.md` に next action を反映できる。

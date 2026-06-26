@@ -7,6 +7,7 @@ TEAM_ROOT="${TEAM_ROOT:-$(cd "$TEAM_COMMON_DIR/../.." && pwd)}"
 TEAM_CONFIG_FILE="${TEAM_CONFIG_FILE:-$TEAM_ROOT/.agents/config/agent-team.yaml}"
 TEAM_QUEUE_DIR="${TEAM_QUEUE_DIR:-$TEAM_ROOT/.agents/queue}"
 TEAM_STATE_DIR="${TEAM_STATE_DIR:-$TEAM_QUEUE_DIR/state}"
+TEAM_MEMORY_DIR="${TEAM_MEMORY_DIR:-$TEAM_ROOT/.agents/state}"
 
 die() {
   echo "[team] ERROR: $*" >&2
@@ -123,14 +124,14 @@ team_tmux_wait_for_ready() {
 
 ensure_team_dirs() {
   mkdir -p \
+    "$TEAM_MEMORY_DIR" \
     "$TEAM_QUEUE_DIR/tasks" \
     "$TEAM_QUEUE_DIR/inbox" \
     "$TEAM_QUEUE_DIR/reports" \
     "$TEAM_QUEUE_DIR/reviews" \
-    "$TEAM_QUEUE_DIR/integrations" \
+    "$TEAM_QUEUE_DIR/strategy" \
     "$TEAM_QUEUE_DIR/memory_proposals" \
     "$TEAM_STATE_DIR/agents" \
-    "$TEAM_STATE_DIR/integrations" \
     "$TEAM_STATE_DIR/locks" \
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
@@ -241,14 +242,13 @@ team_task_state_field() {
 team_write_task_state() {
   local task_id="$1"
   local owner="$2"
-  local status="$3"
-  local base_commit="$4"
-  local head_commit="$5"
-  local integration_commit="$6"
+  local reviewer="$3"
+  local status="$4"
+  local base_commit="$5"
+  local head_commit="$6"
   local report="$7"
   local review="$8"
-  local integration="$9"
-  local review_decision="${10}"
+  local review_decision="$9"
   local state_file
   local updated_at
 
@@ -256,16 +256,15 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","owner":"%s","status":"%s","base_commit":"%s","head_commit":"%s","integration_commit":"%s","report":"%s","review":"%s","integration":"%s","review_decision":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$owner")" \
+    "$(json_string "$reviewer")" \
     "$(json_string "$status")" \
     "$(json_string "$base_commit")" \
     "$(json_string "$head_commit")" \
-    "$(json_string "$integration_commit")" \
     "$(json_string "$report")" \
     "$(json_string "$review")" \
-    "$(json_string "$integration")" \
     "$(json_string "$review_decision")" \
     "$updated_at" > "$state_file"
 }
@@ -285,18 +284,6 @@ team_task_markdown_field() {
       exit found ? 0 : 1
     }
   ' "$task_file"
-}
-
-team_git_is_clean() {
-  local repo="$1"
-  git -C "$repo" diff --quiet -- .
-  git -C "$repo" diff --cached --quiet -- .
-  [[ -z "$(git -C "$repo" ls-files --others --exclude-standard)" ]]
-}
-
-team_git_dirty_summary() {
-  local repo="$1"
-  git -C "$repo" status --short
 }
 
 team_report_field() {
@@ -348,7 +335,7 @@ team_review_decision() {
   local review_file="$1"
   [[ -f "$review_file" ]] || return 0
   awk '
-    /^Decision:[[:space:]]*(OK|FIX|ASK_LEAD)[[:space:]]*$/ {
+    /^Decision:[[:space:]]*(OK|FIX|ASK_MANAGER)[[:space:]]*$/ {
       value = $0
       sub(/^Decision:[[:space:]]*/, "", value)
       print value
@@ -359,4 +346,12 @@ team_review_decision() {
       exit found ? 0 : 1
     }
   ' "$review_file"
+}
+
+team_state_file() {
+  printf '%s/STATE.md\n' "$TEAM_MEMORY_DIR"
+}
+
+team_memory_file() {
+  printf '%s/MEMORY.md\n' "$TEAM_MEMORY_DIR"
 }

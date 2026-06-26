@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_report.sh <task_id> <agent_id> <done|blocked|needs-review>" >&2
+  echo "usage: team_report.sh <task_id> <agent_id> <needs_review|blocked>" >&2
 }
 
 [[ $# -eq 3 ]] || { usage; exit 2; }
@@ -17,51 +17,45 @@ agent_id="$2"
 status="$3"
 
 case "$status" in
-  done|blocked|needs-review) ;;
-  *) die "invalid status: $status" ;;
+  needs_review|blocked) ;;
+  *) die "invalid report status: $status" ;;
 esac
 
 if ! team_config_agent_record "$agent_id" >/dev/null; then
   die "unknown agent: $agent_id"
 fi
 
+agent_role="$(team_config_agent_field "$agent_id" role)"
+[[ "$agent_role" == "worker" ]] || die "$agent_id is not a worker agent"
+
 ensure_team_dirs
 report_file="$TEAM_QUEUE_DIR/reports/${task_id}_${agent_id}.md"
 state_file="$(team_task_state_file "$task_id")"
-[[ -f "$state_file" ]] || die "task is not assigned: $task_id"
+[[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 owner="$(team_task_state_field "$task_id" owner)"
-current_status="$(team_task_state_field "$task_id" status)"
+reviewer="$(team_task_state_field "$task_id" reviewer)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
-integration_commit="$(team_task_state_field "$task_id" integration_commit)"
 review_file="$(team_task_state_field "$task_id" review)"
-integration_file="$(team_task_state_field "$task_id" integration)"
 review_decision="$(team_task_state_field "$task_id" review_decision)"
 
 [[ "$owner" == "$agent_id" ]] || die "task $task_id is owned by $owner, not $agent_id"
-[[ "$current_status" != "integrated" ]] || die "task $task_id is already integrated"
+[[ -n "$reviewer" ]] || die "task $task_id state is missing reviewer"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 
-if [[ "$status" != "blocked" ]] && ! team_git_is_clean "$TEAM_ROOT"; then
-  team_git_dirty_summary "$TEAM_ROOT" >&2
-  die "team root must be clean before report Status $status"
-fi
-
 head_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
-
-if [[ "$status" == "done" && "$review_decision" != "OK" ]]; then
-  die "report Status done requires review Decision OK"
-fi
+commits="$(git -C "$TEAM_ROOT" log --oneline "$base_commit..$head_commit" -- 2>/dev/null || true)"
 
 if [[ ! -f "$report_file" ]]; then
   cat > "$report_file" <<REPORT
 # Report: $task_id by $agent_id
 
 Status: $status
+Reviewer: $reviewer
 Base commit: $base_commit
 Head commit: $head_commit
 Review: ${review_file:-none}
-Integration: ${integration_file:-none}
+Review decision: ${review_decision:-none}
 
 ## Summary
 
@@ -70,6 +64,10 @@ Integration: ${integration_file:-none}
 ## Files changed
 
 - 未記入
+
+## Commits
+
+$(if [[ -n "$commits" ]]; then printf '%s\n' "$commits" | sed 's/^/- /'; else printf '%s\n' "- none"; fi)
 
 ## Verification
 
@@ -89,23 +87,21 @@ Integration: ${integration_file:-none}
 - Result:
 - Evidence:
 
-## Review
+## Reviewer coordination
 
-- Command: make review TASK=$task_id AGENT=$agent_id
-- Result: pending
-- Evidence: update this section after reading ${review_file:-the review artifact}.
-
-## Integration
-
-- Command: make integrate TASK=$task_id AGENT=$agent_id
-- Result: not run by worker
-- Evidence: integration is lead-owned after report Status done and review Decision OK.
+- Assigned reviewer: $reviewer
+- Ready for review message:
+- Reviewer feedback handled:
 
 ## Blockers
 
 - 未記入
 
-## Questions for lead
+## Questions for reviewer
+
+- 未記入
+
+## Escalation for manager
 
 - 未記入
 
@@ -115,22 +111,22 @@ Integration: ${integration_file:-none}
 REPORT
 else
   team_update_markdown_field "$report_file" "Status" "$status"
+  team_update_markdown_field "$report_file" "Reviewer" "$reviewer"
   team_update_markdown_field "$report_file" "Base commit" "$base_commit"
   team_update_markdown_field "$report_file" "Head commit" "$head_commit"
   team_update_markdown_field "$report_file" "Review" "${review_file:-none}"
-  team_update_markdown_field "$report_file" "Integration" "${integration_file:-none}"
+  team_update_markdown_field "$report_file" "Review decision" "${review_decision:-none}"
 fi
 
 team_write_task_state \
   "$task_id" \
   "$agent_id" \
+  "$reviewer" \
   "$status" \
   "$base_commit" \
   "$head_commit" \
-  "$integration_commit" \
   "$report_file" \
   "$review_file" \
-  "$integration_file" \
   "$review_decision"
 
 echo "$report_file"

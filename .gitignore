@@ -101,8 +101,8 @@ CMakeCache.txt
 !.agents/queue/reports/.gitkeep
 .agents/queue/reviews/*
 !.agents/queue/reviews/.gitkeep
-.agents/queue/integrations/*
-!.agents/queue/integrations/.gitkeep
+.agents/queue/strategy/*
+!.agents/queue/strategy/.gitkeep
 .agents/queue/state/*
 !.agents/queue/state/.gitkeep
 .agents/queue/memory_proposals/*

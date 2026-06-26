@@ -12,8 +12,9 @@ usage:
   team_send.sh [--from <agent_id>] [--body-file <path>] <to> <type> [task_id] [body...]
 
 examples:
+  team_send.sh manager intake - "ユーザー依頼の要点..."
   team_send.sh worker-1 task_assigned T-001
-  team_send.sh --from verifier worker-1 review T-001 ".agents/queue/reviews/... を確認してください。"
+  team_send.sh reviewer-1 review_watch_assigned T-001
 USAGE
 }
 
@@ -71,56 +72,13 @@ fi
 
 if [[ -z "$body" ]]; then
   if [[ -n "$task_id" && "$task_id" != "-" ]]; then
-    body="$TEAM_QUEUE_DIR/tasks/$task_id.md を読んで、完了時は $TEAM_QUEUE_DIR/reports/${task_id}_${to}.md に報告してください。"
+    body="$TEAM_QUEUE_DIR/tasks/$task_id.md を確認してください。"
   else
     body="$TEAM_QUEUE_DIR/inbox/$to.jsonl を確認してください。"
   fi
 fi
 
 ensure_team_dirs
-
-if [[ "$type" == "task_assigned" ]]; then
-  [[ -n "$task_id" && "$task_id" != "-" ]] || die "task_assigned requires a task id"
-  task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
-  [[ -f "$task_file" ]] || die "task file not found: $task_file"
-  task_owner="$(team_task_markdown_field "$task_file" Owner)" || die "task Owner is missing: $task_file"
-  [[ "$task_owner" == "$to" ]] || die "task Owner mismatch: expected $to, got $task_owner"
-  git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die "git HEAD does not exist yet. Commit the template before dispatching tasks."
-  if ! team_git_is_clean "$TEAM_ROOT"; then
-    team_git_dirty_summary "$TEAM_ROOT" >&2
-    die "team root must be clean before dispatching $task_id"
-  fi
-
-  state_file="$(team_task_state_file "$task_id")"
-  [[ ! -f "$state_file" ]] || die "task state already exists: $state_file"
-
-  acquire_team_lock "dispatch-$task_id"
-  while IFS= read -r existing_state_file; do
-    [[ -f "$existing_state_file" ]] || continue
-    existing_task="$(basename "$existing_state_file" .json)"
-    [[ "$existing_task" == "$task_id" ]] && continue
-    existing_status="$(extract_json_field status < "$existing_state_file")"
-    if [[ "$existing_status" != "integrated" ]]; then
-      existing_owner="$(extract_json_field owner < "$existing_state_file")"
-      release_team_lock
-      die "shared root already has active task $existing_task owned by $existing_owner with status $existing_status"
-    fi
-  done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name '*.json' | sort)
-
-  base_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
-  team_write_task_state \
-    "$task_id" \
-    "$to" \
-    "assigned" \
-    "$base_commit" \
-    "" \
-    "" \
-    "" \
-    "" \
-    "" \
-    ""
-  release_team_lock
-fi
 
 message_id="$(team_message_id)"
 created_at="$(team_now_utc)"

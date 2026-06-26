@@ -20,6 +20,11 @@ team_config_agents() {
       sub(/[[:space:]]+$/, "", value)
       return value
     }
+    function singular_role(section_name) {
+      if (section_name == "reviewers") return "reviewer"
+      if (section_name == "workers") return "worker"
+      return section_name
+    }
     function reset(next_role) {
       id = ""
       role = next_role
@@ -31,54 +36,47 @@ team_config_agents() {
     function emit() {
       if (id != "") {
         if (role == "") {
-          role = "worker"
+          role = singular_role(section)
         }
         print id "|" role "|" cli "|" model "|" window "|" command
       }
     }
+    function known_section(name) {
+      return name == "lead" || name == "manager" || name == "strategist" || name == "reviewers" || name == "workers"
+    }
     BEGIN {
       section = ""
+      list_section = 0
       reset("")
-    }
-    /^  lead:/ {
-      emit()
-      section = "lead"
-      reset("lead")
-      next
-    }
-    /^  workers:/ {
-      emit()
-      section = "workers"
-      reset("worker")
-      next
-    }
-    /^  review:/ {
-      emit()
-      section = "review"
-      reset("")
-      next
     }
     /^  [A-Za-z0-9_-]+:/ {
+      value = $0
+      sub(/^  /, "", value)
+      sub(/:.*/, "", value)
       emit()
-      section = "ignore"
-      reset("")
-      next
-    }
-    section == "review" {
+      if (known_section(value)) {
+        section = value
+        list_section = (section == "reviewers" || section == "workers")
+        reset(singular_role(section))
+      } else {
+        section = "ignore"
+        list_section = 0
+        reset("")
+      }
       next
     }
     section == "ignore" {
       next
     }
-    section == "workers" && /^    - id:/ {
+    list_section && /^    - id:/ {
       emit()
-      reset("worker")
+      reset(singular_role(section))
       value = $0
       sub(/^    - id:[[:space:]]*/, "", value)
       id = trim(value)
       next
     }
-    section != "workers" && section != "" && /^[[:space:]]+id:/ {
+    !list_section && section != "" && /^[[:space:]]+id:/ {
       value = $0
       sub(/^[[:space:]]+id:[[:space:]]*/, "", value)
       id = trim(value)
@@ -143,32 +141,9 @@ team_config_agent_field() {
   team_config_agent_record "$agent_id" | awk -F'|' -v index="$index" '{ print $index }'
 }
 
-team_config_review_field() {
-  local field="$1"
-  awk -v want="$field" '
-    function trim(value) {
-      sub(/^[[:space:]]+/, "", value)
-      sub(/[[:space:]]+$/, "", value)
-      return value
-    }
-    /^  review:/ {
-      in_review = 1
-      next
-    }
-    /^  [A-Za-z0-9_-]+:/ && $0 !~ /^  review:/ {
-      in_review = 0
-    }
-    in_review && $0 ~ "^[[:space:]]+" want ":" {
-      value = $0
-      sub("^[[:space:]]+" want ":[[:space:]]*", "", value)
-      print trim(value)
-      found = 1
-      exit
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' "$TEAM_CONFIG_FILE"
+team_config_role_agent_ids() {
+  local role="$1"
+  team_config_agents | awk -F'|' -v role="$role" '$2 == role { print $1 }'
 }
 
 team_config_main() {
@@ -191,9 +166,9 @@ team_config_main() {
       [[ $# -eq 3 ]] || die "usage: team_config.sh field <agent_id> <field>"
       team_config_agent_field "$2" "$3"
       ;;
-    review-field)
-      [[ $# -eq 2 ]] || die "usage: team_config.sh review-field <field>"
-      team_config_review_field "$2"
+    role)
+      [[ $# -eq 2 ]] || die "usage: team_config.sh role <role>"
+      team_config_role_agent_ids "$2"
       ;;
     *)
       cat <<'USAGE'
@@ -203,8 +178,9 @@ usage:
   team_config.sh agents
   team_config.sh agent <agent_id>
   team_config.sh field <agent_id> <field>
-  team_config.sh review-field <field>
+  team_config.sh role <role>
 USAGE
+      exit 2
       ;;
   esac
 }

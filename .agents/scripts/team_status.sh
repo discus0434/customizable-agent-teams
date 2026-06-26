@@ -15,10 +15,10 @@ echo "Session: $session"
 echo
 
 echo "Agents:"
-printf '%-12s %-10s %-10s %s\n' "id" "role" "model" "window"
+printf '%-12s %-12s %-18s %s\n' "id" "role" "model" "window"
 while IFS='|' read -r id role cli model window command; do
   [[ -n "$id" ]] || continue
-  printf '%-12s %-10s %-10s %s\n' "$id" "$role" "$model" "$window"
+  printf '%-12s %-12s %-18s %s\n' "$id" "$role" "$model" "$window"
 done < <(team_config_agents)
 echo
 
@@ -30,6 +30,15 @@ else
 fi
 echo
 
+echo "Current STATE.md:"
+state_file="$(team_state_file)"
+if [[ -f "$state_file" ]]; then
+  echo "  $state_file"
+else
+  echo "  missing: $state_file"
+fi
+echo
+
 echo "Tasks:"
 task_count=0
 while IFS= read -r task_file; do
@@ -37,29 +46,21 @@ while IFS= read -r task_file; do
   [[ "$task_name" == "TEMPLATE" ]] && continue
   task_count=$((task_count + 1))
   owner="unassigned"
-  state_file="$TEAM_STATE_DIR/tasks/$task_name.json"
+  reviewer="unassigned"
   status="no-state"
   head_commit=""
   review_decision=""
-  integration=""
-  phase="unassigned"
+  state_file="$TEAM_STATE_DIR/tasks/$task_name.json"
   if [[ -f "$state_file" ]]; then
     owner="$(team_task_state_field "$task_name" owner)"
+    reviewer="$(team_task_state_field "$task_name" reviewer)"
     status="$(team_task_state_field "$task_name" status)"
     head_commit="$(team_task_state_field "$task_name" head_commit)"
     review_decision="$(team_task_state_field "$task_name" review_decision)"
-    integration="$(team_task_state_field "$task_name" integration)"
-    phase="$status"
-  fi
-  report_file="$TEAM_QUEUE_DIR/reports/${task_name}_${owner}.md"
-  report_status=""
-  [[ -f "$report_file" ]] && report_status="$(team_report_field "$report_file" Status)"
-  if [[ "$report_status" == "done" && "$review_decision" == "OK" && "$status" != "integrated" ]]; then
-    phase="ready-to-integrate"
   fi
   short_head="$head_commit"
   [[ ${#short_head} -gt 12 ]] && short_head="${short_head:0:12}"
-  echo "  $task_name owner=$owner phase=$phase head=${short_head:-none} review=${review_decision:-none} integration=${integration:-none}"
+  echo "  $task_name owner=${owner:-none} reviewer=${reviewer:-none} status=$status head=${short_head:-none} review=${review_decision:-none}"
 done < <(find "$TEAM_QUEUE_DIR/tasks" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$task_count" -gt 0 ]] || echo "  none"
 echo
@@ -102,13 +103,13 @@ done < <(find "$TEAM_QUEUE_DIR/reviews" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$review_count" -gt 0 ]] || echo "  none"
 echo
 
-echo "Integrations:"
-integration_count=0
-while IFS= read -r integration_file; do
-  integration_count=$((integration_count + 1))
-  echo "  $(basename "$integration_file")"
-done < <(find "$TEAM_QUEUE_DIR/integrations" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$integration_count" -gt 0 ]] || echo "  none"
+echo "Strategy:"
+strategy_count=0
+while IFS= read -r strategy_file; do
+  strategy_count=$((strategy_count + 1))
+  echo "  $(basename "$strategy_file")"
+done < <(find "$TEAM_QUEUE_DIR/strategy" -maxdepth 1 -type f -name '*.md' | sort)
+[[ "$strategy_count" -gt 0 ]] || echo "  none"
 echo
 
 echo "Memory proposals:"

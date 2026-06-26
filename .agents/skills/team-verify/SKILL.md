@@ -1,6 +1,6 @@
 ---
 name: team-verify
-description: Use by any agent immediately before saying work is done, fixed, passing, ready to integrate, or ready to report, to collect fresh verification evidence.
+description: Use by any agent immediately before saying work is done, fixed, passing, ready for review, or ready to report, to collect fresh verification evidence.
 ---
 
 # team-verify
@@ -18,12 +18,13 @@ description: Use by any agent immediately before saying work is done, fixed, pas
 ## Not Enough
 
 - lint だけで build 成功を主張する。
-- unit test だけで integration contract を満たしたことにする。
-- worker の `done` 報告だけで統合可能と判断する。
+- unit test だけで end-to-end contract を満たしたことにする。
+- worker の報告だけで done と判断する。
 - 古い結果を現在の evidence として扱う。
 
 ## Use Before
 
 - worker report
-- lead `integrate` 判断
-- lead の完了報告
+- reviewer `OK` 判断
+- manager の `done` 判断
+- lead のユーザー向け完了報告

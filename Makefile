@@ -1,4 +1,4 @@
-.PHONY: post-change smoke harness-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox report review integrate memory-list memory-append
+.PHONY: post-change smoke harness-test bootstrap bootstrap-finish team-identity team-bootstrap team-start team-stop team-status team-send team-submit inbox dispatch report review-report state state-update memory-list memory-append
 
 post-change:
 	@git diff --check -- .
@@ -44,7 +44,7 @@ team-stop:
 	./.agents/scripts/team_stop.sh
 
 team-status:
-	./.agents/scripts/team_status.sh
+	@./.agents/scripts/team_status.sh
 
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
@@ -69,15 +69,25 @@ report:
 	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
 	./.agents/scripts/team_report.sh "$(TASK)" "$(AGENT)" "$(STATUS)"
 
-review:
+dispatch:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }
-	./.agents/scripts/team_review.sh "$(TASK)" "$(AGENT)"
+	@test -n "$(WORKER)" || { echo "WORKER is required" >&2; exit 2; }
+	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
+	@./.agents/scripts/team_dispatch.sh "$(TASK)" "$(WORKER)" "$(REVIEWER)"
 
-integrate:
+review-report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }
-	./.agents/scripts/team_integrate.sh "$(TASK)" "$(AGENT)"
+	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
+	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
+	@./.agents/scripts/team_review_report.sh "$(TASK)" "$(REVIEWER)" "$(DECISION)"
+
+state:
+	@./.agents/scripts/team_state_update.sh show
+
+state-update:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
+	@./.agents/scripts/team_state_update.sh update "$(TASK)" "$(STATUS)"
 
 memory-list:
 	./.agents/scripts/team_memory_update.sh list
