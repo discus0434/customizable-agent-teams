@@ -13,6 +13,8 @@ cp -R "$ROOT/.agents/scripts" "$TMP_ROOT/.agents/scripts"
 cp -R "$ROOT/.agents/config" "$TMP_ROOT/.agents/config"
 cp -R "$ROOT/.agents/docs" "$TMP_ROOT/.agents/docs"
 cp -R "$ROOT/.agents/state" "$TMP_ROOT/.agents/state"
+cp "$ROOT/.agents/agent-team.mk" "$TMP_ROOT/.agents/agent-team.mk"
+cp "$ROOT/.agents/harness.mk" "$TMP_ROOT/.agents/harness.mk"
 cp "$ROOT/.gitignore" "$TMP_ROOT/.gitignore"
 cp "$ROOT/AGENTS.md" "$TMP_ROOT/AGENTS.md"
 cp -P "$ROOT/CLAUDE.md" "$TMP_ROOT/CLAUDE.md"
@@ -191,18 +193,45 @@ expected_make_targets="$(printf '%s\n' \
   team-start \
   team-status \
   team-stop \
-  team-submit \
-  template-test)"
+  team-submit)"
 actual_make_targets="$(
   awk '/^\.PHONY:/ {
     for (i = 2; i <= NF; i++) {
       print $i
     }
-  }' "$ROOT/Makefile" | sort
+  }' "$ROOT/Makefile" "$ROOT/.agents/agent-team.mk" | sort
 )"
 [[ "$actual_make_targets" == "$expected_make_targets" ]] || {
   echo "Make targets differ from the supported team interface" >&2
   printf 'expected:\n%s\nactual:\n%s\n' "$expected_make_targets" "$actual_make_targets" >&2
+  exit 1
+}
+grep -q '^include \.agents/agent-team\.mk$' "$ROOT/Makefile" || {
+  echo "root Makefile must import the agent-team makefile" >&2
+  exit 1
+}
+if grep -Eq '^(bootstrap|bootstrap-team|team-identity|team-start|team-stop|team-status|team-send|team-submit|inbox|dispatch|report|review-report|release-request|release-report|state|state-update|memory-list|memory-append|harness-test):' "$ROOT/Makefile"; then
+  echo "agent team targets must not be defined in the root Makefile" >&2
+  exit 1
+fi
+if make -qp -f "$ROOT/Makefile" 2>/dev/null | awk -F: '/^[A-Za-z0-9_-]+:/ { print $1 }' | grep -qx 'harness-test'; then
+  echo "harness-test must not be visible from the root Makefile" >&2
+  exit 1
+fi
+if make -qp -f "$ROOT/Makefile" 2>/dev/null | awk -F: '/^[A-Za-z0-9_-]+:/ { print $1 }' | grep -qx 'template-test'; then
+  echo "template-test must not be visible from the root Makefile" >&2
+  exit 1
+fi
+harness_targets="$(
+  awk '/^\.PHONY:/ {
+    for (i = 2; i <= NF; i++) {
+      print $i
+    }
+  }' "$ROOT/.agents/harness.mk" | sort
+)"
+[[ "$harness_targets" == "harness-test" ]] || {
+  echo "harness makefile must expose only harness-test" >&2
+  printf 'actual:\n%s\n' "$harness_targets" >&2
   exit 1
 }
 

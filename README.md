@@ -164,21 +164,16 @@ repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指�
 | --- | --- |
 | `AGENTS.md` | 全 agent 共通の作業ルール（`CLAUDE.md` は symlink） |
 | `.agents/config/agent-team.yaml` | 役割・model・起動コマンド設定 |
+| `.agents/agent-team.mk` | agent team 操作用の Make targets |
+| `.agents/harness.mk` | このテンプレート自体の保守用 test target |
 | `.agents/docs/TEAM_PROTOCOL.md` | agent team の手順 |
 | `.agents/state/STATE.md` | 現在の whole picture |
 | `.agents/state/MEMORY.md` | 中長期の rules / tips / pitfalls / user preferences |
 | `.agents/skills/` | Claude Code / Codex 共通の skill（`.claude/skills`・`.codex/skills` は symlink） |
 | `.agents/scripts/` | 各コマンドの実体 |
 | `.agents/queue/` | tasks / inbox / reports / reviews / strategy / architecture / releases / proposals / state |
-| `.agents/tests/team/` | テンプレートの test |
-| `Makefile` | 操作 entrypoint |
-
-## テンプレートを変更したとき
-
-```bash
-make post-change
-make template-test
-```
+| `.agents/tests/team/` | このテンプレート自体の test |
+| `Makefile` | project の `post-change` / `smoke` と `.agents/agent-team.mk` の import |
 
 ## ドキュメント
 

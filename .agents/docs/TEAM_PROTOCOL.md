@@ -498,8 +498,6 @@ Manager:
 ## Ship note
 ```
 
-When checking stale references or cleanup completeness, report source/docs/tooling matches separately from runtime artifacts such as `.agents/queue/` and `.agents/state/STATE.md`. `STATE.md` may mention current work while it is being pruned; it is not proof that a source reference remains.
-
 After `SHIP`, manager sends lead:
 
 ```bash

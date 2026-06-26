@@ -23,7 +23,6 @@ description: Use by a reviewer while supervising an assigned task, or by a manag
 - Ask architect directly when task-local design direction is unclear.
 - Escalate to manager for scope changes, acceptance changes, cross-task impact, unresolved disagreement, task-external strategy impact, stopped work, repeated evidence gaps, or inability to continue supervising.
 - Check acceptance, explicit constraints, changed files, verification evidence, and scope discipline.
-- Check source/docs/tooling references separately from runtime state such as `.agents/queue/` and `.agents/state/STATE.md`.
 - Do not edit project files.
 - Write `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
 - Record one decision:

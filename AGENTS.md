@@ -122,4 +122,3 @@ make team-submit AGENT=<agent_id>
 - Lead is the only editor of `MEMORY.md`.
 - Other roles write durable lessons to `.agents/queue/memory_proposals/`.
 - Reviewer, architect, and strategist may propose new project skills in `.agents/queue/skill_proposals/` when they observe recurring stuck patterns.
-- When checking stale references, separate source/docs/tooling matches from `.agents/queue/` and `.agents/state/STATE.md`.
