@@ -61,7 +61,7 @@ team_tmux_submit() {
 
   for _index in $(seq 1 "$count"); do
     tmux send-keys -t "$pane" C-m
-    sleep 0.5
+    sleep 1.5
   done
 }
 
