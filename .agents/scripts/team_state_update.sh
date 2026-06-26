@@ -31,8 +31,12 @@ case "$command" in
       *) die "invalid task status: $next_status" ;;
     esac
     state_file="$(team_task_state_file "$task_id")"
-    [[ -f "$state_file" ]] || die "task state not found: $state_file"
+    [[ -f "$state_file" ]] || die_rule \
+      "task state not found: $state_file" \
+      "the task has not been dispatched or its machine state is missing" \
+      "dispatch the task before updating its state"
 
+    manager="$(team_task_state_field "$task_id" manager)"
     owner="$(team_task_state_field "$task_id" owner)"
     reviewer="$(team_task_state_field "$task_id" reviewer)"
     base_commit="$(team_task_state_field "$task_id" base_commit)"
@@ -40,15 +44,30 @@ case "$command" in
     report_file="$(team_task_state_field "$task_id" report)"
     review_file="$(team_task_state_field "$task_id" review)"
     review_decision="$(team_task_state_field "$task_id" review_decision)"
+    done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
 
     if [[ "$next_status" == "done" ]]; then
-      [[ "$review_decision" == "OK" ]] || die "task $task_id can be marked done only after review Decision OK"
-      [[ -n "$report_file" && -f "$report_file" ]] || die "task $task_id is missing report before done"
-      [[ -n "$review_file" && -f "$review_file" ]] || die "task $task_id is missing review before done"
+      [[ "$review_decision" == "OK" ]] || die_rule \
+        "task $task_id cannot be marked done" \
+        "review_decision is ${review_decision:-missing}, but done requires reviewer Decision OK" \
+        "reviewer must run make review-report TASK=$task_id REVIEWER=$reviewer DECISION=OK"
+      [[ "$done_recommendation" == "true" ]] || die_rule \
+        "task $task_id cannot be marked done" \
+        "reviewer OK is missing done_recommendation=true" \
+        "reviewer must run review-report with DECISION=OK so the review artifact records Done recommendation: yes and task state records done_recommendation=true"
+      [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
+        "task $task_id cannot be marked done" \
+        "the worker report is missing or the recorded report path does not exist" \
+        "worker must run make report TASK=$task_id AGENT=$owner STATUS=needs_review and fill the report evidence"
+      [[ -n "$review_file" && -f "$review_file" ]] || die_rule \
+        "task $task_id cannot be marked done" \
+        "the review artifact is missing or the recorded review path does not exist" \
+        "reviewer must run make review-report TASK=$task_id REVIEWER=$reviewer DECISION=OK"
     fi
 
     team_write_task_state \
       "$task_id" \
+      "$manager" \
       "$owner" \
       "$reviewer" \
       "$next_status" \
@@ -56,7 +75,8 @@ case "$command" in
       "$head_commit" \
       "$report_file" \
       "$review_file" \
-      "$review_decision"
+      "$review_decision" \
+      "$done_recommendation"
     echo "$state_file"
     ;;
   -h|--help)

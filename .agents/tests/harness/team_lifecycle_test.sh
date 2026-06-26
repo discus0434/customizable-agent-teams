@@ -178,12 +178,31 @@ if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/
   echo "review-field must not exist" >&2
   exit 1
 fi
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" manager note - "missing sender" >/dev/null 2>&1; then
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --type note --task - manager "missing sender" >/dev/null 2>&1; then
   echo "team_send without TEAM_AGENT_ID or --from unexpectedly succeeded" >&2
   exit 1
 fi
-explicit_message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead manager note - "explicit sender")"
+explicit_message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead --type note --task - manager "explicit sender")"
 [[ -n "$explicit_message_id" ]]
+
+lead_strategy_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead strategist "lead strategy")"
+case "$lead_strategy_output" in
+  *"message_id="*) ;;
+  *) echo "lead strategy request did not return message id" >&2; exit 1 ;;
+esac
+strategist_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" strategist)"
+case "$strategist_pending" in
+  *"\"type\":\"strategy_request\""*"\"subtype\":\"lead_intake\""*"Strategy artifact path: .agents/queue/strategy/general_lead_intake_"*) ;;
+  *) echo "lead-to-strategist strategy request was not auto-typed" >&2; exit 1 ;;
+esac
+worker_strategy_error="$TMP_BASE/worker-strategy-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from worker-1 strategist "bad worker strategy" > /dev/null 2> "$worker_strategy_error"; then
+  echo "worker-to-strategist strategy request unexpectedly succeeded" >&2
+  exit 1
+fi
+grep -q '^error: worker cannot send strategy_request directly$' "$worker_strategy_error"
+grep -q '^reason: workers ask their assigned reviewer; reviewer decides whether strategist input is needed$' "$worker_strategy_error"
+grep -q '^required action: send a question to the assigned reviewer instead$' "$worker_strategy_error"
 
 identity="$(
   TEAM_ROOT="$TMP_ROOT" \
@@ -266,16 +285,23 @@ perl -0pi -e 's/T-XXX/T-001/g' "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-BAD.md"
 perl -0pi -e 's/T-XXX/T-BAD/g; s/Reviewer: reviewer-1/Reviewer: worker-1/' "$TMP_ROOT/.agents/queue/tasks/T-BAD.md"
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" T-BAD worker-1 reviewer-1 >/dev/null 2>&1; then
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-BAD worker-1 reviewer-1 >/dev/null 2>&1; then
   echo "reviewer mismatch dispatch unexpectedly succeeded" >&2
   exit 1
 fi
 
-message_state="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" T-001 worker-1 reviewer-1)"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" T-001 worker-1 reviewer-1 >/dev/null 2>&1; then
+  echo "dispatch without manager identity unexpectedly succeeded" >&2
+  exit 1
+fi
+
+message_state="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-001 worker-1 reviewer-1)"
 [[ -f "$message_state" ]]
+grep -q '"manager":"manager"' "$message_state"
 grep -q '"owner":"worker-1"' "$message_state"
 grep -q '"reviewer":"reviewer-1"' "$message_state"
 grep -q '"status":"dispatched"' "$message_state"
+grep -q '"done_recommendation":"false"' "$message_state"
 task_base_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 grep -q "\"base_commit\":\"$task_base_commit\"" "$message_state"
 
@@ -290,6 +316,43 @@ case "$reviewer_pending" in
   *"\"type\":\"review_watch_assigned\""*"worker-1"*) ;;
   *) echo "reviewer watch assignment was not visible in inbox" >&2; exit 1 ;;
 esac
+
+feedback_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from reviewer-1 --type review_feedback --task T-001 worker-1 "Observation: report evidence is thin.")"
+case "$feedback_output" in
+  *"message_id="*) ;;
+  *) echo "review_feedback did not return message id" >&2; exit 1 ;;
+esac
+worker_feedback_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" worker-1)"
+case "$worker_feedback_pending" in
+  *"\"type\":\"review_feedback\""*"Observation: report evidence is thin."*) ;;
+  *) echo "worker did not receive review_feedback" >&2; exit 1 ;;
+esac
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from reviewer-1 --type review_feedback --task T-001 manager "wrong target" >/dev/null 2>&1; then
+  echo "review_feedback to non-owner unexpectedly succeeded" >&2
+  exit 1
+fi
+
+reviewer_strategy_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from reviewer-1 --task T-001 strategist "Need scoped strategy from reviewer.")"
+case "$reviewer_strategy_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "reviewer strategy request did not report manager CC" >&2; exit 1 ;;
+esac
+reviewer_strategy_id="$(printf '%s\n' "$reviewer_strategy_output" | sed -n 's/^message_id=//p')"
+reviewer_strategy_message="$TMP_ROOT/.agents/queue/state/messages/$reviewer_strategy_id.json"
+grep -q '"type":"strategy_request"' "$reviewer_strategy_message"
+grep -q '"subtype":"reviewer_supervision"' "$reviewer_strategy_message"
+strategy_artifact="$(sed -n 's/.*"artifact_path":"\([^"]*\)".*/\1/p' "$reviewer_strategy_message")"
+case "$strategy_artifact" in
+  .agents/queue/strategy/T-001_reviewer_supervision_*.md) ;;
+  *) echo "reviewer strategy artifact path was not task-scoped" >&2; exit 1 ;;
+esac
+manager_cc_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$manager_cc_pending" in
+  *"\"type\":\"strategy_request\""*"\"cc_of\":\"$reviewer_strategy_id\""*) ;;
+  *) echo "manager did not receive reviewer strategy CC" >&2; exit 1 ;;
+esac
+mkdir -p "$TMP_ROOT/$(dirname "$strategy_artifact")"
+printf '%s\n' "# Strategy artifact" > "$TMP_ROOT/$strategy_artifact"
 
 printf '%s\n' "worker change" > "$TMP_ROOT/manager-review-smoke.txt"
 dirty_report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 needs_review)"
@@ -311,6 +374,7 @@ Base commit: $task_base_commit
 Head commit: $task_head_commit
 Review: none
 Review decision: none
+Done recommendation: false
 
 ## Summary
 
@@ -346,7 +410,18 @@ Review decision: none
 
 - Assigned reviewer: reviewer-1
 - Ready for review message: sent
-- Reviewer feedback handled: pending
+
+## Reviewer supervision
+
+- Checkpoints: worker requested no scheduled checkpoint.
+- Feedback received: Observation: report evidence is thin.
+- Feedback response: verification evidence and smoke/post-change evidence are recorded.
+
+## Strategy artifacts
+
+- Artifact path: $strategy_artifact
+- Adoption decision: no code change needed for smoke task.
+- Task-external impact: none.
 
 ## Blockers
 
@@ -365,42 +440,52 @@ Review decision: none
 - None.
 REPORT
 
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done >/dev/null 2>&1; then
+done_before_ok_error="$TMP_BASE/done-before-ok-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done > /dev/null 2> "$done_before_ok_error"; then
   echo "state-update done before reviewer OK unexpectedly succeeded" >&2
   exit 1
 fi
+grep -q '^error: task T-001 cannot be marked done$' "$done_before_ok_error"
+grep -q '^reason: review_decision is missing, but done requires reviewer Decision OK$' "$done_before_ok_error"
+grep -q '^required action: reviewer must run make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK$' "$done_before_ok_error"
 
 fix_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review_report.sh" T-001 reviewer-1 FIX)"
 [[ "$fix_review_file" == "$TMP_ROOT/.agents/queue/reviews/T-001_reviewer-1.md" ]]
 grep -q '^Decision: FIX$' "$fix_review_file"
+grep -q '^Done recommendation: no$' "$fix_review_file"
 grep -q '"status":"review_fix"' "$message_state"
 grep -q '"review_decision":"FIX"' "$message_state"
+grep -q '"done_recommendation":"false"' "$message_state"
 worker_review_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" worker-1)"
 case "$worker_review_pending" in
-  *"\"type\":\"review_result\""*"Decision: FIX"*) ;;
+  *"\"type\":\"review_result\""*"\"done_recommendation\":\"false\""*"Decision: FIX"*) ;;
   *) echo "worker did not receive FIX review result" >&2; exit 1 ;;
 esac
 
 ask_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review_report.sh" T-001 reviewer-1 ASK_MANAGER)"
 [[ "$ask_review_file" == "$TMP_ROOT/.agents/queue/reviews/T-001_reviewer-1.md" ]]
 grep -q '^Decision: ASK_MANAGER$' "$ask_review_file"
+grep -q '^Done recommendation: no$' "$ask_review_file"
 grep -q '"status":"review_ask_manager"' "$message_state"
 grep -q '"review_decision":"ASK_MANAGER"' "$message_state"
+grep -q '"done_recommendation":"false"' "$message_state"
 manager_ask_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
 case "$manager_ask_pending" in
-  *"\"type\":\"review_result\""*"Decision: ASK_MANAGER"*) ;;
+  *"\"type\":\"review_result\""*"\"done_recommendation\":\"false\""*"Decision: ASK_MANAGER"*) ;;
   *) echo "manager did not receive ASK_MANAGER review result" >&2; exit 1 ;;
 esac
 
 review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_review_report.sh" T-001 reviewer-1 OK)"
 [[ "$review_file" == "$TMP_ROOT/.agents/queue/reviews/T-001_reviewer-1.md" ]]
 grep -q '^Decision: OK$' "$review_file"
+grep -q '^Done recommendation: yes$' "$review_file"
 grep -q '"status":"review_ok"' "$message_state"
 grep -q '"review_decision":"OK"' "$message_state"
+grep -q '"done_recommendation":"true"' "$message_state"
 
 manager_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
 case "$manager_pending" in
-  *"\"type\":\"review_result\""*"Decision: OK"*) ;;
+  *"\"type\":\"review_result\""*"\"done_recommendation\":\"true\""*"Decision: OK"*) ;;
   *) echo "manager did not receive review result" >&2; exit 1 ;;
 esac
 
@@ -410,6 +495,7 @@ if grep -q '"review_decision":"OK"' "$message_state"; then
   echo "needs_review report kept a stale OK review decision" >&2
   exit 1
 fi
+grep -q '"done_recommendation":"false"' "$message_state"
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done >/dev/null 2>&1; then
   echo "state-update done after stale re-report unexpectedly succeeded" >&2
   exit 1
@@ -419,6 +505,7 @@ review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DI
 grep -q '^Decision: OK$' "$review_file"
 grep -q '"status":"review_ok"' "$message_state"
 grep -q '"review_decision":"OK"' "$message_state"
+grep -q '"done_recommendation":"true"' "$message_state"
 
 blocked_report_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_report.sh" T-001 worker-1 blocked)"
 [[ "$blocked_report_file" == "$report_file" ]]
@@ -426,6 +513,7 @@ if grep -q '"review_decision":"OK"' "$message_state"; then
   echo "blocked report kept a stale OK review decision" >&2
   exit 1
 fi
+grep -q '"done_recommendation":"false"' "$message_state"
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done >/dev/null 2>&1; then
   echo "state-update done after blocked report unexpectedly succeeded" >&2
   exit 1
@@ -435,6 +523,7 @@ review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DI
 grep -q '^Decision: OK$' "$review_file"
 grep -q '"status":"review_ok"' "$message_state"
 grep -q '"review_decision":"OK"' "$message_state"
+grep -q '"done_recommendation":"true"' "$message_state"
 
 done_state="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-001 done)"
 [[ "$done_state" == "$message_state" ]]
@@ -442,7 +531,7 @@ grep -q '"status":"done"' "$message_state"
 
 status_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh")"
 case "$status_output" in
-  *"T-001 owner=worker-1 reviewer=reviewer-1 status=done"*) ;;
+  *"T-001 manager=manager owner=worker-1 reviewer=reviewer-1 status=done"*"done_recommendation=true"*"strategy=$strategy_artifact"*) ;;
   *) echo "status did not show done task" >&2; exit 1 ;;
 esac
 

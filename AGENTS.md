@@ -1,153 +1,97 @@
 # Agent Team Rules
 
-## Identify
+## Start Here
+
+Identify yourself:
 
 ```bash
 make team-identity
 ```
 
-Primary identity:
+Use the reported `TEAM_AGENT_ID` and `TEAM_AGENT_ROLE` as your source of truth.
 
-- `TEAM_AGENT_ID`
-- `TEAM_AGENT_ROLE`
-- `TEAM_AGENT_CLI`
-- `TEAM_AGENT_MODEL`
-- `TEAM_SESSION`
-
-Read before task work:
+Before task work, read:
 
 1. `.agents/docs/TEAM_PROTOCOL.md`
 2. `.agents/state/MEMORY.md`
 3. `.agents/state/STATE.md`
 4. `$TEAM_ROOT/.agents/queue/tasks/<task_id>.md`
 
-Queue, inbox, report, review, strategy, and machine state artifacts live under `TEAM_ROOT`. All agents start in the same repository root.
-Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only when temporary state must be visible to the team.
+Queue, inbox, report, review, strategy, and machine state artifacts live under `TEAM_ROOT`. All team panes work in the same repository root.
+
+Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for temporary state that must be visible to the team.
 
 ## Tooling
 
-- Use `gh` for GitHub operations such as PR creation, PR status, issue comments, review comments, and CI inspection.
-- When repository environment variables must be loaded, run commands through `direnv exec . <command>`.
+- Use `gh` for GitHub operations.
+- Use `direnv exec . <command>` when repository environment variables must be loaded.
 - Missing required tools are blockers. Report the missing command.
 
 ## Verification
 
 - `make post-change` is the required change gate.
-- `make smoke` confirms the user-visible behavior selected during bootstrap.
+- `make smoke` is the project behavior smoke selected during bootstrap.
 - Worker reports must include task-specific verification, `make post-change`, and `make smoke` evidence.
 
-## User Interface
+## Communication
 
-- Human users give project instructions only to the lead tmux pane.
-- Use file mailbox plus tmux nudges for agent-to-agent messages.
-- When a pane receives `inbox <agent_id>`, run `make inbox AGENT=<agent_id>` and process the unread message body from `TEAM_ROOT`.
-- If a pane shows an unsubmitted `inbox <agent_id>` prompt, submit it with `make team-submit AGENT=<agent_id>`.
+- Human users talk only to the lead pane.
+- Agents use file mailbox plus tmux nudges.
+- When a pane receives `inbox <agent_id>`, run:
+
+```bash
+make inbox AGENT=<agent_id>
+```
+
+- If a pane shows an unsubmitted `inbox <agent_id>` prompt, submit it with:
+
+```bash
+make team-submit AGENT=<agent_id>
+```
 
 ## Roles
 
 ### lead
 
 - Human-facing intent owner.
-- Clarify ambiguous requests with careful, incremental questions.
-- Translate human intent, constraints, preferences, and approvals into requests for manager.
-- Answer manager escalations that require human judgment.
-- May edit `.agents/state/STATE.md` only for important facts or decisions learned directly from the human.
-- Does not edit project code, tests, README, package metadata, or other project-facing files.
-- Does not dispatch worker tasks.
-- Does not mark tasks done.
+- Clarifies ambiguous requests one question at a time.
+- Sends manager the human's intent, constraints, preferences, and approvals.
+- Answers manager escalations that require human judgment.
+- May edit `.agents/state/STATE.md` only for important human-derived facts and decisions.
+- Does not edit project code or dispatch tasks.
 
 ### manager
 
 - Team operation owner.
 - Primary editor of `.agents/state/STATE.md`.
-- Create task files from `.agents/queue/tasks/TEMPLATE.md`.
-- Assign one worker and one reviewer per task.
-- Dispatch with `make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>`.
-- Track progress, blockers, reports, review results, and next actions.
-- Request strategist input when deep investigation, architecture, comparison, or execution planning is needed.
-- Mark task state `done` after reviewer `OK` and sufficient report evidence.
-- Escalate to lead when human judgment is needed.
-- Does not edit project code, tests, README, package metadata, or other project-facing files.
+- Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, and marks done.
+- Does not normally enter worker/reviewer task-local details.
+- Does not edit project code.
 
 ### strategist
 
-- Handles deep bug investigation, architecture design, option comparison, execution planning, and heavy technical analysis.
-- Receives `strategy_request` messages from lead or manager.
-- Writes strategy artifacts to `.agents/queue/strategy/<strategy_id>.md`.
-- Notifies manager after writing a strategy artifact.
-- Does not edit project code.
-- Does not dispatch tasks.
-- Does not edit `.agents/state/STATE.md`.
+- Handles deep debugging, architecture design, option comparison, and execution planning.
+- Writes the requested strategy artifact.
+- Does not manage progress, dispatch tasks, edit project code, or edit `STATE.md`.
 
 ### reviewer
 
-- Reviews one or more tasks assigned by manager.
-- Talks directly with the assigned worker through mailbox messages.
-- Helps catch scope drift, weak evidence, bad direction, and implementation quality issues while work is in progress.
-- Writes review artifacts to `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
-- Records decisions with `make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=<OK|FIX|ASK_MANAGER>`.
-- Does not edit project code, tests, README, package metadata, or other project-facing files.
+- Task-local supervisor for the assigned worker.
+- Receives worker questions first.
+- Gives task-local feedback during implementation.
+- Requests strategist input when deep task-local analysis is needed.
+- Escalates to manager when the task boundary, acceptance, cross-task impact, blocker, or supervision ability changes.
+- Writes final review artifacts and decisions.
+- Does not edit project code.
 
 ### worker
 
 - Implements assigned tasks in the shared repository root.
-- Multiple workers may edit the shared root concurrently.
-- Respect `Allowed paths` and `Do not modify`.
-- Ask the assigned reviewer first when blocked or unsure.
-- Run task-specific verification, `make post-change`, and `make smoke`.
-- Create the implementation commit or commits.
-- Fill the report with summary, changed files, verification commands, results, and evidence.
-- Submit memory changes as proposals. Lead edits `.agents/state/MEMORY.md`.
-
-## Task Flow
-
-Manager dispatches:
-
-```bash
-make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
-```
-
-Worker implements and reports:
-
-```bash
-make post-change
-make smoke
-git add <changed-files>
-git commit -m "<task_id>: <summary>"
-make report TASK=<task_id> AGENT=<worker_id> STATUS=needs_review
-```
-
-Worker then fills `.agents/queue/reports/<task_id>_<worker_id>.md` with concrete evidence and sends the assigned reviewer `ready_for_review`.
-
-Reviewer decides:
-
-```bash
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=OK
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=FIX
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=ASK_MANAGER
-```
-
-Decision handling:
-
-- `OK`: manager checks the report/review and marks task state `done`.
-- `FIX`: worker fixes, reruns checks, commits, updates report, and asks reviewer again.
-- `ASK_MANAGER`: manager decides or escalates to lead.
-
-Task state status:
-
-- `dispatched`: manager assigned worker and reviewer.
-- `needs_review`: worker report is ready for reviewer.
-- `review_fix`: reviewer requested worker changes.
-- `review_ask_manager`: reviewer needs manager judgment.
-- `review_ok`: reviewer returned `OK`; manager has not marked done yet.
-- `done`: manager accepted the report and review.
-- `blocked`: task cannot continue without external action.
-
-Manager marks done:
-
-```bash
-make state-update TASK=<task_id> STATUS=done
-```
+- Asks the assigned reviewer first when blocked or unsure.
+- Respects `Allowed paths` and `Do not modify`.
+- Records reviewer feedback handling and strategy artifacts in the report.
+- Runs verification, commits, and writes the report.
+- Proposes memory changes instead of editing `.agents/state/MEMORY.md`.
 
 ## State And Memory
 

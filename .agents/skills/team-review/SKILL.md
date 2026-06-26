@@ -1,6 +1,6 @@
 ---
 name: team-review
-description: Use by a reviewer while assigned to a task, or by a manager when handling ASK_MANAGER, to decide OK, FIX, or escalation from worker evidence and task constraints.
+description: Use by a reviewer while supervising an assigned task, or by a manager when handling ASK_MANAGER, to decide feedback, OK, FIX, or escalation from worker evidence and task constraints.
 ---
 
 # team-review
@@ -16,6 +16,11 @@ description: Use by a reviewer while assigned to a task, or by a manager when ha
 ## Reviewer Handling
 
 - Talk directly with the assigned worker.
+- Act as task-local supervisor.
+- Answer task-local worker questions first.
+- Send `review_feedback` during implementation when correction is useful.
+- Ask strategist directly when task-local deep analysis is needed.
+- Escalate to manager for scope changes, acceptance changes, cross-task impact, unresolved disagreement, task-external strategy impact, stopped work, repeated evidence gaps, or inability to continue supervising.
 - Check acceptance, explicit constraints, changed files, verification evidence, and scope discipline.
 - Do not edit project files.
 - Write `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
@@ -28,9 +33,23 @@ description: Use by a reviewer while assigned to a task, or by a manager when ha
 make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=<OK|FIX|ASK_MANAGER>
 ```
 
+`OK` means the task-local work is ready for manager done decision.
+
+Use `review_feedback` for intermediate supervision feedback:
+
+```bash
+make team-send FROM=<reviewer_id> TO=<worker_id> TYPE=review_feedback TASK=<task_id> BODY="..."
+```
+
+Use strategist for scoped deep analysis:
+
+```bash
+make team-send FROM=<reviewer_id> TO=strategist TASK=<task_id> BODY="..."
+```
+
 ## Manager Handling
 
-- For `OK`, confirm report/review evidence is sufficient, then mark task state `done`.
+- For `OK`, confirm report/review evidence and `done_recommendation=true`, then mark task state `done`.
 - For `FIX`, ensure the worker has a clear next action.
 - For `ASK_MANAGER`, decide whether to answer directly, request strategist input, split scope, or escalate to lead.
 
@@ -41,4 +60,5 @@ make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=<OK|FIX|ASK_MA
 - Verification evidence is concrete and current.
 - `make post-change` and `make smoke` results are recorded.
 - The worker did not silently change user-visible scope or contract.
+- Reviewer feedback and strategy artifacts are reflected in the report when used.
 - Follow-up action is clear.

@@ -2,16 +2,16 @@
 
 ローカルの tmux 上で、Claude Code / Codex などの coding agent を **Lead / Manager / Strategist / Reviewer / Worker** のチームとして動かすためのプロジェクトテンプレートです。
 
-人間は Lead にだけ話します。Lead は曖昧な依頼を丁寧に擦り合わせ、Manager が task 分解・dispatch・進捗管理を持ち、Worker が実装し、Reviewer が横で品質を見ます。重い設計や調査は Strategist に分離します。
+人間は Lead にだけ話します。Lead は曖昧な依頼を丁寧に擦り合わせ、Manager が task 分解・dispatch・done 判定を持ち、Worker が実装し、Reviewer が task-local supervisor として並走します。重い設計や調査は Strategist に分離します。
 
 ![customizable-agent-teams workflow](.agents/assets/agent-team-flow.png)
 
 ## 特徴
 
 - **Lead は人間との共同思考に集中** — Lead は実装も dispatch もせず、質問、承認取得、意図の翻訳に専念します。
-- **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、進捗、blocker、done 判定、`STATE.md` 更新を担当します。
+- **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、escalation、done 判定、`STATE.md` 更新を担当します。
 - **Strategist を常駐** — 深い bug 調査、設計、比較、実行計画を `.agents/queue/strategy/` に成果物として残します。
-- **Reviewer が worker と並走** — 常駐 reviewer が worker と直接やりとりし、`OK` / `FIX` / `ASK_MANAGER` を返します。
+- **Reviewer が task-local supervisor** — 常駐 reviewer が worker の相談窓口になり、途中 feedback、strategy 相談、final review を担当します。
 - **shared root** — 全 agent が同じ repo root で動きます。venv / node_modules / `.env` / direnv を重複させません。
 - **file mailbox + tmux nudge** — agent 間の本文は file が正本。tmux には短い `inbox <agent_id>` だけを流します。
 - **CLI / model の混在** — `.agents/config/agent-team.yaml` で役割ごとに CLI・model・起動コマンドを変更できます。
@@ -21,17 +21,17 @@
 | 役割 | 配置 | 責務 |
 | --- | --- | --- |
 | **Lead** | tmux `lead` pane | 人間の唯一の窓口。曖昧な依頼を擦り合わせ、必要な判断を人間に確認し、Manager に依頼する。project code は編集しない。 |
-| **Manager** | tmux `manager` pane | task 分解、worker/reviewer 割当、dispatch、進捗管理、review 受領、done 判定、`.agents/state/STATE.md` の主編集者。project code は編集しない。 |
+| **Manager** | tmux `manager` pane | task 分解、worker/reviewer 割当、dispatch、escalation 対応、done 判定、`.agents/state/STATE.md` の主編集者。project code は編集しない。 |
 | **Strategist** | tmux `strategist` pane | 深い調査、設計、複数案比較、実行計画。成果物は `.agents/queue/strategy/` に書く。 |
-| **Reviewer** | tmux `reviewer-N` pane | worker と直接やりとりし、scope drift、弱い evidence、実装品質を確認する。project code は編集しない。 |
+| **Reviewer** | tmux `reviewer-N` pane | worker の task-local supervisor。質問受付、途中 feedback、strategy 相談、final review を担当する。project code は編集しない。 |
 | **Worker** | tmux `worker-N` pane | shared root で実装、検証、commit、report を担当する。 |
 
 ```text
 Human
   -> Lead
   -> Manager
-  -> Strategist when heavy thinking is needed
   -> Worker + Reviewer pair
+  -> Strategist when scoped deep thinking is needed
   -> Reviewer OK/FIX/ASK_MANAGER
   -> Manager marks done
 ```
@@ -136,12 +136,15 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | mailbox 送信 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |
+| reviewer feedback | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=review_feedback TASK=T-001 BODY="..."` | Reviewer |
+| strategist 相談 | `make team-send FROM=reviewer-1 TO=strategist TASK=T-001 BODY="..."` | Lead / Manager / Reviewer |
 | worker report | `make report TASK=T-001 AGENT=worker-1 STATUS=needs_review` | Worker |
 | reviewer decision | `make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK` | Reviewer |
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
 | 停止 | `make team-stop` | 人間 |
 
 team pane の中では `TEAM_AGENT_ID` が sender になります。repo shell から直接 mailbox を送る場合は `FROM=<agent_id>` を指定します。
+repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指定します。
 
 ## Repository Layout
 

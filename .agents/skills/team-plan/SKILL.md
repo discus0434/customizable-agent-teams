@@ -35,6 +35,7 @@ description: Use by a manager after a lead intake is clear enough to decompose w
 - Verification
 - Worker Flow
 - Reviewer Flow
+- Reviewer Supervision
 - Report
 - Memory
 
@@ -44,6 +45,8 @@ description: Use by a manager after a lead intake is clear enough to decompose w
 make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
 ```
 
+When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
+
 ## Quality Check
 
 - `TBD`、`TODO`、未確定 acceptance がない。
@@ -51,5 +54,5 @@ make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
 - owner と reviewer が config 上の正しい role。
 - 各 task が検証 command または未検証理由を持つ。
 - report evidence requirement が明記されている。
-- reviewer が worker と直接やりとりできるように task に判断境界が書かれている。
+- reviewer が task-local supervisor として動けるように checkpoint、escalation、strategy、evidence expectation が書かれている。
 - manager が `.agents/state/STATE.md` に next action を反映できる。

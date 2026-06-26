@@ -34,12 +34,15 @@ state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 owner="$(team_task_state_field "$task_id" owner)"
+manager="$(team_task_state_field "$task_id" manager)"
 reviewer="$(team_task_state_field "$task_id" reviewer)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 review_file="$(team_task_state_field "$task_id" review)"
 review_decision="$(team_task_state_field "$task_id" review_decision)"
+done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
 
 [[ "$owner" == "$agent_id" ]] || die "task $task_id is owned by $owner, not $agent_id"
+[[ -n "$manager" ]] || die "task $task_id state is missing manager"
 [[ -n "$reviewer" ]] || die "task $task_id state is missing reviewer"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 
@@ -49,6 +52,7 @@ commits="$(git -C "$TEAM_ROOT" log --oneline "$base_commit..$head_commit" -- 2>/
 if [[ "$status" == "needs_review" || "$status" == "blocked" ]]; then
   review_file=""
   review_decision=""
+  done_recommendation="false"
 fi
 
 if [[ ! -f "$report_file" ]]; then
@@ -61,6 +65,7 @@ Base commit: $base_commit
 Head commit: $head_commit
 Review: ${review_file:-none}
 Review decision: ${review_decision:-none}
+Done recommendation: ${done_recommendation:-false}
 
 ## Summary
 
@@ -96,7 +101,18 @@ $(if [[ -n "$commits" ]]; then printf '%s\n' "$commits" | sed 's/^/- /'; else pr
 
 - Assigned reviewer: $reviewer
 - Ready for review message:
-- Reviewer feedback handled:
+
+## Reviewer supervision
+
+- Checkpoints:
+- Feedback received:
+- Feedback response:
+
+## Strategy artifacts
+
+- Artifact path:
+- Adoption decision:
+- Task-external impact:
 
 ## Blockers
 
@@ -121,10 +137,12 @@ else
   team_update_markdown_field "$report_file" "Head commit" "$head_commit"
   team_update_markdown_field "$report_file" "Review" "${review_file:-none}"
   team_update_markdown_field "$report_file" "Review decision" "${review_decision:-none}"
+  team_update_markdown_field "$report_file" "Done recommendation" "${done_recommendation:-false}"
 fi
 
 team_write_task_state \
   "$task_id" \
+  "$manager" \
   "$agent_id" \
   "$reviewer" \
   "$status" \
@@ -132,6 +150,7 @@ team_write_task_state \
   "$head_commit" \
   "$report_file" \
   "$review_file" \
-  "$review_decision"
+  "$review_decision" \
+  "${done_recommendation:-false}"
 
 echo "$report_file"

@@ -35,13 +35,20 @@ Reviewer: reviewer-1
 - `make smoke`
 - report に summary、changed files、各 command の result/evidence を記録する。
 
+## Reviewer Supervision
+
+- Checkpoints: worker が相談したい節目。大きい task では具体的に書く。小さい task は `worker initiated`。
+- Escalation: task 固有の manager escalation 条件。共通条件は AGENTS.md / TEAM_PROTOCOL.md に従う。
+- Strategy: strategist に相談すべき task 固有の条件。
+- Evidence expectation: reviewer が `OK` を出すために必要な evidence。
+
 ## Worker Flow
 
 1. この task と `.agents/docs/TEAM_PROTOCOL.md` を読む。
 2. 実装中に迷ったら担当 reviewer に相談する。
 3. 実装、検証、commit を行う。
 4. `make report TASK=T-XXX AGENT=worker-1 STATUS=needs_review` を実行する。
-5. report の未記入欄を埋める。
+5. report の未記入欄を埋め、reviewer feedback と strategy artifact の扱いも記録する。
 6. reviewer に `ready_for_review` を送る。
 
 ## Reviewer Flow
@@ -53,11 +60,12 @@ make review-report TASK=T-XXX REVIEWER=reviewer-1 DECISION=OK
 ```
 
 decision は `OK` / `FIX` / `ASK_MANAGER` のいずれか。
+`OK` は task-local scope について done 推薦を含む。
 
 ## Report
 
 完了時は `.agents/queue/reports/T-XXX_worker-1.md` に report を書く。
-summary、changed files、verification、post-change、smoke の result/evidence を埋める。
+summary、changed files、verification、post-change、smoke、reviewer supervision、strategy artifacts の result/evidence を埋める。
 
 ## Memory
 

@@ -14,6 +14,19 @@ die() {
   exit 1
 }
 
+die_rule() {
+  local message="$1"
+  local reason="$2"
+  local required_action="$3"
+
+  {
+    printf 'error: %s\n' "$message"
+    printf 'reason: %s\n' "$reason"
+    printf 'required action: %s\n' "$required_action"
+  } >&2
+  exit 1
+}
+
 warn() {
   echo "[team] WARN: $*" >&2
 }
@@ -143,8 +156,12 @@ team_now_utc() {
   date -u +"%Y-%m-%dT%H:%M:%SZ"
 }
 
+team_now_compact_utc() {
+  date -u +"%Y%m%dT%H%M%SZ"
+}
+
 team_message_id() {
-  date -u +"msg_%Y%m%dT%H%M%SZ_$$"
+  printf 'msg_%s_%s_%s\n' "$(team_now_compact_utc)" "$$" "$RANDOM"
 }
 
 json_escape() {
@@ -167,6 +184,31 @@ json_string() {
 
 shell_quote() {
   printf '%q' "$1"
+}
+
+team_relative_path() {
+  local path="$1"
+  if [[ "$path" == "$TEAM_ROOT/"* ]]; then
+    printf '%s\n' "${path#"$TEAM_ROOT/"}"
+  else
+    printf '%s\n' "$path"
+  fi
+}
+
+team_strategy_artifact_path() {
+  local task_id="$1"
+  local subtype="$2"
+  local scope
+  local timestamp
+
+  if [[ -z "$task_id" || "$task_id" == "-" ]]; then
+    scope="general"
+  else
+    scope="$task_id"
+  fi
+  scope="$(printf '%s' "$scope" | sed 's/[^A-Za-z0-9._-]/_/g')"
+  timestamp="$(team_now_compact_utc)"
+  printf '.agents/queue/strategy/%s_%s_%s.md\n' "$scope" "$subtype" "$timestamp"
 }
 
 team_root_name() {
@@ -241,14 +283,16 @@ team_task_state_field() {
 
 team_write_task_state() {
   local task_id="$1"
-  local owner="$2"
-  local reviewer="$3"
-  local status="$4"
-  local base_commit="$5"
-  local head_commit="$6"
-  local report="$7"
-  local review="$8"
-  local review_decision="$9"
+  local manager="$2"
+  local owner="$3"
+  local reviewer="$4"
+  local status="$5"
+  local base_commit="$6"
+  local head_commit="$7"
+  local report="$8"
+  local review="$9"
+  local review_decision="${10}"
+  local done_recommendation="${11}"
   local state_file
   local updated_at
 
@@ -256,8 +300,9 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","manager":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","done_recommendation":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
+    "$(json_string "$manager")" \
     "$(json_string "$owner")" \
     "$(json_string "$reviewer")" \
     "$(json_string "$status")" \
@@ -266,6 +311,7 @@ team_write_task_state() {
     "$(json_string "$report")" \
     "$(json_string "$review")" \
     "$(json_string "$review_decision")" \
+    "$(json_string "$done_recommendation")" \
     "$updated_at" > "$state_file"
 }
 

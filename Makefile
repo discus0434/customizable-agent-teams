@@ -48,11 +48,10 @@ team-status:
 
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
-	@test -n "$(TYPE)" || { echo "TYPE is required" >&2; exit 2; }
 	@if [ -n "$(FROM)" ]; then \
-		./.agents/scripts/team_send.sh --from "$(FROM)" "$(TO)" "$(TYPE)" "$(TASK)" "$(BODY)"; \
+		./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 	else \
-		./.agents/scripts/team_send.sh "$(TO)" "$(TYPE)" "$(TASK)" "$(BODY)"; \
+		./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 	fi
 
 team-submit:
@@ -77,7 +76,11 @@ dispatch:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
 	@test -n "$(WORKER)" || { echo "WORKER is required" >&2; exit 2; }
 	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
-	@./.agents/scripts/team_dispatch.sh "$(TASK)" "$(WORKER)" "$(REVIEWER)"
+	@if [ -n "$(MANAGER)" ]; then \
+		./.agents/scripts/team_dispatch.sh --manager "$(MANAGER)" "$(TASK)" "$(WORKER)" "$(REVIEWER)"; \
+	else \
+		./.agents/scripts/team_dispatch.sh "$(TASK)" "$(WORKER)" "$(REVIEWER)"; \
+	fi
 
 review-report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }

@@ -34,24 +34,37 @@ state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 owner="$(team_task_state_field "$task_id" owner)"
+manager="$(team_task_state_field "$task_id" manager)"
 assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 head_commit="$(team_task_state_field "$task_id" head_commit)"
 report_file="$(team_task_state_field "$task_id" report)"
 
 [[ "$assigned_reviewer" == "$reviewer_id" ]] || die "task $task_id reviewer is $assigned_reviewer, not $reviewer_id"
+[[ -n "$manager" ]] || die "task $task_id state is missing manager"
 [[ -n "$owner" ]] || die "task $task_id state is missing owner"
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 [[ -n "$head_commit" ]] || die "task $task_id state is missing head_commit; worker must run make report first"
 [[ -n "$report_file" && -f "$report_file" ]] || die "report file not found for $task_id: $report_file"
 
 review_file="$TEAM_QUEUE_DIR/reviews/${task_id}_${reviewer_id}.md"
+case "$decision" in
+  OK)
+    done_recommendation="true"
+    done_recommendation_text="yes"
+    ;;
+  FIX|ASK_MANAGER)
+    done_recommendation="false"
+    done_recommendation_text="no"
+    ;;
+esac
 
 if [[ ! -f "$review_file" ]]; then
   cat > "$review_file" <<REPORT
 # Review: $task_id by $reviewer_id
 
 Decision: $decision
+Done recommendation: $done_recommendation_text
 Task: $TEAM_QUEUE_DIR/tasks/$task_id.md
 Worker: $owner
 Report: $report_file
@@ -61,6 +74,12 @@ Head commit: $head_commit
 ## Summary
 
 - 未記入
+
+## Supervision Summary
+
+- Worker questions:
+- Review feedback sent:
+- Strategy requests considered:
 
 ## Findings
 
@@ -83,6 +102,7 @@ Head commit: $head_commit
 REPORT
 else
   team_update_markdown_field "$review_file" "Decision" "$decision"
+  team_update_markdown_field "$review_file" "Done recommendation" "$done_recommendation_text"
   team_update_markdown_field "$review_file" "Task" "$TEAM_QUEUE_DIR/tasks/$task_id.md"
   team_update_markdown_field "$review_file" "Worker" "$owner"
   team_update_markdown_field "$review_file" "Report" "$report_file"
@@ -93,23 +113,24 @@ fi
 case "$decision" in
   OK)
     next_status="review_ok"
-    target="manager"
-    message="Review Decision: OK. $review_file を確認し、report evidence が十分なら task を done にしてください。"
+    target="$manager"
+    message="Review Decision: OK. Done recommendation: yes. $review_file を確認し、global constraints に問題がなければ task を done にしてください。"
     ;;
   FIX)
     next_status="review_fix"
     target="$owner"
-    message="Review Decision: FIX. $review_file を確認し、修正、検証、commit、report 更新後に再度 reviewer に ready_for_review を送ってください。"
+    message="Review Decision: FIX. Done recommendation: no. $review_file を確認し、修正、検証、commit、report 更新後に再度 reviewer に ready_for_review を送ってください。"
     ;;
   ASK_MANAGER)
     next_status="review_ask_manager"
-    target="manager"
-    message="Review Decision: ASK_MANAGER. $review_file を確認し、判断または Lead への escalation を行ってください。"
+    target="$manager"
+    message="Review Decision: ASK_MANAGER. Done recommendation: no. $review_file を確認し、判断または Lead への escalation を行ってください。"
     ;;
 esac
 
 team_write_task_state \
   "$task_id" \
+  "$manager" \
   "$owner" \
   "$reviewer_id" \
   "$next_status" \
@@ -117,8 +138,9 @@ team_write_task_state \
   "$head_commit" \
   "$report_file" \
   "$review_file" \
-  "$decision"
+  "$decision" \
+  "$done_recommendation"
 
-"$SCRIPT_DIR/team_send.sh" --from "$reviewer_id" "$target" review_result "$task_id" "$message" >/dev/null
+"$SCRIPT_DIR/team_send.sh" --from "$reviewer_id" --type review_result --task "$task_id" --done-recommendation "$done_recommendation" "$target" "$message" >/dev/null
 
 echo "$review_file"
