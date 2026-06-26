@@ -11,7 +11,7 @@
 - **Lead は人間との共同思考に集中** — Lead は実装も dispatch もせず、質問、承認取得、意図の翻訳に専念します。
 - **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、進捗、blocker、done 判定、`STATE.md` 更新を担当します。
 - **Strategist を常駐** — 深い bug 調査、設計、比較、実行計画を `.agents/queue/strategy/` に成果物として残します。
-- **Reviewer が worker と並走** — 非対話 review ではなく常駐 reviewer が worker と直接やりとりし、`OK` / `FIX` / `ASK_MANAGER` を返します。
+- **Reviewer が worker と並走** — 常駐 reviewer が worker と直接やりとりし、`OK` / `FIX` / `ASK_MANAGER` を返します。
 - **shared root** — 全 agent が同じ repo root で動きます。venv / node_modules / `.env` / direnv を重複させません。
 - **file mailbox + tmux nudge** — agent 間の本文は file が正本。tmux には短い `inbox <agent_id>` だけを流します。
 - **CLI / model の混在** — `.agents/config/agent-team.yaml` で役割ごとに CLI・model・起動コマンドを変更できます。
@@ -38,13 +38,15 @@ Human
 
 ## 必要なツール
 
-`gh` `ripgrep` `fd` `bat` `jq` `git-delta` `direnv` `tmux` と、使う coding agent の CLI（`claude` / `codex` など）、選んだ stack の toolchain（例: Python なら `uv`、TypeScript なら `pnpm` / `node`）。
+Harness の起動には `git` `make` `bash` `tmux` `direnv` と、使う coding agent の CLI（`claude` / `codex` など）が必要です。GitHub 操作は `gh` を使います。
+
+日常の repo 調査には `ripgrep` `fd` `bat` `git-delta` があると便利です。選んだ stack の toolchain（例: Python なら `uv`、TypeScript なら `pnpm` / `node`）も bootstrap で使います。
 
 <details>
 <summary>macOS でまとめてインストール</summary>
 
 ```bash
-brew install gh ripgrep fd bat jq yq git-delta direnv tmux pnpm node python uv
+brew install gh ripgrep fd bat git-delta direnv tmux pnpm node python uv
 brew install --cask codex
 npm install -g @anthropic-ai/claude-code
 ```
@@ -67,7 +69,7 @@ sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
 sudo mkdir -p -m 755 /etc/apt/sources.list.d
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 sudo apt update
-sudo apt-get install -y gh ripgrep fd-find bat jq direnv tmux python3 nodejs npm
+sudo apt-get install -y gh ripgrep fd-find bat direnv tmux python3 nodejs npm
 command -v fd >/dev/null || sudo ln -s /usr/bin/fdfind /usr/local/bin/fd
 command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 ```
@@ -131,12 +133,15 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | 状態確認 | `make team-status` / `make state` | Manager / Lead |
 | inbox 確認 / 既読 | `make inbox AGENT=worker-1` / `make inbox AGENT=worker-1 MARK=<id>` | 全員 |
 | 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
+| mailbox 送信 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |
 | worker report | `make report TASK=T-001 AGENT=worker-1 STATUS=needs_review` | Worker |
 | reviewer decision | `make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK` | Reviewer |
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
 | 停止 | `make team-stop` | 人間 |
+
+team pane の中では `TEAM_AGENT_ID` が sender になります。repo shell から直接 mailbox を送る場合は `FROM=<agent_id>` を指定します。
 
 ## Repository Layout
 

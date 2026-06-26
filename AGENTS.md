@@ -133,6 +133,16 @@ Decision handling:
 - `FIX`: worker fixes, reruns checks, commits, updates report, and asks reviewer again.
 - `ASK_MANAGER`: manager decides or escalates to lead.
 
+Task state status:
+
+- `dispatched`: manager assigned worker and reviewer.
+- `needs_review`: worker report is ready for reviewer.
+- `review_fix`: reviewer requested worker changes.
+- `review_ask_manager`: reviewer needs manager judgment.
+- `review_ok`: reviewer returned `OK`; manager has not marked done yet.
+- `done`: manager accepted the report and review.
+- `blocked`: task cannot continue without external action.
+
 Manager marks done:
 
 ```bash

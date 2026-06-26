@@ -5,11 +5,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/team_common.sh"
 
-if [[ -n "${TEAM_AGENT_ID:-}" ]]; then
-  [[ -n "${TEAM_AGENT_ROLE:-}" ]] || die "TEAM_AGENT_ROLE is missing"
-  [[ -n "${TEAM_AGENT_CLI:-}" ]] || die "TEAM_AGENT_CLI is missing"
-  [[ -n "${TEAM_AGENT_MODEL:-}" ]] || die "TEAM_AGENT_MODEL is missing"
-  [[ -n "${TEAM_SESSION:-}" ]] || die "TEAM_SESSION is missing"
+if [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]]; then
+  [[ -n "${TEAM_AGENT_ROLE+x}" && -n "$TEAM_AGENT_ROLE" ]] || die "TEAM_AGENT_ROLE is missing"
+  [[ -n "${TEAM_AGENT_CLI+x}" && -n "$TEAM_AGENT_CLI" ]] || die "TEAM_AGENT_CLI is missing"
+  [[ -n "${TEAM_AGENT_MODEL+x}" && -n "$TEAM_AGENT_MODEL" ]] || die "TEAM_AGENT_MODEL is missing"
+  [[ -n "${TEAM_SESSION+x}" && -n "$TEAM_SESSION" ]] || die "TEAM_SESSION is missing"
 
   printf 'agent_id=%s\n' "$TEAM_AGENT_ID"
   printf 'role=%s\n' "$TEAM_AGENT_ROLE"
@@ -21,7 +21,7 @@ if [[ -n "${TEAM_AGENT_ID:-}" ]]; then
   exit 0
 fi
 
-if [[ -n "${TMUX_PANE:-}" ]] && command -v tmux >/dev/null 2>&1; then
+if [[ -n "${TMUX_PANE+x}" && -n "$TMUX_PANE" ]] && command -v tmux >/dev/null 2>&1; then
   agent_id="$(tmux display-message -t "$TMUX_PANE" -p '#{@agent_id}')"
   role="$(tmux display-message -t "$TMUX_PANE" -p '#{@role}')"
   model="$(tmux display-message -t "$TMUX_PANE" -p '#{@model}')"

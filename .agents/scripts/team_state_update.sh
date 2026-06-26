@@ -9,7 +9,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage:
   team_state_update.sh show
-  team_state_update.sh update <task_id> <planned|dispatched|in_progress|needs_review|review_fix|review_ask_manager|review_ok|done|blocked>
+  team_state_update.sh update <task_id> <dispatched|needs_review|review_fix|review_ask_manager|review_ok|done|blocked>
 USAGE
 }
 
@@ -27,7 +27,7 @@ case "$command" in
     task_id="$2"
     next_status="$3"
     case "$next_status" in
-      planned|dispatched|in_progress|needs_review|review_fix|review_ask_manager|review_ok|done|blocked) ;;
+      dispatched|needs_review|review_fix|review_ask_manager|review_ok|done|blocked) ;;
       *) die "invalid task status: $next_status" ;;
     esac
     state_file="$(team_task_state_file "$task_id")"

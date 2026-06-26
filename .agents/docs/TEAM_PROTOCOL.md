@@ -140,7 +140,7 @@ Recommended shape:
 Lead or manager may send:
 
 ```bash
-make team-send TO=strategist TYPE=strategy_request TASK=- BODY="..."
+make team-send FROM=manager TO=strategist TYPE=strategy_request TASK=- BODY="..."
 ```
 
 Strategist writes:
@@ -157,6 +157,7 @@ Manager creates a task from `.agents/queue/tasks/TEMPLATE.md`.
 
 Required fields:
 
+- `Context`
 - `Owner`
 - `Reviewer`
 - `Allowed paths`
@@ -167,6 +168,7 @@ Required fields:
 - `Worker Flow`
 - `Reviewer Flow`
 - `Report`
+- `Memory`
 
 Dispatch:
 
@@ -187,6 +189,16 @@ Dispatch sends:
 - `review_watch_assigned` to reviewer
 
 Multiple workers can work in the shared root at the same time. Manager, task ownership, reviewer coordination, and reports define the working boundary.
+
+Task state status values:
+
+- `dispatched`: manager assigned worker and reviewer.
+- `needs_review`: worker report is ready for reviewer.
+- `review_fix`: reviewer requested worker changes.
+- `review_ask_manager`: reviewer needs manager judgment.
+- `review_ok`: reviewer returned `OK`; manager has not marked done yet.
+- `done`: manager accepted the report and review.
+- `blocked`: task cannot continue without external action.
 
 ## Worker Lifecycle
 
@@ -216,7 +228,7 @@ The report must include:
 Worker sends the assigned reviewer:
 
 ```bash
-make team-send TO=<reviewer_id> TYPE=ready_for_review TASK=<task_id> BODY="..."
+make team-send FROM=<worker_id> TO=<reviewer_id> TYPE=ready_for_review TASK=<task_id> BODY="..."
 ```
 
 ## Reviewer Lifecycle

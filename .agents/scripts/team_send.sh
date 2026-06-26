@@ -12,13 +12,13 @@ usage:
   team_send.sh [--from <agent_id>] [--body-file <path>] <to> <type> [task_id] [body...]
 
 examples:
-  team_send.sh manager intake - "ユーザー依頼の要点..."
-  team_send.sh worker-1 task_assigned T-001
-  team_send.sh reviewer-1 review_watch_assigned T-001
+  team_send.sh --from lead manager intake - "ユーザー依頼の要点..."
+  team_send.sh --from manager worker-1 task_assigned T-001
+  team_send.sh --from manager reviewer-1 review_watch_assigned T-001
 USAGE
 }
 
-from="${TEAM_AGENT_ID:-lead}"
+from=""
 body_file=""
 
 while [[ $# -gt 0 ]]; do
@@ -62,6 +62,15 @@ fi
 
 if ! team_config_agent_record "$to" >/dev/null; then
   die "unknown target agent: $to"
+fi
+
+if [[ -z "$from" ]]; then
+  [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die "sender is unknown; set TEAM_AGENT_ID by running inside a team pane or pass --from <agent_id>"
+  from="$TEAM_AGENT_ID"
+fi
+
+if ! team_config_agent_record "$from" >/dev/null; then
+  die "unknown sender agent: $from"
 fi
 
 body="${*:-}"

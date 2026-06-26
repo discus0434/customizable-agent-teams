@@ -49,7 +49,11 @@ team-status:
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
 	@test -n "$(TYPE)" || { echo "TYPE is required" >&2; exit 2; }
-	./.agents/scripts/team_send.sh "$(TO)" "$(TYPE)" "$(TASK)" "$(BODY)"
+	@if [ -n "$(FROM)" ]; then \
+		./.agents/scripts/team_send.sh --from "$(FROM)" "$(TO)" "$(TYPE)" "$(TASK)" "$(BODY)"; \
+	else \
+		./.agents/scripts/team_send.sh "$(TO)" "$(TYPE)" "$(TASK)" "$(BODY)"; \
+	fi
 
 team-submit:
 	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }

@@ -35,8 +35,8 @@ description: Use by a manager after a lead intake is clear enough to decompose w
 - Verification
 - Worker Flow
 - Reviewer Flow
-- Report path
-- Memory proposal policy
+- Report
+- Memory
 
 ## Dispatch
 

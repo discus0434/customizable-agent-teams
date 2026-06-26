@@ -46,6 +46,11 @@ review_decision="$(team_task_state_field "$task_id" review_decision)"
 head_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
 commits="$(git -C "$TEAM_ROOT" log --oneline "$base_commit..$head_commit" -- 2>/dev/null || true)"
 
+if [[ "$status" == "needs_review" || "$status" == "blocked" ]]; then
+  review_file=""
+  review_decision=""
+fi
+
 if [[ ! -f "$report_file" ]]; then
   cat > "$report_file" <<REPORT
 # Report: $task_id by $agent_id
