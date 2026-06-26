@@ -24,6 +24,17 @@ description: Use by a manager when receiving lead intake, maintaining STATE, dec
 - Serialize only when a task needs another task's output, shares a file boundary that cannot be split cleanly, changes the same user-visible contract, or would make verification ambiguous.
 - Do not edit project code.
 
+## Work Sizing
+
+Choose the smallest coordination shape that preserves ownership, review quality, and verification clarity.
+
+- `micro`: fold into the nearest active task, release fix, or manager note. Do not create a standalone task for small cleanup, orphan file removal, wording fixes, or bootstrap polish when an existing owner can absorb it.
+- `single-task`: use one worker/reviewer pair when the work has one natural owner and one coherent review surface.
+- `parallel`: dispatch independent tasks in the same batch when they do not depend on each other's output and have clear file or behavior boundaries.
+- `strategy/architecture`: ask strategist or architect before decomposition when the missing decision changes the task graph, technical direction, or verification boundary.
+
+Do not split work just because it feels safer. Split when ownership, review perspective, or verification boundary truly differs.
+
 ## Escalation
 
 - Resolve task operation questions yourself when they are about assignment, dependency, status, or evidence.
@@ -36,6 +47,7 @@ description: Use by a manager when receiving lead intake, maintaining STATE, dec
 
 Before dispatch, write the working dependency shape in `STATE.md`:
 
+- work sizing decision
 - task candidates
 - dependency edges
 - parallel batch
@@ -67,6 +79,7 @@ When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
 - Mark a task `done` only after reviewer `OK`, `done_recommendation=true`, sufficient report evidence, and any required architecture note.
 - Prepare a release bundle when a coherent set of done tasks is ready for whole-system review.
 - Send `completion_ready` to lead only after release-captain returns `SHIP`.
+- Compress `STATE.md` after task done, release result, or resolved escalation.
 
 ## Quality Check
 
@@ -76,3 +89,4 @@ When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
 - Reviewer can supervise without asking manager for task-local context.
 - Verification commands or explicit verification gaps are present.
 - `STATE.md` shows the current whole picture without stale task logs.
+- Completed task details live in task, report, review, and release artifacts, not in `STATE.md`.

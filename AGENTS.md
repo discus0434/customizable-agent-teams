@@ -124,7 +124,7 @@ make team-submit AGENT=<agent_id>
 
 ## State And Memory
 
-- `.agents/state/STATE.md` is the current whole picture.
+- `.agents/state/STATE.md` is current truth, not a log.
 - Lead owns Intent in `STATE.md`.
 - Manager owns execution state in `STATE.md`.
 - Other roles do not edit `STATE.md`.

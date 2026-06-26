@@ -102,69 +102,45 @@ Expected fields:
 
 ## Roles
 
+This section is the role boundary map. Role-specific operating detail belongs in `.agents/skills/team-<role>/SKILL.md`; lifecycle commands are defined in the sections below.
+
 ### Lead
 
 - Sole human-facing role.
-- Clarifies ambiguous instructions.
-- Sends manager `intake`, `approval`, or `decision` messages.
-- Edits `.agents/state/STATE.md` Intent when human-derived Goal, Acceptance, or Human escalation rules change.
-- Reviews `.agents/queue/memory_proposals/` and `.agents/queue/skill_proposals/`.
-- Reviews proposals after manager sends `completion_ready`.
-- Does not edit project files.
-- Does not dispatch worker tasks.
+- Owns intent, acceptance, approvals, and human escalation.
+- Sends manager `intake`, `approval`, or `decision`.
+- Does not edit project files or dispatch worker tasks.
 
 ### Manager
 
-- Owns team operation.
-- Primary editor of `.agents/state/STATE.md`.
-- Creates task files, assigns worker/reviewer pairs, and dispatches tasks.
-- Maps dependencies before dispatch and sends independent tasks in the same batch.
-- Tracks reports, review decisions, blockers, and next actions.
-- Uses reviewer supervision, architect input, or strategist input to bound uncertainty instead of serializing unrelated work.
-- Requests strategist input when heavy analysis is useful.
-- Requests architect input when technical direction or design consistency needs a named owner.
-- Intervenes in worker/reviewer pairs only for escalation, blockers, unusual strategy requests, and done decisions.
-- Marks task state `done` after reviewer `OK`, `done_recommendation=true`, sufficient report evidence, and any required architecture note.
-- Prepares release bundles and requests release-captain review.
-- Escalates to lead when human judgment is needed.
+- Owns team operation, task graph, dispatch, done decisions, release bundles, and execution state.
+- Chooses work sizing before task creation and dispatches independent tasks in the same batch.
+- Routes technical uncertainty to architect or strategist; escalates human judgment to lead.
 - Does not edit project files.
 
 ### Strategist
 
-- Receives strategy requests.
-- Writes to the `Strategy artifact path:` in the request body.
-- Notifies the requester with the artifact path.
+- Owns focused analysis: deep debugging, option comparison, and execution planning.
+- Writes strategy artifacts for the requester.
 - Does not edit project files, dispatch tasks, or edit `STATE.md`.
 
 ### Architect
 
 - Owns technical direction and design consistency.
-- Receives architecture requests from lead, manager, reviewer, or release-captain.
-- Writes to the `Architecture artifact path:` in the request body.
-- Requests strategist input when deep investigation or option comparison is useful.
+- Writes architecture notes and may ask strategist for supporting analysis.
 - Does not edit project files, dispatch tasks, manage progress, or edit `STATE.md`.
-- Technical direction from architect is normally adopted. If it conflicts with user intent, lead resolves the conflict with the human.
 
 ### Reviewer
 
-- Receives `review_watch_assigned`.
 - Acts as task-local supervisor for the assigned worker.
-- Receives worker questions first.
-- Sends `review_feedback` during implementation when task-local correction is useful.
-- Sends scoped requests directly to strategist when deep task-local analysis is needed.
-- Sends scoped requests directly to architect when task-local design direction is unclear.
-- When reviewer asks strategist, the task manager also receives the request.
-- When reviewer asks architect, the task manager also receives the request.
-- Escalates to manager for task scope changes, acceptance changes, cross-task impact, unresolved worker/reviewer disagreement, task-external strategy impact, stopped work, repeated evidence gaps, or inability to continue supervising.
-- Writes `.agents/queue/reviews/<task_id>_<reviewer_id>.md`.
-- Records `OK`, `FIX`, or `ASK_MANAGER` with `make review-report`.
+- Receives worker questions first and gives task-local feedback.
+- Requests strategist or architect input when task-local work needs it.
+- Records `OK`, `FIX`, or `ASK_MANAGER`.
 - Does not edit project files.
 
 ### Release Captain
 
-- Receives release requests from manager.
 - Reviews release bundles for whole-system readiness.
-- Checks task reports, reviews, architecture notes, strategy artifacts, diffs, verification evidence, and STATE Intent as needed.
 - Decides `SHIP`, `FIX`, or `BLOCKED`.
 - Asks architect when whole-system technical consistency is unclear.
 - Returns release results to manager.
@@ -172,15 +148,13 @@ Expected fields:
 
 ### Worker
 
-- Receives `task_assigned`.
-- Implements in shared root.
-- May work concurrently with other workers.
+- Implements assigned tasks in shared root.
 - Coordinates first with the assigned reviewer when blocked, unsure, low-confidence, or tempted to change scope.
 - Runs verification, commits, writes report, and asks reviewer for review.
 
 ## State And Memory
 
-`STATE.md` is short-lived current state. Manager keeps it current and removes stale completed details.
+`STATE.md` is current truth, not a log. Manager keeps only the information needed for the next decision and removes stale completed details.
 
 Shape:
 
@@ -210,7 +184,14 @@ Shape:
 ## Next Actions
 ```
 
-STATE is not append-only. When updating it, remove, replace, or shorten stale completed details.
+STATE is not append-only. When updating it:
+
+- remove done tasks from Active Tasks
+- keep completed task details in task, report, review, and release artifacts
+- keep Recent Decisions only while they affect current decisions
+- move durable lessons to memory proposals instead of leaving them in STATE
+- make Next Actions name the next role and action
+- compress STATE after task done, release result, or resolved escalation
 
 `MEMORY.md` is medium/long-term agent memory. Lead edits it after reviewing proposals from `.agents/queue/memory_proposals/`.
 
@@ -286,6 +267,17 @@ Task or bundle:
 ```
 
 ## Task Dispatch
+
+### Work Sizing
+
+Manager chooses the smallest coordination shape that preserves ownership, review quality, and verification clarity:
+
+- `micro`: fold into the nearest active task, release fix, or manager note. Do not create a standalone task for small cleanup, orphan file removal, wording fixes, or bootstrap polish when an existing owner can absorb it.
+- `single-task`: use one worker/reviewer pair when the work has one natural owner and one coherent review surface.
+- `parallel`: dispatch independent tasks in the same batch when they do not depend on each other's output and have clear file or behavior boundaries.
+- `strategy/architecture`: ask strategist or architect before decomposition when the missing decision changes the task graph, technical direction, or verification boundary.
+
+Do not split work just because it feels safer. Split when ownership, review perspective, or verification boundary truly differs.
 
 Manager creates a task from `.agents/queue/tasks/TEMPLATE.md`.
 
