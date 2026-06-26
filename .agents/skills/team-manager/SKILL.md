@@ -1,6 +1,6 @@
 ---
 name: team-manager
-description: Use by a manager when receiving lead intake, maintaining STATE, decomposing work, deciding dependency and parallel dispatch, assigning worker/reviewer pairs, handling escalations, marking tasks done, or preparing release bundles.
+description: Guides manager operation, STATE execution updates, work sizing, task decomposition, dependency and parallel dispatch, worker/reviewer assignment, escalations, done decisions, and release bundle preparation. Use when a manager receives lead intake or task progress.
 ---
 
 # team-manager

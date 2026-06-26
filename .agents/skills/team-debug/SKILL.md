@@ -1,6 +1,6 @@
 ---
 name: team-debug
-description: Use by any agent when tests fail, behavior is unexpected, a build breaks, state is inconsistent, or a previous fix failed, before making another fix.
+description: Guides root-cause debugging before another fix attempt. Use when tests fail, behavior is unexpected, a build breaks, state is inconsistent, or a previous fix failed.
 ---
 
 # team-debug

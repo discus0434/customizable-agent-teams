@@ -1,6 +1,6 @@
 ---
 name: team-memory
-description: Use by a lead agent when .agents/queue/memory_proposals contains proposed medium/long-term rules, tips, pitfalls, or user preferences to merge into .agents/state/MEMORY.md.
+description: Guides lead review of memory proposals and MEMORY updates. Use when .agents/queue/memory_proposals contains proposed medium/long-term rules, tips, pitfalls, or user preferences.
 ---
 
 # team-memory

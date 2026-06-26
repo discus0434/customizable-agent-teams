@@ -1,6 +1,6 @@
 ---
 name: team-reviewer
-description: Use by a reviewer when assigned to supervise a worker task, answer worker questions, send task-local feedback, request strategist or architect input, write the review artifact, or record OK, FIX, or ASK_MANAGER.
+description: Guides task-local reviewer supervision, worker questions, review feedback, strategist or architect requests, review artifacts, and OK/FIX/ASK_MANAGER decisions. Use when a reviewer is assigned to a worker task or receives ready_for_review.
 ---
 
 # team-reviewer

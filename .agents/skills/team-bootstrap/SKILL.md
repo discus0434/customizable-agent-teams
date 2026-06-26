@@ -1,6 +1,6 @@
 ---
 name: team-bootstrap
-description: Use by a lead agent when initializing a new project from this template, before asking manager to implement bootstrap, to decide product shape and stack through one-question-at-a-time collaboration.
+description: Guides one-question-at-a-time project bootstrap from this template. Use when a lead initializes a new project, chooses product shape and stack, defines post-change and smoke contracts, and prepares manager intake for bootstrap implementation.
 ---
 
 # team-bootstrap
@@ -61,106 +61,7 @@ bootstrap 実装では、template の初期記述を実プロジェクトの con
 
 project-facing docs から、古い example、toy name、未使用 stack command、template 固有の文言を消す。
 
-Python and TypeScript below are examples of this rule, not the only supported stacks.
-
-## Python
-
-Use:
-
-- `uv`
-- `ruff`
-- `pytest`
-- `pyproject.toml`
-- `src/<package_name>/`
-- `tests/`
-
-`pyproject.toml`:
-
-- `[project]` に name, version, description, requires-python。
-- test/dev dependency group に `pytest` と `ruff`。
-- library/package なら `hatchling` などの build backend を設定する。
-- ruff config は `tool.ruff` と `tool.ruff.lint` に置く。
-
-`make post-change` path:
-
-```make
-PY_PACKAGE_DIRS := .
-
-post-change: post-change-py
-	@git diff --check -- .
-
-post-change-py:
-	@set -e; \
-	for dir in $(PY_PACKAGE_DIRS); do \
-		echo "==> $$dir"; \
-		(cd $$dir && uv run ruff format .); \
-		(cd $$dir && uv run ruff check . --fix); \
-		(cd $$dir && uv run --group test pytest -q); \
-	done
-```
-
-For a package build contract, add `uv build` to `post-change-py`.
-
-## TypeScript
-
-Use:
-
-- `pnpm`
-- `typescript`
-- `biome`
-- `vitest`
-- `package.json`
-- `tsconfig.json`
-- `src/`
-- `tests/`
-
-`package.json` scripts:
-
-- `format`: `biome format --write .`
-- `lint`: `biome check .`
-- `typecheck`: `tsc --noEmit`
-- `test`: `vitest`
-- `build`: project-specific package/app build when needed
-
-`make post-change` path:
-
-```make
-PNPM ?= pnpm
-TS_PACKAGE_DIRS := .
-
-post-change: post-change-ts
-	@git diff --check -- .
-
-post-change-ts:
-	@set -e; \
-	for dir in $(TS_PACKAGE_DIRS); do \
-		echo "==> $$dir"; \
-		(cd $$dir && $(PNPM) -s format); \
-		(cd $$dir && $(PNPM) -s lint); \
-		(cd $$dir && $(PNPM) -s typecheck); \
-		(cd $$dir && $(PNPM) -s test -- --run); \
-	done
-```
-
-For a package/app build contract, add `$(PNPM) -s build` to `post-change-ts`.
-
-## Other Stack
-
-- Choose the stack's normal package manager, formatter, linter, test runner, and build/package command.
-- Initialize real project metadata, dependency files, source layout, tests, and lockfiles for that stack.
-- Wire the selected tools into `make post-change`.
-- Define `make smoke` as a short user-visible behavior check.
-- Update `AGENTS.md` and `README.md` with the actual selected commands.
-- Keep only examples and scaffold for the selected stack.
-- 必須 command が無い場合は失敗させる。
-
-Examples:
-
-- Rust: `cargo fmt --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`, and `cargo build` when needed.
-- Go: `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` when needed.
-- Ruby: `bundle`, `rubocop`, `rspec` or `minitest`, and gem/package build when needed.
-- Java/Kotlin: Gradle or Maven wrapper, formatter/linter if selected, test, and build/package tasks.
-- Swift: SwiftPM or Xcode build tooling, formatter/linter if selected, tests, and build.
+For stack-specific defaults and Makefile examples, read [references/stack-contracts.md](references/stack-contracts.md) after the stack is known or when manager needs concrete bootstrap commands.
 
 ## Multi-package
 

@@ -1,6 +1,6 @@
 ---
 name: team-strategist
-description: Use by a strategist when receiving a strategy request for deep debugging, option comparison, execution planning, or analysis requested by architect, manager, lead, or reviewer.
+description: Guides strategist analysis for deep debugging, option comparison, execution planning, and focused investigation. Use when a strategist receives a strategy request from architect, manager, lead, or reviewer.
 ---
 
 # team-strategist
@@ -23,7 +23,7 @@ description: Use by a strategist when receiving a strategy request for deep debu
 - If the request came from a reviewer, keep the answer scoped to the task unless the artifact explicitly names task-external impact.
 - If the request came from an architect, provide analysis the architect can integrate into technical direction.
 
-## Artifact Shape
+## Output
 
 Free-form strategy artifacts are allowed. Include enough findings, trade-offs, evidence, recommendation, and open questions for the requester to act.
 

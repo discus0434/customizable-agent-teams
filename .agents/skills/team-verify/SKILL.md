@@ -1,6 +1,6 @@
 ---
 name: team-verify
-description: Use by any agent immediately before saying work is done, fixed, passing, ready for review, or ready to report, to collect fresh verification evidence.
+description: Guides fresh verification evidence collection before completion claims. Use before saying work is done, fixed, passing, ready for review, ready to report, OK, SHIP, or complete.
 ---
 
 # team-verify

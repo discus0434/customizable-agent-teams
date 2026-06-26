@@ -1,6 +1,6 @@
 ---
 name: team-worker
-description: Use by a worker when receiving a task assignment, implementing task-local changes, coordinating with the assigned reviewer, handling uncertainty or blockers, collecting verification evidence, writing the worker report, or requesting review.
+description: Guides worker task implementation, reviewer coordination, uncertainty handling, verification evidence, report writing, and review requests. Use when a worker receives a task assignment or ready-to-implement task.
 ---
 
 # team-worker

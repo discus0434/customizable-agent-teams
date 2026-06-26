@@ -1,6 +1,6 @@
 ---
 name: team-lead
-description: Use by a lead agent when receiving human instructions; clarifying ambiguous, broad, creative, or multi-approach requests; updating STATE Intent; sending manager intake or decisions; handling manager escalations; reviewing completion readiness; or accepting memory and skill proposals.
+description: Guides human-facing lead work, intent clarification, STATE Intent updates, manager intake, manager escalations, completion readiness, memory proposals, and skill proposals. Use when a lead receives human instructions or decisions.
 ---
 
 # team-lead
