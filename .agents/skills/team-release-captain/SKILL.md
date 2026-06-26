@@ -33,5 +33,5 @@ description: Guides release-captain whole-system readiness review and SHIP/FIX/B
 1. Read the release request and bundle artifact.
 2. Check included tasks, reports, reviews, architecture notes, strategy artifacts, diffs, verification evidence, and STATE Intent.
 3. Decide `SHIP`, `FIX`, or `BLOCKED`.
-4. Write or fill `.agents/queue/releases/<bundle_id>_review.md`.
+4. Write `.agents/queue/releases/<bundle_id>_review.md` with decision, evidence, caveats, and required fixes.
 5. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.

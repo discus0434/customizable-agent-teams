@@ -140,6 +140,7 @@ expected_scripts="$(printf '%s\n' \
   team_nudge.sh \
   team_release_report.sh \
   team_release_request.sh \
+  team_reply.sh \
   team_report.sh \
   team_review_report.sh \
   team_send.sh \
@@ -188,7 +189,9 @@ expected_make_targets="$(printf '%s\n' \
   smoke \
   state \
   state-update \
+  team-attach \
   team-identity \
+  team-reply \
   team-send \
   team-start \
   team-status \
@@ -210,7 +213,7 @@ grep -q '^include \.agents/agent-team\.mk$' "$ROOT/Makefile" || {
   echo "root Makefile must import the agent-team makefile" >&2
   exit 1
 }
-if grep -Eq '^(bootstrap|bootstrap-team|team-identity|team-start|team-stop|team-status|team-send|team-submit|inbox|dispatch|report|review-report|release-request|release-report|state|state-update|memory-list|memory-append|harness-test):' "$ROOT/Makefile"; then
+if grep -Eq '^(bootstrap|bootstrap-team|team-attach|team-identity|team-start|team-stop|team-status|team-send|team-reply|team-submit|inbox|dispatch|report|review-report|release-request|release-report|state|state-update|memory-list|memory-append|harness-test):' "$ROOT/Makefile"; then
   echo "agent team targets must not be defined in the root Makefile" >&2
   exit 1
 fi
@@ -262,6 +265,11 @@ fi
 explicit_message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead --type note --task - manager "explicit sender")"
 [[ -n "$explicit_message_id" ]]
 
+memory_proposal="$TMP_BASE/memory-proposal.md"
+printf '%s\n' '- Prefer BODY_FILE for multi-line agent messages.' '' '' > "$memory_proposal"
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_memory_update.sh" append "$memory_proposal" >/dev/null
+git -C "$TMP_ROOT" diff --check -- .agents/state/MEMORY.md >/dev/null
+
 body_file="$TMP_BASE/message-body.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' 'line three' > "$body_file"
 body_file_output="$(
@@ -279,6 +287,29 @@ manager_body_file_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG
 case "$manager_body_file_pending" in
   *"line one\\nrequires-python >=3.14 \\\"quoted\\\"\\nline three"*) ;;
   *) echo "BODY_FILE message body was not delivered exactly enough for JSONL transport" >&2; exit 1 ;;
+esac
+body_file_message_id="$(printf '%s\n' "$body_file_output" | sed -n 's/^message_id=//p')"
+reply_file="$TMP_BASE/reply-body.md"
+printf '%s\n' 'received quoted body' 'using reply artifact' > "$reply_file"
+reply_output="$(
+  cd "$TMP_ROOT"
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=1 \
+  make --no-print-directory -f "$ROOT/Makefile" team-reply FROM=manager TO=lead IN_REPLY_TO="$body_file_message_id" TYPE=note TASK=- BODY_FILE="$reply_file"
+)"
+case "$reply_output" in
+  *"message_id="*"marked_processed=$body_file_message_id"*) ;;
+  *) echo "make team-reply did not send reply and mark source message" >&2; exit 1 ;;
+esac
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/manager/$body_file_message_id" ]] || {
+  echo "team-reply did not create manager processed marker" >&2
+  exit 1
+}
+lead_reply_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" lead)"
+case "$lead_reply_pending" in
+  *"\"type\":\"note\""*"received quoted body\\nusing reply artifact"*) ;;
+  *) echo "team-reply did not deliver the reply body" >&2; exit 1 ;;
 esac
 body_ambiguity_error="$TMP_BASE/body-ambiguity-error.txt"
 if (
@@ -776,6 +807,13 @@ case "$release_pending" in
   *"\"type\":\"release_request\""*"Release bundle path: .agents/queue/releases/R-001.md"*) ;;
   *) echo "release-captain did not receive release_request" >&2; exit 1 ;;
 esac
+release_review_missing_error="$TMP_BASE/release-review-missing-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_review_missing_error"; then
+  echo "release-report unexpectedly succeeded without a release review artifact" >&2
+  exit 1
+fi
+grep -q '^error: release review artifact is missing for R-001$' "$release_review_missing_error"
+grep -q '^required action: write .*/.agents/queue/releases/R-001_review.md with decision, evidence, caveats, and required fixes, then rerun release-report$' "$release_review_missing_error"
 release_architecture_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from release-captain --bundle R-001 architect "Need release architecture check.")"
 case "$release_architecture_output" in
   *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
@@ -786,6 +824,30 @@ case "$release_architecture_result_output" in
   *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
   *) echo "architecture_result to release-captain did not report manager CC" >&2; exit 1 ;;
 esac
+cat > "$TMP_ROOT/.agents/queue/releases/R-001_review.md" <<RELEASE_REVIEW
+# Release Review: R-001
+
+Decision: none
+Bundle: $TMP_ROOT/.agents/queue/releases/R-001.md
+Manager: manager
+Release captain: release-captain
+
+## Checked artifacts
+
+- T-001 task, report, review, architecture note, and release bundle.
+
+## Findings
+
+- Release bundle is coherent for the lifecycle smoke.
+
+## Required fixes or blockers
+
+- None.
+
+## Ship note
+
+- Ship the smoke bundle.
+RELEASE_REVIEW
 release_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP)"
 [[ "$release_review_file" == "$TMP_ROOT/.agents/queue/releases/R-001_review.md" ]]
 grep -q '^Decision: SHIP$' "$release_review_file"

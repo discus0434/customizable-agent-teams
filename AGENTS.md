@@ -43,7 +43,9 @@ Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for tem
 make inbox AGENT=<agent_id>
 ```
 
-- Task and release commands close the related inbox messages. Use `MARK=<message_id>` for lightweight notes only.
+- Task and release commands close the related inbox messages.
+- Use `make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md` when answering an inbox item.
+- Use `MARK=<message_id>` only after handling a message that needs no reply.
 - If a pane shows an unsubmitted `inbox <agent_id>` prompt, submit it with:
 
 ```bash

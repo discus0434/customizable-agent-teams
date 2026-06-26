@@ -56,7 +56,7 @@ main() {
 
   session="$(team_config_session)"
   echo "started tmux session: $session"
-  echo "attach with: tmux attach -t $session"
+  echo "attach with: make team-attach"
 }
 
 main "$@"

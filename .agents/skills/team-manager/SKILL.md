@@ -58,6 +58,7 @@ If two tasks are independent enough to have separate owners and reviews, dispatc
 
 ## Task Shape
 
+- For follow-up tasks, verify referenced files, commits, and artifacts against current `HEAD` before writing the task.
 - 1 task = 1 natural implementation owner.
 - Assign exactly one worker and one reviewer to each implementation task.
 - Make `Allowed paths` and `Do not modify` explicit.

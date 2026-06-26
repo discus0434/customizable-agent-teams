@@ -19,6 +19,12 @@ For multi-line or quote-heavy messages, write the body to a file:
 make team-send FROM=<from_id> TO=<to_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=/tmp/message.md
 ```
 
+To answer an inbox item and close it:
+
+```bash
+make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md
+```
+
 If a pane shows an unsubmitted `inbox <agent_id>` prompt:
 
 ```bash
@@ -100,6 +106,8 @@ Manager dispatches:
 make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
 ```
 
+Before follow-up dispatch, Manager checks the named files, commits, and artifacts against current `HEAD`.
+
 Worker implements, verifies, commits, and reports:
 
 ```bash
@@ -132,7 +140,7 @@ Manager requests whole-system release review:
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
 ```
 
-Release Captain writes the release review and records:
+Release Captain writes `.agents/queue/releases/<bundle_id>_review.md` and records:
 
 ```bash
 make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<release_captain_id> DECISION=SHIP
@@ -174,7 +182,7 @@ Workers route specialist needs through the assigned Reviewer.
 | `.agents/queue/state/releases/<bundle_id>.json` | release machine state |
 | `.agents/queue/state/processed/<agent_id>/<message_id>` | processed inbox marker |
 
-Task and release action commands mark related inbox messages processed. Use `make inbox AGENT=<agent_id> MARK=<message_id>` only for lightweight notes that have no task or release command.
+Task and release action commands mark related inbox messages processed. Use `make team-reply` when answering an inbox item. Use `make inbox AGENT=<agent_id> MARK=<message_id>` only after handling a message that needs no reply.
 
 ## Proposals
 

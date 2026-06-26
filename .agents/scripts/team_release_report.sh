@@ -58,8 +58,18 @@ tasks="$(team_release_state_field "$bundle_id" tasks)"
   "restore $bundle_file or run release-request again"
 [[ -n "$review_file" ]] || die_rule \
   "release state is missing review artifact for $bundle_id" \
-  "release-report writes .agents/queue/releases/<bundle_id>_review.md" \
+  "release-report records .agents/queue/releases/<bundle_id>_review.md" \
   "re-run release-request so the review path is recorded"
+[[ -f "$review_file" ]] || die_rule \
+  "release review artifact is missing for $bundle_id" \
+  "release-report records an existing release-captain review; it does not create the review body" \
+  "write $review_file with decision, evidence, caveats, and required fixes, then rerun release-report"
+if grep -q '未記入' "$review_file"; then
+  die_rule \
+    "release review artifact still has unfilled placeholders" \
+    "$review_file contains 未記入, so the release evidence is incomplete" \
+    "fill the release review evidence and remove placeholder lines before running release-report"
+fi
 
 case "$decision" in
   SHIP) status="ship" ;;
@@ -67,37 +77,10 @@ case "$decision" in
   BLOCKED) status="blocked" ;;
 esac
 
-if [[ ! -f "$review_file" ]]; then
-  cat > "$review_file" <<REVIEW
-# Release Review: $bundle_id
-
-Decision: $decision
-Bundle: $bundle_file
-Manager: $manager
-Release captain: $release_captain_id
-
-## Checked artifacts
-
-- 未記入
-
-## Findings
-
-- 未記入
-
-## Required fixes or blockers
-
-- 未記入
-
-## Ship note
-
-- 未記入
-REVIEW
-else
-  team_update_markdown_field "$review_file" "Decision" "$decision"
-  team_update_markdown_field "$review_file" "Bundle" "$bundle_file"
-  team_update_markdown_field "$review_file" "Manager" "$manager"
-  team_update_markdown_field "$review_file" "Release captain" "$release_captain_id"
-fi
+team_update_markdown_field "$review_file" "Decision" "$decision"
+team_update_markdown_field "$review_file" "Bundle" "$bundle_file"
+team_update_markdown_field "$review_file" "Manager" "$manager"
+team_update_markdown_field "$review_file" "Release captain" "$release_captain_id"
 
 team_update_markdown_field "$bundle_file" "Decision" "$decision"
 

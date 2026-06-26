@@ -41,4 +41,4 @@ team_tmux_wait_for_ready "$pane" "$cli" 30
 team_tmux_send_text "$pane" "$prompt"
 
 echo "started bootstrap in tmux session: $session"
-echo "attach with: tmux attach -t $session"
+echo "attach with: make team-attach"

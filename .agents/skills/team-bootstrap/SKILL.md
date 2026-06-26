@@ -110,3 +110,5 @@ Done means:
 - `.agents/skills/team-bootstrap/` is removed.
 - bootstrap-only Make targets are removed.
 - `.agents/scripts/team_bootstrap.sh` and `.agents/scripts/team_bootstrap_team.sh` are removed.
+- `.agents/harness.mk` and `.agents/tests/` are removed unless the initialized project intentionally keeps template self-tests.
+- no references remain to removed bootstrap scripts, bootstrap targets, or template self-tests.

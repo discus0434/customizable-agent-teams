@@ -1,13 +1,14 @@
-.PHONY: bootstrap bootstrap-team team-identity team-start team-stop team-status team-send team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
 
 bootstrap:
 	direnv allow
 	$(MAKE) post-change
 	./.agents/scripts/team_bootstrap.sh
-	@session="$$(./.agents/scripts/team_config.sh session)"; tmux attach -t "$$session"
 
 bootstrap-team:
 	./.agents/scripts/team_bootstrap_team.sh
+
+team-attach:
 	@session="$$(./.agents/scripts/team_config.sh session)"; tmux attach -t "$$session"
 
 team-identity:
@@ -40,6 +41,21 @@ team-send:
 		else \
 			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
 		fi; \
+	fi
+
+team-reply:
+	@test -n "$(FROM)" || { echo "FROM is required" >&2; exit 2; }
+	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
+	@test -n "$(IN_REPLY_TO)" || { echo "IN_REPLY_TO is required" >&2; exit 2; }
+	@test -n "$(TYPE)" || { echo "TYPE is required" >&2; exit 2; }
+	@if [ -n "$(BODY_FILE)" ] && [ -n "$(BODY)" ]; then \
+		echo "BODY and BODY_FILE cannot both be set" >&2; \
+		exit 2; \
+	fi
+	@if [ -n "$(BODY_FILE)" ]; then \
+		./.agents/scripts/team_reply.sh --from "$(FROM)" --to "$(TO)" --in-reply-to "$(IN_REPLY_TO)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)"; \
+	else \
+		./.agents/scripts/team_reply.sh --from "$(FROM)" --to "$(TO)" --in-reply-to "$(IN_REPLY_TO)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(BODY)"; \
 	fi
 
 team-submit:

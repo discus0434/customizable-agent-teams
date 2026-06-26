@@ -33,3 +33,9 @@ make memory-list
 ```bash
 make memory-append PROPOSAL=<proposal_file>
 ```
+
+`memory-append` must pass the MEMORY whitespace gate. If editing MEMORY manually, run:
+
+```bash
+git diff --check -- .agents/state/MEMORY.md
+```

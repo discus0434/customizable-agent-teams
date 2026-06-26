@@ -224,7 +224,7 @@ main() {
   tmux set-option -t "$session" pane-border-format '#{@agent_id} #{@role} #{@model}' >/dev/null
 
   echo "started tmux session: $session"
-  echo "attach with: tmux attach -t $session"
+  echo "attach with: make team-attach"
 }
 
 main "$@"
