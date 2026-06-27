@@ -41,6 +41,8 @@ Use `review_feedback` when the worker is drifting, missing evidence, changing sc
 make team-send FROM=<reviewer_id> TO=<worker_id> TYPE=review_feedback TASK=<task_id> BODY="..."
 ```
 
+Use `TYPE=note` only for records. The review artifact is the closure record after `OK`; worker action goes through `review_feedback` or the next review decision.
+
 Ask strategist when the task needs deep analysis:
 
 ```bash

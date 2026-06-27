@@ -264,6 +264,15 @@ if env -u TEAM_AGENT_ID -u TEAM_AGENT_ROLE -u TEAM_AGENT_CLI -u TEAM_AGENT_MODEL
 fi
 explicit_message_id="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from lead --type note --task - manager "explicit sender")"
 [[ -n "$explicit_message_id" ]]
+explicit_note_id="$(printf '%s\n' "$explicit_message_id" | sed -n 's/^message_id=//p')"
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/manager/$explicit_note_id" ]] || {
+  echo "direct note did not create a processed marker for the recipient" >&2
+  exit 1
+}
+manager_note_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager)"
+case "$manager_note_pending" in
+  *"$explicit_note_id"*) echo "direct note appeared in the recipient pending inbox" >&2; exit 1 ;;
+esac
 
 memory_proposal="$TMP_BASE/memory-proposal.md"
 printf '%s\n' '- Prefer BODY_FILE for multi-line agent messages.' '' '' > "$memory_proposal"
@@ -277,7 +286,7 @@ body_file_output="$(
   TEAM_ROOT="$TMP_ROOT" \
   TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
   TEAM_DISABLE_NUDGE=1 \
-  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=note TASK=- BODY_FILE="$body_file"
+  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=request TASK=- BODY_FILE="$body_file"
 )"
 case "$body_file_output" in
   *"message_id="*) ;;
@@ -317,7 +326,7 @@ if (
   TEAM_ROOT="$TMP_ROOT" \
   TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
   TEAM_DISABLE_NUDGE=1 \
-  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=note TASK=- BODY=inline BODY_FILE="$body_file"
+  make --no-print-directory -f "$ROOT/Makefile" team-send FROM=lead TO=manager TYPE=request TASK=- BODY=inline BODY_FILE="$body_file"
 ) >/dev/null 2> "$body_ambiguity_error"; then
   echo "make team-send accepted BODY and BODY_FILE together" >&2
   exit 1
@@ -848,9 +857,46 @@ Release captain: release-captain
 
 - Ship the smoke bundle.
 RELEASE_REVIEW
+release_bundle_placeholder_error="$TMP_BASE/release-bundle-placeholder-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_bundle_placeholder_error"; then
+  echo "release-report unexpectedly succeeded with bundle placeholders" >&2
+  exit 1
+fi
+grep -q '^error: release bundle artifact still has unfilled placeholders$' "$release_bundle_placeholder_error"
+grep -q '^required action: fill .*/.agents/queue/releases/R-001.md with current evidence before recording SHIP$' "$release_bundle_placeholder_error"
+cat > "$TMP_ROOT/.agents/queue/releases/R-001.md" <<RELEASE_BUNDLE
+# Release Bundle: R-001
+
+Status: requested
+Manager: manager
+Release captain: release-captain
+Review: .agents/queue/releases/R-001_review.md
+Decision: none
+
+## Goal
+
+- Complete the lifecycle smoke release.
+
+## Included tasks
+
+- T-001
+
+## Evidence summary
+
+- T-001 is done with reviewer OK, task report evidence, and architecture note.
+
+## Known issues
+
+- None.
+
+## Requested decision
+
+- Decide SHIP / FIX / BLOCKED.
+RELEASE_BUNDLE
 release_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP)"
 [[ "$release_review_file" == "$TMP_ROOT/.agents/queue/releases/R-001_review.md" ]]
 grep -q '^Decision: SHIP$' "$release_review_file"
+grep -q '^Status: ship$' "$TMP_ROOT/.agents/queue/releases/R-001.md"
 grep -q '"status":"ship"' "$release_state_file"
 grep -q '"decision":"SHIP"' "$release_state_file"
 release_captain_after_report_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"

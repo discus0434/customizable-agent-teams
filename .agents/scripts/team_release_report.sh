@@ -77,11 +77,90 @@ case "$decision" in
   BLOCKED) status="blocked" ;;
 esac
 
+require_no_placeholders() {
+  local label="$1"
+  local file="$2"
+
+  if grep -q '未記入' "$file"; then
+    die_rule \
+      "$label still has unfilled placeholders" \
+      "$file contains 未記入, so the release evidence is incomplete" \
+      "fill $file with current evidence before recording SHIP"
+  fi
+}
+
+require_release_task_ready() {
+  local task_id="$1"
+  local task_state_file
+  local task_status
+  local review_decision
+  local done_recommendation
+  local report_file
+  local task_review_file
+  local architecture_required
+  local architecture
+
+  task_state_file="$(team_task_state_file "$task_id")"
+  [[ -f "$task_state_file" ]] || die_rule \
+    "release task state is missing: $task_id" \
+    "SHIP requires every included task to have current machine state" \
+    "dispatch, review, and mark $task_id done before including it in $bundle_id"
+
+  task_status="$(team_task_state_field "$task_id" status)"
+  review_decision="$(team_task_state_field "$task_id" review_decision)"
+  done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
+  report_file="$(team_task_state_field "$task_id" report)"
+  task_review_file="$(team_task_state_field "$task_id" review)"
+  architecture_required="$(team_task_state_field "$task_id" architecture_required)"
+  architecture="$(team_task_state_field "$task_id" architecture)"
+
+  [[ "$task_status" == "done" ]] || die_rule \
+    "release task is not done: $task_id" \
+    "task state has status=$task_status, but SHIP requires status=done" \
+    "manager must finish $task_id or remove it from release bundle $bundle_id"
+  [[ "$review_decision" == "OK" ]] || die_rule \
+    "release task review is not OK: $task_id" \
+    "task state has review_decision=$review_decision, but SHIP requires review_decision=OK" \
+    "reviewer must record OK before manager includes $task_id in release bundle $bundle_id"
+  [[ "$done_recommendation" == "true" ]] || die_rule \
+    "release task is not recommended done: $task_id" \
+    "task state has done_recommendation=$done_recommendation, but SHIP requires done_recommendation=true" \
+    "reviewer must recommend done before manager includes $task_id in release bundle $bundle_id"
+  [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
+    "release task report is missing: $task_id" \
+    "task state points to report=$report_file" \
+    "worker must write the report before $task_id is included in release bundle $bundle_id"
+  [[ -n "$task_review_file" && -f "$task_review_file" ]] || die_rule \
+    "release task review artifact is missing: $task_id" \
+    "task state points to review=$task_review_file" \
+    "reviewer must write the review artifact before $task_id is included in release bundle $bundle_id"
+
+  if [[ "$architecture_required" == "true" ]]; then
+    [[ -n "$architecture" && -f "$TEAM_ROOT/$architecture" ]] || die_rule \
+      "release task architecture note is missing: $task_id" \
+      "task state has architecture_required=true and architecture=$architecture" \
+      "architect must write the recorded architecture note before SHIP"
+  fi
+}
+
+if [[ "$decision" == "SHIP" ]]; then
+  require_no_placeholders "release bundle artifact" "$bundle_file"
+  [[ -n "$tasks" ]] || die_rule \
+    "release bundle has no tasks: $bundle_id" \
+    "SHIP requires at least one included task in release state" \
+    "create the release request with TASKS='<task ids>'"
+
+  for task_id in $tasks; do
+    require_release_task_ready "$task_id"
+  done
+fi
+
 team_update_markdown_field "$review_file" "Decision" "$decision"
 team_update_markdown_field "$review_file" "Bundle" "$bundle_file"
 team_update_markdown_field "$review_file" "Manager" "$manager"
 team_update_markdown_field "$review_file" "Release captain" "$release_captain_id"
 
+team_update_markdown_field "$bundle_file" "Status" "$status"
 team_update_markdown_field "$bundle_file" "Decision" "$decision"
 
 team_write_release_state \

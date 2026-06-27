@@ -19,6 +19,8 @@ For multi-line or quote-heavy messages, write the body to a file:
 make team-send FROM=<from_id> TO=<to_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=/tmp/message.md
 ```
 
+Use `TYPE=note` for records. Use `request`, `question`, or the workflow message type when the recipient should act.
+
 To answer an inbox item and close it:
 
 ```bash
@@ -139,6 +141,8 @@ Manager requests whole-system release review:
 ```bash
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
 ```
+
+Release Captain refreshes the release bundle, task state, referenced artifacts, and STATE immediately before the final decision. Caveats describe only what is still true in that final snapshot.
 
 Release Captain writes `.agents/queue/releases/<bundle_id>_review.md` and records:
 

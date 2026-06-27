@@ -37,6 +37,7 @@ Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for tem
 
 - Human users talk only to the lead pane.
 - Agents send messages with `make team-send`.
+- `TYPE=note` records information. Use `request`, `question`, or a workflow message type when the recipient should act.
 - When a pane receives `inbox <agent_id>`, run:
 
 ```bash

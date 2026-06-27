@@ -155,7 +155,7 @@ if [[ -z "$bundle_id" ]]; then
   bundle_id="$(printf '%s\n' "$source_line" | extract_json_field bundle_id)"
 fi
 
-send_args=(--from "$from" --type "$type")
+send_args=(--from "$from" --type "$type" --requires-attention)
 if [[ -n "$task_id" ]]; then
   send_args+=(--task "$task_id")
 fi

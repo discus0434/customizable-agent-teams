@@ -153,6 +153,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
 | agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
 | 長文の agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=/tmp/message.md` | 全員 |
+| 記録のみの note | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=note TASK=T-001 BODY="..."` | 全員 |
 | 返信して inbox を閉じる | `make team-reply FROM=manager TO=lead IN_REPLY_TO=<message_id> TYPE=note BODY_FILE=/tmp/reply.md` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |

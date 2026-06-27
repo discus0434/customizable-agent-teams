@@ -16,6 +16,8 @@ examples:
   team_send.sh --from manager --type task_assigned --task T-001 worker-1
   team_send.sh --from reviewer-1 --task T-001 strategist "この設計判断を深掘りしてください。"
   team_send.sh --from manager --bundle R-001 release-captain "release bundle を見てください。"
+
+TYPE=note records information. Use request, question, or a workflow type when the recipient should act.
 USAGE
 }
 
@@ -25,6 +27,7 @@ task_id=""
 bundle_id=""
 body_file=""
 done_recommendation=""
+requires_attention=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -57,6 +60,10 @@ while [[ $# -gt 0 ]]; do
       [[ $# -ge 2 ]] || die "--done-recommendation requires true or false"
       done_recommendation="$2"
       shift 2
+      ;;
+    --requires-attention)
+      requires_attention="true"
+      shift
       ;;
     -h|--help)
       usage
@@ -512,41 +519,58 @@ if [[ -z "$body" ]]; then
   fi
 fi
 
+if [[ -z "$requires_attention" ]]; then
+  if [[ "$type" == "note" ]]; then
+    requires_attention="false"
+  else
+    requires_attention="true"
+  fi
+fi
+
 write_message() {
   local message_to="$1"
   local message_body="$2"
   local message_cc_of="$3"
+  local message_requires_attention="$4"
   local message_id
   local created_at
   local inbox_file
   local message_file
+  local processed_dir
   local line
 
   message_id="$(team_message_id)"
   created_at="$(team_now_utc)"
   inbox_file="$TEAM_QUEUE_DIR/inbox/$message_to.jsonl"
   message_file="$TEAM_STATE_DIR/messages/$message_id.json"
+  processed_dir="$TEAM_STATE_DIR/processed/$message_to"
 
   line="{\"id\":\"$(json_string "$message_id")\",\"from\":\"$(json_string "$from")\",\"to\":\"$(json_string "$message_to")\",\"type\":\"$(json_string "$type")\",\"subtype\":\"$(json_string "$subtype")\",\"task_id\":\"$(json_string "$task_id")\",\"bundle_id\":\"$(json_string "$bundle_id")\",\"artifact_path\":\"$(json_string "$artifact_path")\",\"cc_of\":\"$(json_string "$message_cc_of")\",\"done_recommendation\":\"$(json_string "$done_recommendation")\",\"created_at\":\"$created_at\",\"body\":\"$(json_string "$message_body")\"}"
 
   acquire_team_lock "inbox-$message_to"
   printf '%s\n' "$line" >> "$inbox_file"
   printf '%s\n' "$line" > "$message_file"
+  if [[ "$message_requires_attention" == "false" ]]; then
+    mkdir -p "$processed_dir"
+    printf '%s\n' "$created_at" > "$processed_dir/$message_id"
+  fi
   release_team_lock
 
-  if ! "$SCRIPT_DIR/team_nudge.sh" "$message_to"; then
-    warn "nudge failed for $message_to; inbox entry is still available at $inbox_file"
+  if [[ "$message_requires_attention" == "true" ]]; then
+    if ! "$SCRIPT_DIR/team_nudge.sh" "$message_to"; then
+      warn "nudge failed for $message_to; inbox entry is still available at $inbox_file"
+    fi
   fi
 
   printf '%s\n' "$message_id"
 }
 
-message_id="$(write_message "$to" "$body" "")"
+message_id="$(write_message "$to" "$body" "" "$requires_attention")"
 printf 'message_id=%s\n' "$message_id"
 
 if [[ -n "$cc_to" ]]; then
   cc_body="CC of $type $message_id from $from to $to."$'\n\n'"$body"
-  cc_message_id="$(write_message "$cc_to" "$cc_body" "$message_id")"
+  cc_message_id="$(write_message "$cc_to" "$cc_body" "$message_id" "true")"
   printf 'cc_to=%s\n' "$cc_to"
   printf 'cc_message_id=%s\n' "$cc_message_id"
 fi
