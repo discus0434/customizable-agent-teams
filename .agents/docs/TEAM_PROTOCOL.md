@@ -10,6 +10,7 @@ make inbox AGENT=<agent_id>
 ```
 
 Use `TEAM_AGENT_ID`, `TEAM_AGENT_ROLE`, and `TEAM_ROOT` as the source of truth. Queue, state, report, review, strategy, architecture, release, and proposal artifacts are canonical under `TEAM_ROOT`.
+`inbox <agent_id>: 0 messages` means there is no pending message.
 
 Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for temporary state that must be visible to the team.
 
@@ -20,6 +21,21 @@ make team-send FROM=<from_id> TO=<to_id> TYPE=<message_type> TASK=<task_id> BODY
 ```
 
 Use `TYPE=note` for records. Use `request`, `question`, or the workflow message type when the recipient should act.
+
+Workflow message types:
+
+| Type | Sender -> Receiver |
+| --- | --- |
+| `intake` | Lead -> Manager |
+| `task_assigned` | Manager -> Worker |
+| `review_watch_assigned` | Manager -> Reviewer |
+| `checkpoint` | Worker -> Reviewer |
+| `review_feedback` | Reviewer -> Worker |
+| `ready_for_review` | Worker -> Reviewer |
+| `review_result` | Reviewer -> Worker or Manager |
+| `release_request` | Manager -> Release Captain |
+| `release_result` | Release Captain -> Manager |
+| `completion_ready` | Manager -> Lead |
 
 To answer an inbox item and close it:
 
@@ -124,7 +140,11 @@ git commit -m "<task_id>: <summary>"
 make report TASK=<task_id> AGENT=<worker_id> STATUS=needs_review
 ```
 
-Worker fills the generated report and sends `ready_for_review` to the assigned Reviewer.
+Worker fills the generated report and sends `ready_for_review` to the assigned Reviewer. During implementation, Worker may send task checkpoints to Reviewer:
+
+```bash
+make team-send FROM=<worker_id> TO=<reviewer_id> TYPE=checkpoint TASK=<task_id> BODY_FILE=/tmp/checkpoint.md
+```
 
 Reviewer supervises during implementation with `review_feedback` when useful, then records one decision:
 
@@ -140,7 +160,13 @@ Manager marks a task done only after reviewer `OK`, `done_recommendation=true`, 
 make state-update TASK=<task_id> STATUS=done
 ```
 
-Manager requests whole-system release review:
+Manager prepares the release bundle draft:
+
+```bash
+make release-prepare BUNDLE=<bundle_id> TASKS="T-001 T-002"
+```
+
+Manager fills `.agents/queue/releases/<bundle_id>.md`, refreshes STATE, and requests whole-system release review:
 
 ```bash
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"

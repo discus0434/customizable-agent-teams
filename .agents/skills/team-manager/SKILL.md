@@ -53,7 +53,8 @@ Keep `STATE.md` correct at each handoff.
 - After dispatch: show which role acts next for each active task.
 - After review result or blocker: update task state, blocker, and next owner before sending new messages.
 - After task done: remove done task details from Active Tasks and keep only decisions that still affect current work.
-- Before release request: record the bundle, included tasks, and release-captain next action.
+- Before release prepare: record the bundle candidate and included done tasks.
+- Before release request: refresh the bundle, STATE, included tasks, and release-captain next action.
 - After release result: record `SHIP` / `FIX` / `BLOCKED` and the next role.
 - Before completion_ready: compress STATE so it matches the final snapshot manager is sending to lead.
 
@@ -93,6 +94,9 @@ When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
 
 - Mark a task `done` only after reviewer `OK`, `done_recommendation=true`, sufficient report evidence, and any required architecture note.
 - Prepare a release bundle when a coherent set of done tasks is ready for whole-system review.
+- Run `make release-prepare BUNDLE=<bundle_id> TASKS="..."`.
+- Fill `.agents/queue/releases/<bundle_id>.md` with current goal, evidence, and known issues.
+- Run `make release-request BUNDLE=<bundle_id> TASKS="..."` after STATE and the bundle match the current snapshot.
 - Send `completion_ready` to lead only after release-captain returns `SHIP`.
 - Compress `STATE.md` after task done, release result, or resolved escalation.
 

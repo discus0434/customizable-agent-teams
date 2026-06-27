@@ -10,12 +10,17 @@ make team-identity
 
 Use the reported `TEAM_AGENT_ID` and `TEAM_AGENT_ROLE` as your source of truth.
 
-Before task work, read:
+Before workflow work, read:
 
 1. `.agents/docs/TEAM_PROTOCOL.md`
 2. `.agents/state/MEMORY.md`
 3. `.agents/state/STATE.md`
-4. `$TEAM_ROOT/.agents/queue/tasks/<task_id>.md`
+
+When a message assigns a task, also read:
+
+```text
+$TEAM_ROOT/.agents/queue/tasks/<task_id>.md
+```
 
 Queue, inbox, report, review, strategy, architecture, release, proposal, and state artifacts live under `TEAM_ROOT`. All team panes work in the same repository root.
 
@@ -44,6 +49,8 @@ Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for tem
 make inbox AGENT=<agent_id>
 ```
 
+- `inbox <agent_id>: 0 messages` means there is no pending message.
+- Common action types are `intake`, `task_assigned`, `review_watch_assigned`, `checkpoint`, `review_feedback`, `ready_for_review`, `review_result`, `release_request`, `release_result`, and `completion_ready`.
 - Task and release commands close the related inbox messages.
 - Use `make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md` when answering an inbox item.
 - Use `MARK=<message_id>` only after handling a message that needs no reply.
@@ -103,6 +110,7 @@ make team-submit AGENT=<agent_id>
 
 - Task-local supervisor for the assigned worker.
 - Receives worker questions first.
+- Receives worker checkpoints while implementation is in progress.
 - Gives task-local feedback during implementation.
 - Requests strategist input when deep task-local analysis is needed.
 - Requests architect input when task-local design direction is unclear.

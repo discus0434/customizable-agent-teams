@@ -33,6 +33,12 @@ description: Guides worker task implementation, reviewer coordination, uncertain
 - Use `team-tdd` for behavior changes, bug fixes, core logic, adapters, queue/state, or tests when the contract can be expressed first.
 - Make the smallest coherent change that satisfies the task, then refactor when it improves clarity without adding behavior.
 - Run task-specific checks while working.
+- Send a checkpoint to reviewer at natural task boundaries, especially after a design choice, first working implementation, verification result, blocker, or scope doubt:
+
+```bash
+make team-send FROM=<worker_id> TO=<reviewer_id> TYPE=checkpoint TASK=<task_id> BODY_FILE=/tmp/checkpoint.md
+```
+
 - Record reviewer feedback and how it was handled.
 
 ## Report And Review

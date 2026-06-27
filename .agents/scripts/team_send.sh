@@ -484,6 +484,31 @@ case "$type" in
       "send from $release_captain"
     artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
     ;;
+  checkpoint)
+    [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
+      "checkpoint requires TASK" \
+      "checkpoints are task-local progress signals from worker to reviewer" \
+      "pass TASK=<task_id>"
+    [[ "$from_role" == "worker" ]] || die_rule \
+      "checkpoint sender must be worker" \
+      "implementation checkpoints are sent by the assigned worker" \
+      "send checkpoint from the task worker"
+    state_file="$(team_task_state_file "$task_id")"
+    [[ -f "$state_file" ]] || die_rule \
+      "task state not found for checkpoint: $task_id" \
+      "checkpoints require a dispatched task with owner and reviewer state" \
+      "dispatch the task first"
+    owner="$(team_task_state_field "$task_id" owner)"
+    assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
+    [[ "$owner" == "$from" ]] || die_rule \
+      "worker is not assigned to task $task_id" \
+      "checkpoint must come from the task owner recorded in task state" \
+      "send from $owner or update the task assignment"
+    [[ "$to" == "$assigned_reviewer" ]] || die_rule \
+      "checkpoint target must be task reviewer" \
+      "checkpoint is a reviewer supervision signal for the reviewer recorded in task state" \
+      "send checkpoint to $assigned_reviewer"
+    ;;
   review_feedback)
     [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
       "review_feedback requires TASK" \

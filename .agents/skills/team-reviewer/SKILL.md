@@ -35,6 +35,8 @@ When the worker is blocked, unsure, low-confidence, or tempted to change scope:
 
 ## During Implementation
 
+Read worker checkpoints as task-local supervision input. Reply only when the checkpoint shows drift, missing evidence, blocker, boundary change, fragile design, or a useful next check.
+
 Use `review_feedback` when the worker is drifting, missing evidence, changing scope, or making a fragile choice:
 
 ```bash

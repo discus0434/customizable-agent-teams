@@ -38,7 +38,7 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
   exit 1
 fi
 
-if ! team_tmux_pane_exists "$pane"; then
+if ! team_tmux_pane_in_session "$pane" "$session"; then
   warn "tmux pane is not running for $agent_id: $pane"
   exit 1
 fi

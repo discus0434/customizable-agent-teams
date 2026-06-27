@@ -91,7 +91,7 @@ agent_state_is_live() {
   session="$configured_session"
 
   [[ -n "${pane:-}" && "$state_session" == "$configured_session" ]] || return 1
-  team_tmux_pane_exists "$pane"
+  team_tmux_pane_in_session "$pane" "$configured_session"
 }
 
 send_boot_nudge() {
@@ -212,11 +212,11 @@ main() {
     fi
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     set_pane_metadata "$pane" "$id" "$role" "$model"
-    write_agent_state "$id" "$role" "$cli" "$model" "$window" "$command" "$pane" "$session"
     team_tmux_accept_startup_prompt "$pane" "$cli" 10
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     send_boot_nudge "$pane" "$id" "$role" "$cli"
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
+    write_agent_state "$id" "$role" "$cli" "$model" "$window" "$command" "$pane" "$session"
   done < <(team_config_agents)
 
   tmux set-option -t "$session" status on >/dev/null

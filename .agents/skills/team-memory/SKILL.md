@@ -27,14 +27,15 @@ make memory-list
 
 1. proposal を読む。
 2. `.agents/state/MEMORY.md` を検索して重複や supersede 対象を確認する。
-3. 採択する内容だけを整形し、必要なら既存 entry を更新、置換、削除する。
-4. 必要なら proposal file に対応済みであることを report に残す。
+3. 採択する場合は `## Proposed Entry` に 1 つの MEMORY entry だけを残す。
+4. 既存 entry の更新、置換、削除が必要なら MEMORY を直接編集し、proposal を削除する。
+5. 必要なら proposal file に対応済みであることを report に残す。
 
 ```bash
-make memory-append PROPOSAL=<proposal_file>
+make memory-append PROPOSAL=<proposal_file_or_basename>
 ```
 
-`memory-append` must pass the MEMORY whitespace gate. If editing MEMORY manually, run:
+`memory-append` appends the single entry under `## Proposed Entry`, removes the proposal file, and runs the MEMORY whitespace gate. If editing MEMORY manually, run:
 
 ```bash
 git diff --check -- .agents/state/MEMORY.md

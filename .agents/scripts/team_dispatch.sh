@@ -120,7 +120,7 @@ team_write_task_state \
   ""
 release_team_lock
 
-worker_body="$task_file を読み、担当 reviewer は ${reviewer_id}、task manager は ${manager_id} です。実装、検証、commit、report 作成後、ready_for_review を ${reviewer_id} に送ってください。"
+worker_body="$task_file を読み、担当 reviewer は ${reviewer_id}、task manager は ${manager_id} です。task の checkpoint に到達したら TYPE=checkpoint を ${reviewer_id} に送り、実装、検証、commit、report 作成後、ready_for_review を ${reviewer_id} に送ってください。"
 reviewer_body="$task_file を読み、担当 worker ${worker_id} と直接やりとりしてください。task-local supervisor として checkpoint、相談、review_feedback、ready_for_review を扱い、final review artifact を .agents/queue/reviews/${task_id}_${reviewer_id}.md に書いてください。"
 
 team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null

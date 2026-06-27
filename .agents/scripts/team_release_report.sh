@@ -43,11 +43,16 @@ assigned_release_captain="$(team_release_state_field "$bundle_id" release_captai
 bundle_file="$(team_release_state_field "$bundle_id" bundle_artifact)"
 review_file="$(team_release_state_field "$bundle_id" review_artifact)"
 tasks="$(team_release_state_field "$bundle_id" tasks)"
+release_status="$(team_release_state_field "$bundle_id" status)"
 
 [[ "$assigned_release_captain" == "$release_captain_id" ]] || die_rule \
   "release-report agent mismatch for $bundle_id" \
   "release state release_captain is $assigned_release_captain, but reporter is $release_captain_id" \
   "report from $assigned_release_captain or create a new release request"
+[[ "$release_status" == "requested" ]] || die_rule \
+  "release is not ready for release-report: $bundle_id" \
+  "release state has status=$release_status, but release-report requires status=requested" \
+  "manager must run make release-request BUNDLE=$bundle_id TASKS='<task ids>' before release-captain records a decision"
 [[ -n "$manager" ]] || die_rule \
   "release state is missing manager for $bundle_id" \
   "release-report must notify the bundle manager" \
@@ -55,21 +60,16 @@ tasks="$(team_release_state_field "$bundle_id" tasks)"
 [[ -n "$bundle_file" && -f "$bundle_file" ]] || die_rule \
   "release bundle artifact is missing for $bundle_id" \
   "release-report needs the bundle artifact as review input" \
-  "restore $bundle_file or run release-request again"
+  "restore $bundle_file or prepare a new release bundle"
 [[ -n "$review_file" ]] || die_rule \
   "release state is missing review artifact for $bundle_id" \
   "release-report records .agents/queue/releases/<bundle_id>_review.md" \
-  "re-run release-request so the review path is recorded"
+  "prepare a new release bundle so the review path is recorded"
 [[ -f "$review_file" ]] || die_rule \
   "release review artifact is missing for $bundle_id" \
   "release-report records an existing release-captain review; it does not create the review body" \
   "write $review_file with decision, evidence, caveats, and required fixes, then rerun release-report"
-if grep -q '未記入' "$review_file"; then
-  die_rule \
-    "release review artifact still has unfilled placeholders" \
-    "$review_file contains 未記入, so the release evidence is incomplete" \
-    "fill the release review evidence and remove placeholder lines before running release-report"
-fi
+team_require_no_placeholders "release review artifact" "$review_file"
 
 case "$decision" in
   SHIP) status="ship" ;;
@@ -77,81 +77,15 @@ case "$decision" in
   BLOCKED) status="blocked" ;;
 esac
 
-require_no_placeholders() {
-  local label="$1"
-  local file="$2"
-
-  if grep -q '未記入' "$file"; then
-    die_rule \
-      "$label still has unfilled placeholders" \
-      "$file contains 未記入, so the release evidence is incomplete" \
-      "fill $file with current evidence before recording SHIP"
-  fi
-}
-
-require_release_task_ready() {
-  local task_id="$1"
-  local task_state_file
-  local task_status
-  local review_decision
-  local done_recommendation
-  local report_file
-  local task_review_file
-  local architecture_required
-  local architecture
-
-  task_state_file="$(team_task_state_file "$task_id")"
-  [[ -f "$task_state_file" ]] || die_rule \
-    "release task state is missing: $task_id" \
-    "SHIP requires every included task to have current machine state" \
-    "dispatch, review, and mark $task_id done before including it in $bundle_id"
-
-  task_status="$(team_task_state_field "$task_id" status)"
-  review_decision="$(team_task_state_field "$task_id" review_decision)"
-  done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
-  report_file="$(team_task_state_field "$task_id" report)"
-  task_review_file="$(team_task_state_field "$task_id" review)"
-  architecture_required="$(team_task_state_field "$task_id" architecture_required)"
-  architecture="$(team_task_state_field "$task_id" architecture)"
-
-  [[ "$task_status" == "done" ]] || die_rule \
-    "release task is not done: $task_id" \
-    "task state has status=$task_status, but SHIP requires status=done" \
-    "manager must finish $task_id or remove it from release bundle $bundle_id"
-  [[ "$review_decision" == "OK" ]] || die_rule \
-    "release task review is not OK: $task_id" \
-    "task state has review_decision=$review_decision, but SHIP requires review_decision=OK" \
-    "reviewer must record OK before manager includes $task_id in release bundle $bundle_id"
-  [[ "$done_recommendation" == "true" ]] || die_rule \
-    "release task is not recommended done: $task_id" \
-    "task state has done_recommendation=$done_recommendation, but SHIP requires done_recommendation=true" \
-    "reviewer must recommend done before manager includes $task_id in release bundle $bundle_id"
-  [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
-    "release task report is missing: $task_id" \
-    "task state points to report=$report_file" \
-    "worker must write the report before $task_id is included in release bundle $bundle_id"
-  [[ -n "$task_review_file" && -f "$task_review_file" ]] || die_rule \
-    "release task review artifact is missing: $task_id" \
-    "task state points to review=$task_review_file" \
-    "reviewer must write the review artifact before $task_id is included in release bundle $bundle_id"
-
-  if [[ "$architecture_required" == "true" ]]; then
-    [[ -n "$architecture" && -f "$TEAM_ROOT/$architecture" ]] || die_rule \
-      "release task architecture note is missing: $task_id" \
-      "task state has architecture_required=true and architecture=$architecture" \
-      "architect must write the recorded architecture note before SHIP"
-  fi
-}
-
 if [[ "$decision" == "SHIP" ]]; then
-  require_no_placeholders "release bundle artifact" "$bundle_file"
+  team_require_no_placeholders "release bundle artifact" "$bundle_file"
   [[ -n "$tasks" ]] || die_rule \
     "release bundle has no tasks: $bundle_id" \
     "SHIP requires at least one included task in release state" \
     "create the release request with TASKS='<task ids>'"
 
   for task_id in $tasks; do
-    require_release_task_ready "$task_id"
+    team_require_release_task_ready "$bundle_id" "$task_id"
   done
 fi
 

@@ -157,12 +157,14 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | 返信して inbox を閉じる | `make team-reply FROM=manager TO=lead IN_REPLY_TO=<message_id> TYPE=note BODY_FILE=/tmp/reply.md` | 全員 |
 | task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
 | 検証ゲート | `make post-change` / `make smoke` | Worker |
+| worker checkpoint | `make team-send FROM=worker-1 TO=reviewer-1 TYPE=checkpoint TASK=T-001 BODY_FILE=/tmp/checkpoint.md` | Worker |
 | reviewer feedback | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=review_feedback TASK=T-001 BODY="..."` | Reviewer |
 | strategist 相談 | `make team-send FROM=reviewer-1 TO=strategist TASK=T-001 BODY="..."` | Lead / Manager / Reviewer |
 | architect 相談 | `make team-send FROM=reviewer-1 TO=architect TASK=T-001 BODY="..."` | Lead / Manager / Reviewer / Release Captain |
 | worker report | `make report TASK=T-001 AGENT=worker-1 STATUS=needs_review` | Worker |
 | reviewer decision | `make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK` | Reviewer |
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
+| release bundle 準備 | `make release-prepare BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
 | release review 依頼 | `make release-request BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
 | release decision | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
 | 完了報告準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BODY="..."` | Manager |

@@ -8,6 +8,30 @@ source "$SCRIPT_DIR/team_config.sh"
 
 ensure_team_dirs
 
+latest_task_message_summary() {
+  local task_id="$1"
+  local wanted_type="$2"
+  local line
+  local message_id
+  local message_task
+  local message_type
+  local message_from
+  local latest=""
+
+  while IFS= read -r message_file; do
+    line="$(cat "$message_file")"
+    message_task="$(printf '%s\n' "$line" | extract_json_field task_id)"
+    [[ "$message_task" == "$task_id" ]] || continue
+    message_type="$(printf '%s\n' "$line" | extract_json_field type)"
+    [[ "$message_type" == "$wanted_type" ]] || continue
+    message_id="$(printf '%s\n' "$line" | extract_json_field id)"
+    message_from="$(printf '%s\n' "$line" | extract_json_field from)"
+    latest="$message_id from=$message_from"
+  done < <(find "$TEAM_STATE_DIR/messages" -maxdepth 1 -type f -name '*.json' | sort)
+
+  printf '%s\n' "$latest"
+}
+
 session="$(team_config_session)"
 session_running=0
 
@@ -26,7 +50,7 @@ echo
 if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$session" 2>/dev/null; then
   session_running=1
   echo "tmux panes:"
-  tmux list-panes -t "$session" -F '  #{pane_id} #{window_name} agent=#{@agent_id} role=#{@role} model=#{@model}'
+  tmux list-panes -s -t "$session" -F '  #{pane_id} #{window_name} agent=#{@agent_id} role=#{@role} model=#{@model}'
 else
   echo "tmux panes: not running"
 fi
@@ -57,7 +81,7 @@ while IFS='|' read -r id role cli model window command; do
     if [[ -z "${pane:-}" || -z "$state_session" ]]; then
       status="incomplete-state"
       detail="window=$window"
-    elif team_tmux_pane_exists "$pane"; then
+    elif team_tmux_pane_in_session "$pane" "$session"; then
       status="live"
       detail="pane=$pane"
     else
@@ -91,6 +115,7 @@ while IFS= read -r task_file; do
   head_commit=""
   review_decision=""
   done_recommendation=""
+  checkpoint=""
   strategy_artifact=""
   architecture_required=""
   architecture=""
@@ -111,9 +136,13 @@ while IFS= read -r task_file; do
   while IFS= read -r candidate; do
     strategy_artifact="$(team_relative_path "$candidate")"
   done < <(find "$TEAM_QUEUE_DIR/strategy" -maxdepth 1 -type f -name "${task_name}_*.md" | sort)
+  checkpoint="$(latest_task_message_summary "$task_name" checkpoint)"
   short_head="$head_commit"
   [[ ${#short_head} -gt 12 ]] && short_head="${short_head:0:12}"
   line="  $task_name manager=${manager:-none} owner=${owner:-none} reviewer=${reviewer:-none} status=$status head=${short_head:-none} review=${review_decision:-none} done_recommendation=${done_recommendation:-false}"
+  if [[ -n "$checkpoint" ]]; then
+    line="$line checkpoint=\"$checkpoint\""
+  fi
   if [[ -n "$strategy_artifact" ]]; then
     line="$line strategy=$strategy_artifact"
   fi

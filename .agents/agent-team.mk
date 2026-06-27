@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox dispatch report review-report release-request release-report state state-update memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox dispatch report review-report release-prepare release-request release-report state state-update memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -91,6 +91,19 @@ review-report:
 	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
 	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
 	@./.agents/scripts/team_review_report.sh "$(TASK)" "$(REVIEWER)" "$(DECISION)"
+
+release-prepare:
+	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
+	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
+	@if [ -n "$(MANAGER)" ] && [ -n "$(RELEASE_CAPTAIN)" ]; then \
+		./.agents/scripts/team_release_prepare.sh --manager "$(MANAGER)" --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
+	elif [ -n "$(MANAGER)" ]; then \
+		./.agents/scripts/team_release_prepare.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
+	elif [ -n "$(RELEASE_CAPTAIN)" ]; then \
+		./.agents/scripts/team_release_prepare.sh --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
+	else \
+		./.agents/scripts/team_release_prepare.sh "$(BUNDLE)" $(TASKS); \
+	fi
 
 release-request:
 	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }

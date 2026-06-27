@@ -87,18 +87,20 @@ case "$1" in
     printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     exit 0
     ;;
-  display-message)
-    window="$(target_window "$@")"
-    if window_is_missing "$window"; then
-      exit 1
-    fi
-    if [[ "$*" == *"#{pane_id}"* ]]; then
-      printf '%%fake-%s\n' "$window"
-    elif [[ "$*" == *"#{pane_in_mode}"* ]]; then
-      printf '0\n'
-    fi
-    exit 0
-    ;;
+	  display-message)
+	    window="$(target_window "$@")"
+	    if window_is_missing "$window"; then
+	      exit 1
+	    fi
+	    if [[ "$*" == *"#{pane_id}"* ]]; then
+	      printf '%%fake-%s\n' "$window"
+	    elif [[ "$*" == *"#{pane_in_mode}"* ]]; then
+	      printf '0\n'
+	    elif [[ "$*" == *"#{session_name}"* ]]; then
+	      printf 'agent-team\n'
+	    fi
+	    exit 0
+	    ;;
   capture-pane)
     printf '%s\n' "Claude Code v2.1.190"
     printf '%s\n' "Try \"edit <filepath> to...\""
@@ -110,15 +112,17 @@ case "$1" in
     printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     exit 0
     ;;
-  list-panes)
-    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
-    if [[ "$*" == *" -a"* ]]; then
-      printf '%s\n' '  %outside other-session agent=outside role=outside model=outside'
-    else
-      printf '%s\n' '  %fake-lead lead agent=lead role=lead model=claude-opus-4-8'
-    fi
-    exit 0
-    ;;
+	  list-panes)
+	    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+	    if [[ "$*" == *" -a"* ]]; then
+	      printf '%s\n' '  %outside other-session agent=outside role=outside model=outside'
+	    else
+	      printf '%s\n' '  %fake-lead lead agent=lead role=lead model=claude-opus-4-8'
+	      printf '%s\n' '  %fake-manager manager agent=manager role=manager model=claude-opus-4-8'
+	      printf '%s\n' '  %fake-worker-1 worker-1 agent=worker-1 role=worker model=gpt-5.5'
+	    fi
+	    exit 0
+	    ;;
   set-option|kill-session)
     exit 0
     ;;
@@ -145,10 +149,11 @@ expected_scripts="$(printf '%s\n' \
   team_dispatch.sh \
   team_identity.sh \
   team_inbox.sh \
-  team_memory_update.sh \
-  team_nudge.sh \
-  team_release_report.sh \
-  team_release_request.sh \
+	  team_memory_update.sh \
+	  team_nudge.sh \
+	  team_release_prepare.sh \
+	  team_release_report.sh \
+	  team_release_request.sh \
   team_reply.sh \
   team_report.sh \
   team_review_report.sh \
@@ -189,10 +194,11 @@ expected_make_targets="$(printf '%s\n' \
   dispatch \
   inbox \
   memory-append \
-  memory-list \
-  post-change \
-  release-report \
-  release-request \
+	  memory-list \
+	  post-change \
+	  release-prepare \
+	  release-report \
+	  release-request \
   report \
   review-report \
   smoke \
@@ -222,7 +228,7 @@ grep -q '^include \.agents/agent-team\.mk$' "$ROOT/Makefile" || {
   echo "root Makefile must import the agent-team makefile" >&2
   exit 1
 }
-if grep -Eq '^(bootstrap|bootstrap-team|team-attach|team-identity|team-start|team-stop|team-status|team-send|team-reply|team-submit|inbox|dispatch|report|review-report|release-request|release-report|state|state-update|memory-list|memory-append|harness-test):' "$ROOT/Makefile"; then
+if grep -Eq '^(bootstrap|bootstrap-team|team-attach|team-identity|team-start|team-stop|team-status|team-send|team-reply|team-submit|inbox|dispatch|report|review-report|release-prepare|release-request|release-report|state|state-update|memory-list|memory-append|harness-test):' "$ROOT/Makefile"; then
   echo "agent team targets must not be defined in the root Makefile" >&2
   exit 1
 fi
@@ -282,10 +288,34 @@ manager_note_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE
 case "$manager_note_pending" in
   *"$explicit_note_id"*) echo "direct note appeared in the recipient pending inbox" >&2; exit 1 ;;
 esac
+[[ "$manager_note_pending" == "inbox manager: 0 messages" ]] || {
+  echo "empty inbox did not report an explicit zero-message state" >&2
+  exit 1
+}
 
-memory_proposal="$TMP_BASE/memory-proposal.md"
-printf '%s\n' '- Prefer BODY_FILE for multi-line agent messages.' '' '' > "$memory_proposal"
-TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_memory_update.sh" append "$memory_proposal" >/dev/null
+memory_proposal="$TMP_ROOT/.agents/queue/memory_proposals/memory-proposal.md"
+cat > "$memory_proposal" <<'MEMORY_PROPOSAL'
+# Memory Proposal
+
+## Context
+
+- Multi-line messages are easier to transport through BODY_FILE.
+
+## Proposed Entry
+
+- M-2026-06-27-001 [active][source:harness-test] Prefer BODY_FILE for multi-line agent messages.
+
+## Notes
+
+- This note should not be copied into MEMORY.
+MEMORY_PROPOSAL
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_memory_update.sh" append "memory-proposal.md" >/dev/null
+grep -q 'M-2026-06-27-001' "$TMP_ROOT/.agents/state/MEMORY.md"
+if grep -q 'This note should not be copied into MEMORY' "$TMP_ROOT/.agents/state/MEMORY.md"; then
+  echo "memory append copied proposal notes instead of Proposed Entry" >&2
+  exit 1
+fi
+[[ ! -f "$memory_proposal" ]] || { echo "memory proposal was not removed after append" >&2; exit 1; }
 git -C "$TMP_ROOT" diff --check -- .agents/state/MEMORY.md >/dev/null
 
 body_file="$TMP_BASE/message-body.md"
@@ -545,6 +575,27 @@ case "$reviewer_pending" in
   *) echo "reviewer watch assignment was not visible in inbox" >&2; exit 1 ;;
 esac
 
+checkpoint_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from worker-1 --type checkpoint --task T-001 reviewer-1 "Parser implemented; starting verification.")"
+case "$checkpoint_output" in
+  *"message_id="*) ;;
+  *) echo "checkpoint did not return message id" >&2; exit 1 ;;
+esac
+checkpoint_id="$(printf '%s\n' "$checkpoint_output" | sed -n 's/^message_id=//p')"
+reviewer_checkpoint_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" reviewer-1)"
+case "$reviewer_checkpoint_pending" in
+  *"\"type\":\"checkpoint\""*"Parser implemented; starting verification."*) ;;
+  *) echo "reviewer did not receive worker checkpoint" >&2; exit 1 ;;
+esac
+checkpoint_status="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_status.sh")"
+case "$checkpoint_status" in
+  *"T-001 manager=manager owner=worker-1 reviewer=reviewer-1 status=dispatched"*"checkpoint=\"$checkpoint_id from=worker-1\""*) ;;
+  *) echo "team-status did not show latest task checkpoint" >&2; exit 1 ;;
+esac
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from worker-1 --type checkpoint --task T-001 manager "wrong target" >/dev/null 2>&1; then
+  echo "checkpoint to non-reviewer unexpectedly succeeded" >&2
+  exit 1
+fi
+
 feedback_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from reviewer-1 --type review_feedback --task T-001 worker-1 "Observation: report evidence is thin.")"
 case "$feedback_output" in
   *"message_id="*) ;;
@@ -684,7 +735,7 @@ Done recommendation: false
 
 ## Reviewer supervision
 
-- Checkpoints: worker requested no scheduled checkpoint.
+- Checkpoints: $checkpoint_id reported implementation progress to reviewer-1.
 - Feedback received: Observation: report evidence is thin.
 - Feedback response: verification evidence and smoke/post-change evidence are recorded.
 
@@ -830,73 +881,41 @@ done_state="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_RO
 [[ "$done_state" == "$message_state" ]]
 grep -q '"status":"done"' "$message_state"
 
-release_request_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_request.sh" --manager manager --release-captain release-captain R-001 T-001)"
-case "$release_request_output" in
+release_prepare_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_release_prepare.sh" --manager manager --release-captain release-captain R-001 T-001)"
+case "$release_prepare_output" in
   *"bundle=.agents/queue/releases/R-001.md"*"review=.agents/queue/releases/R-001_review.md"*) ;;
-  *) echo "release request did not print bundle and review paths" >&2; exit 1 ;;
+  *) echo "release prepare did not print bundle and review paths" >&2; exit 1 ;;
 esac
 release_state_file="$TMP_ROOT/.agents/queue/state/releases/R-001.json"
-grep -q '"status":"requested"' "$release_state_file"
+grep -q '"status":"prepared"' "$release_state_file"
 grep -q '"manager":"manager"' "$release_state_file"
 grep -q '"release_captain":"release-captain"' "$release_state_file"
 grep -q '"release_bundle":"R-001"' "$message_state"
-release_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"
-case "$release_pending" in
-  *"\"type\":\"release_request\""*"Release bundle path: .agents/queue/releases/R-001.md"*) ;;
-  *) echo "release-captain did not receive release_request" >&2; exit 1 ;;
-esac
-release_review_missing_error="$TMP_BASE/release-review-missing-error.txt"
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_review_missing_error"; then
-  echo "release-report unexpectedly succeeded without a release review artifact" >&2
+grep -q 'TEAM_PLACEHOLDER: goal' "$TMP_ROOT/.agents/queue/releases/R-001.md"
+grep -q 'TEAM_PLACEHOLDER: decision-summary' "$TMP_ROOT/.agents/queue/releases/R-001_review.md"
+release_pending_after_prepare="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"
+[[ "$release_pending_after_prepare" == "inbox release-captain: 0 messages" ]] || {
+  echo "release-prepare notified release-captain before bundle was filled" >&2
+  exit 1
+}
+release_request_placeholder_error="$TMP_BASE/release-request-placeholder-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_request.sh" --manager manager --release-captain release-captain R-001 T-001 > /dev/null 2> "$release_request_placeholder_error"; then
+  echo "release-request unexpectedly succeeded with an unfilled bundle" >&2
   exit 1
 fi
-grep -q '^error: release review artifact is missing for R-001$' "$release_review_missing_error"
-grep -q '^required action: write .*/.agents/queue/releases/R-001_review.md with decision, evidence, caveats, and required fixes, then rerun release-report$' "$release_review_missing_error"
-release_architecture_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from release-captain --bundle R-001 architect "Need release architecture check.")"
-case "$release_architecture_output" in
-  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
-  *) echo "release-captain architecture request did not report manager CC" >&2; exit 1 ;;
-esac
-release_architecture_result_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from architect --type architecture_result --bundle R-001 release-captain "Release architecture result.")"
-case "$release_architecture_result_output" in
-  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
-  *) echo "architecture_result to release-captain did not report manager CC" >&2; exit 1 ;;
-esac
-cat > "$TMP_ROOT/.agents/queue/releases/R-001_review.md" <<RELEASE_REVIEW
-# Release Review: R-001
-
-Decision: none
-Bundle: $TMP_ROOT/.agents/queue/releases/R-001.md
-Manager: manager
-Release captain: release-captain
-
-## Checked artifacts
-
-- T-001 task, report, review, architecture note, and release bundle.
-
-## Findings
-
-- Release bundle is coherent for the lifecycle smoke.
-
-## Required fixes or blockers
-
-- None.
-
-## Ship note
-
-- Ship the smoke bundle.
-RELEASE_REVIEW
-release_bundle_placeholder_error="$TMP_BASE/release-bundle-placeholder-error.txt"
-if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_bundle_placeholder_error"; then
-  echo "release-report unexpectedly succeeded with bundle placeholders" >&2
+grep -q '^error: release bundle artifact has unfilled sections$' "$release_request_placeholder_error"
+grep -q '^required action: fill the placeholder sections in .*/.agents/queue/releases/R-001.md, remove the placeholder comments, then rerun the command$' "$release_request_placeholder_error"
+release_report_before_request_error="$TMP_BASE/release-report-before-request-error.txt"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_report_before_request_error"; then
+  echo "release-report unexpectedly succeeded before release-request" >&2
   exit 1
 fi
-grep -q '^error: release bundle artifact still has unfilled placeholders$' "$release_bundle_placeholder_error"
-grep -q '^required action: fill .*/.agents/queue/releases/R-001.md with current evidence before recording SHIP$' "$release_bundle_placeholder_error"
+grep -q '^error: release is not ready for release-report: R-001$' "$release_report_before_request_error"
+grep -q '^reason: release state has status=prepared, but release-report requires status=requested$' "$release_report_before_request_error"
 cat > "$TMP_ROOT/.agents/queue/releases/R-001.md" <<RELEASE_BUNDLE
 # Release Bundle: R-001
 
-Status: requested
+Status: prepared
 Manager: manager
 Release captain: release-captain
 Review: .agents/queue/releases/R-001_review.md
@@ -922,6 +941,69 @@ Decision: none
 
 - Decide SHIP / FIX / BLOCKED.
 RELEASE_BUNDLE
+release_request_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_request.sh" --manager manager --release-captain release-captain R-001 T-001)"
+case "$release_request_output" in
+  *"bundle=.agents/queue/releases/R-001.md"*"review=.agents/queue/releases/R-001_review.md"*) ;;
+  *) echo "release request did not print bundle and review paths" >&2; exit 1 ;;
+esac
+grep -q '"status":"requested"' "$release_state_file"
+release_pending="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" "$TMP_ROOT/.agents/scripts/team_inbox.sh" release-captain)"
+case "$release_pending" in
+  *"\"type\":\"release_request\""*"Release bundle path: .agents/queue/releases/R-001.md"*) ;;
+  *) echo "release-captain did not receive release_request" >&2; exit 1 ;;
+esac
+release_review_placeholder_error="$TMP_BASE/release-review-placeholder-error.txt"
+cat > "$TMP_ROOT/.agents/queue/releases/R-001_review.md" <<'RELEASE_REVIEW_PLACEHOLDER'
+# Release Review: R-001
+
+Decision: none
+Bundle: .agents/queue/releases/R-001.md
+Manager: manager
+Release captain: release-captain
+
+## Decision Summary
+
+<!-- TEAM_PLACEHOLDER: decision-summary -->
+RELEASE_REVIEW_PLACEHOLDER
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP > /dev/null 2> "$release_review_placeholder_error"; then
+  echo "release-report unexpectedly succeeded with an unfilled review artifact" >&2
+  exit 1
+fi
+grep -q '^error: release review artifact has unfilled sections$' "$release_review_placeholder_error"
+release_architecture_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from release-captain --bundle R-001 architect "Need release architecture check.")"
+case "$release_architecture_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "release-captain architecture request did not report manager CC" >&2; exit 1 ;;
+esac
+release_architecture_result_output="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_send.sh" --from architect --type architecture_result --bundle R-001 release-captain "Release architecture result.")"
+case "$release_architecture_result_output" in
+  *"message_id="*"cc_to=manager"*"cc_message_id="*) ;;
+  *) echo "architecture_result to release-captain did not report manager CC" >&2; exit 1 ;;
+esac
+cat > "$TMP_ROOT/.agents/queue/releases/R-001_review.md" <<RELEASE_REVIEW
+# Release Review: R-001
+
+Decision: none
+Bundle: .agents/queue/releases/R-001.md
+Manager: manager
+Release captain: release-captain
+
+## Checked artifacts
+
+- T-001 task, report, review, architecture note, and release bundle.
+
+## Findings
+
+- Release bundle is coherent for the lifecycle smoke.
+
+## Required fixes or blockers
+
+- None.
+
+## Ship note
+
+- Ship the smoke bundle.
+RELEASE_REVIEW
 release_review_file="$(TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP)"
 [[ "$release_review_file" == "$TMP_ROOT/.agents/queue/releases/R-001_review.md" ]]
 grep -q '^Decision: SHIP$' "$release_review_file"

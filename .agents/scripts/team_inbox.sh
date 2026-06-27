@@ -40,14 +40,19 @@ fi
 
 inbox_file="$TEAM_QUEUE_DIR/inbox/$agent_id.jsonl"
 if [[ ! -f "$inbox_file" ]]; then
-  exit 0
+  : > "$inbox_file"
 fi
 
+pending=0
 while IFS= read -r line; do
   message_id="$(printf '%s\n' "$line" | extract_json_field id)"
   [[ -n "$message_id" ]] || continue
   if [[ ! -f "$processed_dir/$message_id" ]]; then
+    pending=$((pending + 1))
     printf '%s\n' "$line"
   fi
 done < "$inbox_file"
 
+if [[ "$pending" -eq 0 ]]; then
+  printf 'inbox %s: 0 messages\n' "$agent_id"
+fi
