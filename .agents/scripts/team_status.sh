@@ -26,7 +26,7 @@ echo
 if command -v tmux >/dev/null 2>&1 && tmux has-session -t "$session" 2>/dev/null; then
   session_running=1
   echo "tmux panes:"
-  tmux list-panes -t "$session" -a -F '  #{pane_id} #{window_name} agent=#{@agent_id} role=#{@role} model=#{@model}'
+  tmux list-panes -t "$session" -F '  #{pane_id} #{window_name} agent=#{@agent_id} role=#{@role} model=#{@model}'
 else
   echo "tmux panes: not running"
 fi

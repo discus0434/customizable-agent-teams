@@ -42,6 +42,20 @@ Do not split work just because it feels safer. Split when ownership, review pers
 - Ask strategist when deep debugging, option comparison, or execution planning benefits from separate analysis.
 - Escalate to lead only for human approval, product intent, user-visible behavior, scope, priority, or trade-off decisions.
 - When reviewer escalates, decide the next owner: worker, reviewer, architect, strategist, release-captain, lead, or blocked.
+- Treat lead `intake` as authorization to decompose, assign, dispatch, and prepare release within the stated intent. Ask lead before starting only when the intake itself is missing a required human-facing decision.
+
+## STATE Rhythm
+
+Keep `STATE.md` correct at each handoff.
+
+- After intake: replace waiting text with the current work sizing, dependency shape, and next manager action.
+- Before dispatch: list active tasks, owners, reviewers, dependency edges, and parallel batch.
+- After dispatch: show which role acts next for each active task.
+- After review result or blocker: update task state, blocker, and next owner before sending new messages.
+- After task done: remove done task details from Active Tasks and keep only decisions that still affect current work.
+- Before release request: record the bundle, included tasks, and release-captain next action.
+- After release result: record `SHIP` / `FIX` / `BLOCKED` and the next role.
+- Before completion_ready: compress STATE so it matches the final snapshot manager is sending to lead.
 
 ## Dependency Pass
 

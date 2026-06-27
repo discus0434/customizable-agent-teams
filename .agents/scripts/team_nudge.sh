@@ -43,6 +43,7 @@ if ! team_tmux_pane_exists "$pane"; then
   exit 1
 fi
 
+team_tmux_cancel_mode_if_needed "$pane"
 tmux send-keys -t "$pane" C-u
 tmux send-keys -t "$pane" -l "inbox $agent_id"
 team_tmux_submit "$pane"

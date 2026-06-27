@@ -96,11 +96,15 @@ Split work when ownership, review perspective, or verification boundary truly di
 
 Human talks to Lead. Lead sends Manager `intake`, `approval`, or `decision`.
 
+`intake` starts manager execution inside the stated intent. `approval` and `decision` answer later questions from manager or contract changes from the human.
+
 Manager creates tasks from:
 
 ```text
 .agents/queue/tasks/TEMPLATE.md
 ```
+
+Manager updates `STATE.md` before each outward handoff: dispatch, done decision, release request, release result, and completion_ready.
 
 Manager dispatches:
 

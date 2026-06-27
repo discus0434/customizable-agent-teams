@@ -47,7 +47,7 @@ make inbox AGENT=<agent_id>
 - Task and release commands close the related inbox messages.
 - Use `make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md` when answering an inbox item.
 - Use `MARK=<message_id>` only after handling a message that needs no reply.
-- If a pane shows an unsubmitted `inbox <agent_id>` prompt, submit it with:
+- If a pane shows an unsubmitted `inbox <agent_id>` prompt, rebuild and submit the notification with:
 
 ```bash
 make team-submit AGENT=<agent_id>
@@ -68,6 +68,7 @@ make team-submit AGENT=<agent_id>
 - Human-facing intent owner.
 - Clarifies ambiguous requests one question at a time.
 - Sends manager the human's intent, constraints, preferences, and approvals with `make team-send`.
+- `intake` lets manager begin tasking inside the stated intent. Use `approval` or `decision` for later human-facing judgments.
 - Answers manager escalations that require human judgment.
 - Edits `.agents/state/STATE.md` Intent when human-derived goal, acceptance, or escalation rules change.
 - Reviews memory and skill proposals.
@@ -78,8 +79,10 @@ make team-submit AGENT=<agent_id>
 - Team operation owner.
 - Primary editor of `.agents/state/STATE.md`.
 - Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, marks done, and prepares release bundles.
+- Treats lead `intake` as the start signal unless a required human-facing decision is missing.
 - Maps dependencies before dispatch and sends independent tasks in the same batch.
 - Uses reviewer supervision, architect input, or strategist input to bound uncertainty instead of serializing unrelated work.
+- Updates `STATE.md` at handoffs so Execution, Active Tasks, Bundles, Blockers, and Next Actions describe the current snapshot.
 - Does not normally enter worker/reviewer task-local details.
 - Does not edit project code.
 

@@ -110,7 +110,16 @@ case "$1" in
     printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     exit 0
     ;;
-  set-option|kill-session|list-panes)
+  list-panes)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    if [[ "$*" == *" -a"* ]]; then
+      printf '%s\n' '  %outside other-session agent=outside role=outside model=outside'
+    else
+      printf '%s\n' '  %fake-lead lead agent=lead role=lead model=claude-opus-4-8'
+    fi
+    exit 0
+    ;;
+  set-option|kill-session)
     exit 0
     ;;
   *)
@@ -413,6 +422,12 @@ missing_status="$(
   "$TMP_ROOT/.agents/scripts/team_status.sh"
 )"
 printf '%s\n' "$missing_status" | grep -Eq '^  worker-2[[:space:]]+worker[[:space:]]+missing-state'
+case "$missing_status" in
+  *"%outside"*) echo "team-status listed panes outside the configured session" >&2; exit 1 ;;
+esac
+case "$(<"$TEAM_FAKE_TMUX_LOG")" in
+  *"list-panes"*" -a"*) echo "team-status used tmux list-panes -a" >&2; exit 1 ;;
+esac
 
 : > "$TEAM_FAKE_TMUX_LOG"
 team_bootstrap_log="$TMP_BASE/team_bootstrap.log"
@@ -476,6 +491,20 @@ case "$(<"$TEAM_FAKE_TMUX_LOG")" in
 esac
 nudge_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
 [[ "$nudge_enter_count" -ge 3 ]] || { echo "nudge was not submitted with repeated C-m" >&2; exit 1; }
+
+: > "$TEAM_FAKE_TMUX_LOG"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  "$TMP_ROOT/.agents/scripts/team_submit.sh" worker-1
+submit_log="$(<"$TEAM_FAKE_TMUX_LOG")"
+case "$submit_log" in
+  *"send-keys"*Escape*"send-keys"*"C-u"*"send-keys"*"inbox worker-1"*"C-m"*) ;;
+  *) echo "team-submit did not rebuild and submit the inbox prompt" >&2; exit 1 ;;
+esac
+submit_enter_count="$(grep -o 'C-m' "$TEAM_FAKE_TMUX_LOG" | wc -l | tr -d ' ')"
+[[ "$submit_enter_count" -ge 3 ]] || { echo "team-submit was not submitted with repeated C-m" >&2; exit 1; }
 
 cp "$TMP_ROOT/.agents/queue/tasks/TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-001.md"
 perl -0pi -e 's/T-XXX/T-001/g' "$TMP_ROOT/.agents/queue/tasks/T-001.md"

@@ -86,6 +86,8 @@ When the bootstrap contract is clear, send manager an `intake` message that incl
 - `make smoke` behavior
 - README and AGENTS updates required for the initialized project
 - cleanup required after bootstrap implementation
+- that manager may task, dispatch, and release-review the bootstrap work inside this contract without another human approval
+- what must return to lead before manager proceeds
 
 Tell the human to detach from tmux and run:
 

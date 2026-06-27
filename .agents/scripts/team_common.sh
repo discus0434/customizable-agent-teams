@@ -65,6 +65,15 @@ team_tmux_submit() {
   done
 }
 
+team_tmux_prepare_input() {
+  local pane="$1"
+
+  team_tmux_cancel_mode_if_needed "$pane"
+  tmux send-keys -t "$pane" Escape
+  sleep 0.2
+  tmux send-keys -t "$pane" C-u
+}
+
 team_tmux_pane_exists() {
   local pane="$1"
   tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1
@@ -88,8 +97,7 @@ team_tmux_send_text() {
   local pane="$1"
   local text="$2"
 
-  team_tmux_cancel_mode_if_needed "$pane"
-  tmux send-keys -t "$pane" C-u
+  team_tmux_prepare_input "$pane"
   tmux send-keys -t "$pane" -l "$text"
   team_tmux_submit "$pane"
 }

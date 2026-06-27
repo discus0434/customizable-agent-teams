@@ -40,6 +40,8 @@ Before sending manager an intake, make sure the next action has:
 - decisions already made by the human
 - decisions that still require human judgment
 
+An `intake` tells manager to begin planning and dispatch within the stated intent. Use `approval` or `decision` only when manager has asked for a human-facing judgment or the human changes the contract.
+
 If a request is broad, creative, ambiguous, or has several viable directions, narrow it with the human before asking manager to decompose it.
 
 Process:
@@ -60,6 +62,11 @@ Manager に渡す前にまとめる:
 - manager に渡すべき依頼内容
 - ユーザー判断が必要な点
 - 先に調査すべき file / command
+
+Intake に含める:
+
+- manager が追加承認なしで進めてよい範囲
+- lead に戻すべき判断条件
 
 ## Escalation
 
