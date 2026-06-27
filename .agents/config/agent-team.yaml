@@ -7,14 +7,14 @@ team:
     cli: claude
     model: claude-opus-4-8
     window: lead
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
   manager:
     id: manager
     role: manager
     cli: claude
     model: claude-opus-4-8
     window: manager
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
   strategist:
     id: strategist
     role: strategist
