@@ -138,7 +138,7 @@ team_config_agent_field() {
     *) die "unknown agent field: $field" ;;
   esac
 
-  team_config_agent_record "$agent_id" | awk -F'|' -v index="$index" '{ print $index }'
+  team_config_agent_record "$agent_id" | awk -F'|' -v pos="$index" '{ print $pos }'
 }
 
 team_config_role_agent_ids() {
