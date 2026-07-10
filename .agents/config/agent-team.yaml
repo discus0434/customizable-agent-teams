@@ -5,72 +5,72 @@ team:
     id: lead
     role: lead
     cli: claude
-    model: claude-opus-4-8
+    model: claude-fable-5
     window: lead
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh
   manager:
     id: manager
     role: manager
-    cli: claude
-    model: claude-opus-4-8
+    cli: codex
+    model: gpt-5.6-sol
     window: manager
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+    command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
   strategist:
     id: strategist
     role: strategist
     cli: claude
-    model: claude-opus-4-8
+    model: claude-fable-5
     window: strategist
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort max
   architect:
     id: architect
     role: architect
     cli: claude
-    model: claude-opus-4-8
+    model: claude-fable-5
     window: architect
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort max
+    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort max
   release-captain:
     id: release-captain
     role: release-captain
-    cli: claude
-    model: claude-opus-4-8
+    cli: codex
+    model: gpt-5.6-sol
     window: release-captain
-    command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort xhigh
+    command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
   reviewers:
     - id: reviewer-1
       role: reviewer
-      cli: claude
-      model: claude-opus-4-8
+      cli: codex
+      model: gpt-5.6-sol
       window: reviewer-1
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
     - id: reviewer-2
       role: reviewer
-      cli: claude
-      model: claude-opus-4-8
+      cli: codex
+      model: gpt-5.6-sol
       window: reviewer-2
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
     - id: reviewer-3
       role: reviewer
-      cli: claude
-      model: claude-opus-4-8
+      cli: codex
+      model: gpt-5.6-sol
       window: reviewer-3
-      command: claude --dangerously-skip-permissions --model claude-opus-4-8 --effort high
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
   workers:
     - id: worker-1
       role: worker
       cli: codex
-      model: gpt-5.5
+      model: gpt-5.6-terra
       window: worker-1
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
     - id: worker-2
       role: worker
       cli: codex
-      model: gpt-5.5
+      model: gpt-5.6-terra
       window: worker-2
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
     - id: worker-3
       role: worker
       cli: codex
-      model: gpt-5.5
+      model: gpt-5.6-terra
       window: worker-3
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.5
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
