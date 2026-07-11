@@ -9,7 +9,7 @@ description: Guides lead review of memory proposals and MEMORY updates. Use when
 
 - `.agents/state/MEMORY.md`
 - `.agents/queue/memory_proposals/*.md`
-- proposal の source task / report / review / strategy / architecture / release
+- proposal の source task / report / review / strategy / architecture / release / manager state
 
 ## Accept
 

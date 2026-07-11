@@ -172,32 +172,36 @@ team_write_release_state \
 
 for task_id in "$@"; do
   task_manager="$(team_task_state_field "$task_id" manager)"
-  owner="$(team_task_state_field "$task_id" owner)"
-  reviewer="$(team_task_state_field "$task_id" reviewer)"
+  worker="$(team_task_state_field "$task_id" worker)"
+  supervisor="$(team_task_state_field "$task_id" supervisor)"
   status="$(team_task_state_field "$task_id" status)"
   base_commit="$(team_task_state_field "$task_id" base_commit)"
   head_commit="$(team_task_state_field "$task_id" head_commit)"
   report_file="$(team_task_state_field "$task_id" report)"
-  task_review_file="$(team_task_state_field "$task_id" review)"
-  review_decision="$(team_task_state_field "$task_id" review_decision)"
+  supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
+  supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
   done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
   architecture_required="$(team_task_state_field "$task_id" architecture_required)"
   architecture="$(team_task_state_field "$task_id" architecture)"
+  direction_status="$(team_task_state_field "$task_id" direction_status)"
+  direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
   team_write_task_state \
     "$task_id" \
     "$task_manager" \
-    "$owner" \
-    "$reviewer" \
+    "$worker" \
+    "$supervisor" \
     "$status" \
     "$base_commit" \
     "$head_commit" \
     "$report_file" \
-    "$task_review_file" \
-    "$review_decision" \
+    "$supervision_artifact" \
+    "$supervision_decision" \
     "$done_recommendation" \
     "$architecture_required" \
     "$architecture" \
-    "$bundle_id"
+    "$bundle_id" \
+    "$direction_status" \
+    "$direction_artifact"
 done
 release_team_lock
 

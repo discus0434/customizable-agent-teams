@@ -128,22 +128,22 @@ for task_id in "$@"; do
   task_list_markdown="$task_list_markdown"$'\n'"- $task_id"
 done
 
-cat > "$bundle_file" <<BUNDLE
-# Release Bundle: $bundle_id
-
-Status: prepared
-Manager: $manager_id
-Release captain: $release_captain_id
-Review: $review_rel
-Decision: none
-
+{
+  printf '# Release Bundle: %s\n\n' "$bundle_id"
+  printf 'Status: prepared\n'
+  printf 'Manager: %s\n' "$manager_id"
+  printf 'Release captain: %s\n' "$release_captain_id"
+  printf 'Review: %s\n' "$review_rel"
+  printf 'Decision: none\n\n'
+  cat <<'BUNDLE'
 ## Goal
 
 <!-- TEAM_PLACEHOLDER: goal -->
 
 ## Included tasks
-$task_list_markdown
-
+BUNDLE
+  printf '%s\n\n' "$task_list_markdown"
+  cat <<'BUNDLE'
 ## Evidence summary
 
 <!-- TEAM_PLACEHOLDER: evidence-summary -->
@@ -156,20 +156,31 @@ $task_list_markdown
 
 - SHIP / FIX / BLOCKED を判断してください。
 BUNDLE
+} > "$bundle_file"
 
-cat > "$review_file" <<REVIEW
-# Release Review: $bundle_id
-
-Decision: none
-Bundle: $bundle_rel
-Manager: $manager_id
-Release captain: $release_captain_id
-
+{
+  printf '# Release Review: %s\n\n' "$bundle_id"
+  printf 'Decision: none\n'
+  printf 'Bundle: %s\n' "$bundle_rel"
+  printf 'Manager: %s\n' "$manager_id"
+  printf 'Release captain: %s\n\n' "$release_captain_id"
+  cat <<'REVIEW'
 ## Decision Summary
 
 <!-- TEAM_PLACEHOLDER: decision-summary -->
 
-## Evidence
+## Bundle Checks
+
+- [ ] Bundle goal and evidence match the current STATE Intent.
+- [ ] Included tasks are done, supervisor OK, and done_recommendation=true.
+- [ ] Referenced reports, reviews or critiques, strategy artifacts, and architecture notes exist.
+- [ ] Frontend tasks include final visual evidence suitable for whole-system comparison.
+- [ ] Current HEAD contains the intended task commits.
+- [ ] `make post-change` evidence is current enough for release judgment.
+- [ ] `make smoke` evidence is current enough for release judgment.
+- [ ] Known issues are either release-blocking fixes or explicit non-blocking follow-up.
+
+## Evidence Reviewed
 
 <!-- TEAM_PLACEHOLDER: evidence -->
 
@@ -181,6 +192,7 @@ Release captain: $release_captain_id
 
 <!-- TEAM_PLACEHOLDER: required-fixes -->
 REVIEW
+} > "$review_file"
 
 acquire_team_lock "release-$bundle_id"
 team_write_release_state \
@@ -195,32 +207,36 @@ team_write_release_state \
 
 for task_id in "$@"; do
   task_manager="$(team_task_state_field "$task_id" manager)"
-  owner="$(team_task_state_field "$task_id" owner)"
-  reviewer="$(team_task_state_field "$task_id" reviewer)"
+  worker="$(team_task_state_field "$task_id" worker)"
+  supervisor="$(team_task_state_field "$task_id" supervisor)"
   status="$(team_task_state_field "$task_id" status)"
   base_commit="$(team_task_state_field "$task_id" base_commit)"
   head_commit="$(team_task_state_field "$task_id" head_commit)"
   report_file="$(team_task_state_field "$task_id" report)"
-  task_review_file="$(team_task_state_field "$task_id" review)"
-  review_decision="$(team_task_state_field "$task_id" review_decision)"
+  supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
+  supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
   done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
   architecture_required="$(team_task_state_field "$task_id" architecture_required)"
   architecture="$(team_task_state_field "$task_id" architecture)"
+  direction_status="$(team_task_state_field "$task_id" direction_status)"
+  direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
   team_write_task_state \
     "$task_id" \
     "$task_manager" \
-    "$owner" \
-    "$reviewer" \
+    "$worker" \
+    "$supervisor" \
     "$status" \
     "$base_commit" \
     "$head_commit" \
     "$report_file" \
-    "$task_review_file" \
-    "$review_decision" \
+    "$supervision_artifact" \
+    "$supervision_decision" \
     "$done_recommendation" \
     "$architecture_required" \
     "$architecture" \
-    "$bundle_id"
+    "$bundle_id" \
+    "$direction_status" \
+    "$direction_artifact"
 done
 release_team_lock
 

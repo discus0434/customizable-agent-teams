@@ -9,15 +9,9 @@ source "$SCRIPT_DIR/team_config.sh"
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  team_send.sh [--from <agent_id>] [--type <type>] [--task <task_id>] [--bundle <bundle_id>] [--body-file <path>] [--done-recommendation <true|false>] <to> [body...]
+  team_send.sh [--from <agent_id>] [--type <type>] [--task <task_id>] [--bundle <bundle_id>] [--research <request_id>] [--body-file <path>] [--done-recommendation <true|false>] <to> [body...]
 
-examples:
-  team_send.sh --from lead --type intake --task - manager "ユーザー依頼の要点..."
-  team_send.sh --from manager --type task_assigned --task T-001 worker-1
-  team_send.sh --from reviewer-1 --task T-001 strategist "この設計判断を深掘りしてください。"
-  team_send.sh --from manager --bundle R-001 release-captain "release bundle を見てください。"
-
-TYPE=note records information. Use request, question, or a workflow type when the recipient should act.
+TYPE=note records information. Omit TYPE when requesting strategist, architect, release-captain, or the research-worker pool.
 USAGE
 }
 
@@ -25,531 +19,387 @@ from=""
 type=""
 task_id=""
 bundle_id=""
+research_id=""
 body_file=""
 done_recommendation=""
 requires_attention=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --from)
-      [[ $# -ge 2 ]] || die "--from requires a value"
-      from="$2"
-      shift 2
-      ;;
-    --type)
-      [[ $# -ge 2 ]] || die "--type requires a value"
-      type="$2"
-      shift 2
-      ;;
-    --task)
-      [[ $# -ge 2 ]] || die "--task requires a value"
-      task_id="$2"
-      shift 2
-      ;;
-    --bundle)
-      [[ $# -ge 2 ]] || die "--bundle requires a value"
-      bundle_id="$2"
-      shift 2
-      ;;
-    --body-file)
-      [[ $# -ge 2 ]] || die "--body-file requires a path"
-      body_file="$2"
-      shift 2
-      ;;
-    --done-recommendation)
-      [[ $# -ge 2 ]] || die "--done-recommendation requires true or false"
-      done_recommendation="$2"
-      shift 2
-      ;;
-    --requires-attention)
-      requires_attention="true"
-      shift
-      ;;
-    -h|--help)
-      usage
-      exit 0
-      ;;
-    --)
-      shift
-      break
-      ;;
-    --*)
-      die "unknown option: $1"
-      ;;
-    *)
-      break
-      ;;
+    --from) [[ $# -ge 2 ]] || die "--from requires a value"; from="$2"; shift 2 ;;
+    --type) [[ $# -ge 2 ]] || die "--type requires a value"; type="$2"; shift 2 ;;
+    --task) [[ $# -ge 2 ]] || die "--task requires a value"; task_id="$2"; shift 2 ;;
+    --bundle) [[ $# -ge 2 ]] || die "--bundle requires a value"; bundle_id="$2"; shift 2 ;;
+    --research) [[ $# -ge 2 ]] || die "--research requires a value"; research_id="$2"; shift 2 ;;
+    --body-file) [[ $# -ge 2 ]] || die "--body-file requires a path"; body_file="$2"; shift 2 ;;
+    --done-recommendation) [[ $# -ge 2 ]] || die "--done-recommendation requires true or false"; done_recommendation="$2"; shift 2 ;;
+    --requires-attention) requires_attention="true"; shift ;;
+    -h|--help) usage; exit 0 ;;
+    --) shift; break ;;
+    --*) die "unknown option: $1" ;;
+    *) break ;;
   esac
 done
 
 [[ $# -ge 1 ]] || { usage; exit 2; }
-
 to="$1"
 shift
 body="${*:-}"
 
 ensure_team_dirs
-
-if ! team_config_agent_record "$to" >/dev/null; then
-  die_rule \
-    "unknown target agent: $to" \
-    "the recipient is not present in $TEAM_CONFIG_FILE" \
-    "choose an agent id from .agents/config/agent-team.yaml"
-fi
+team_config_validate
 
 if [[ -z "$from" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
     "sender is unknown" \
-    "this shell does not have TEAM_AGENT_ID and --from was not provided" \
-    "run inside a team pane or pass --from <agent_id>"
+    "this shell has no TEAM_AGENT_ID and --from was not provided" \
+    "run inside a team pane or pass FROM=<agent_id>"
   from="$TEAM_AGENT_ID"
 fi
+team_config_agent_record "$from" >/dev/null || die_rule \
+  "unknown sender agent: $from" \
+  "the sender is not present in $TEAM_CONFIG_FILE" \
+  "choose a configured agent id"
+from_role="$(team_config_agent_field "$from" role)"
 
-if ! team_config_agent_record "$from" >/dev/null; then
-  die_rule \
-    "unknown sender agent: $from" \
-    "the sender is not present in $TEAM_CONFIG_FILE" \
-    "choose an agent id from .agents/config/agent-team.yaml"
+if [[ -n "$body_file" ]]; then
+  [[ -z "$body" ]] || die_rule \
+    "body and body file were both provided" \
+    "message body must have one source" \
+    "pass either BODY or BODY_FILE"
+  [[ -f "$body_file" ]] || die_rule \
+    "body file not found: $body_file" \
+    "the requested path does not exist" \
+    "write the body file first or pass BODY directly"
+  body="$(<"$body_file")"
 fi
 
-from_role="$(team_config_agent_field "$from" role)"
+if [[ "$to" == "research-worker" ]]; then
+  [[ -z "$type" || "$type" == "research_request" ]] || die_rule \
+    "research-worker pool accepts research requests only" \
+    "TYPE=$type does not describe a pool request" \
+    "omit TYPE when sending to research-worker"
+  [[ -z "$bundle_id" && -z "$research_id" && -z "$done_recommendation" ]] || die_rule \
+    "research request has incompatible routing fields" \
+    "a new research request is not a bundle, result, or done recommendation" \
+    "send only TASK when the research is related to an implementation task"
+  case "$from_role" in
+    lead|manager|strategist|architect|release-captain) ;;
+    *) die_rule \
+      "role cannot request research: $from_role" \
+      "research-worker is available to lead, manager, strategist, architect, and release-captain" \
+      "route the need through one of those roles" ;;
+  esac
+  exec "$SCRIPT_DIR/team_research_request.sh" --from "$from" --task "$task_id" "$body"
+fi
+
+team_config_agent_record "$to" >/dev/null || die_rule \
+  "unknown target agent: $to" \
+  "the recipient is not present in $TEAM_CONFIG_FILE" \
+  "choose a configured agent id or TO=research-worker"
 to_role="$(team_config_agent_field "$to" role)"
 
 if [[ -n "$done_recommendation" ]]; then
   case "$done_recommendation" in
     true|false) ;;
-    *) die_rule \
-      "invalid done recommendation: $done_recommendation" \
-      "done recommendation must be true or false" \
-      "pass --done-recommendation true or --done-recommendation false" ;;
+    *) die_rule "invalid done recommendation: $done_recommendation" "the value must be true or false" "pass true or false" ;;
   esac
 fi
 
 if [[ -z "$type" ]]; then
   case "$to_role" in
-    strategist)
-      type="strategy_request"
-      ;;
-    architect)
-      type="architecture_request"
-      ;;
-    release-captain)
-      type="release_request"
-      ;;
-    *)
-      die_rule \
-        "message type is required" \
-        "TYPE can be omitted only when sending to strategist, architect, or release-captain" \
-        "pass TYPE=<message_type>, or send to one of those roles for a request"
-      ;;
+    strategist) type="strategy_request" ;;
+    architect) type="architecture_request" ;;
+    release-captain) type="release_request" ;;
+    *) die_rule \
+      "message type is required" \
+      "the recipient role does not imply a unique action" \
+      "pass TYPE=<message_type>" ;;
   esac
-fi
-
-if [[ -n "$body_file" ]]; then
-  [[ -z "$body" ]] || die_rule \
-    "body and body file were both provided" \
-    "message body has two sources, so the delivered text would be ambiguous" \
-    "pass either BODY or BODY_FILE, not both"
-  [[ -f "$body_file" ]] || die_rule \
-    "body file not found: $body_file" \
-    "the requested --body-file path does not exist" \
-    "write the body file first or pass BODY directly"
-  body="$(<"$body_file")"
 fi
 
 subtype=""
 artifact_path=""
 cc_to=""
 
+load_task_assignment() {
+  [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
+    "$type requires TASK" \
+    "task-local messages must reference one dispatched task" \
+    "pass TASK=<task_id>"
+  local state_file
+  state_file="$(team_task_state_file "$task_id")"
+  [[ -f "$state_file" ]] || die_rule \
+    "task state not found: $task_id" \
+    "$type requires a dispatched task" \
+    "dispatch the task first"
+  task_manager="$(team_task_state_field "$task_id" manager)"
+  task_worker="$(team_task_state_field "$task_id" worker)"
+  task_supervisor="$(team_task_state_field "$task_id" supervisor)"
+  task_status="$(team_task_state_field "$task_id" status)"
+  task_base_commit="$(team_task_state_field "$task_id" base_commit)"
+  task_head_commit="$(team_task_state_field "$task_id" head_commit)"
+  task_report="$(team_task_state_field "$task_id" report)"
+  task_supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
+  task_supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
+  task_done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
+  task_architecture_required="$(team_task_state_field "$task_id" architecture_required)"
+  task_architecture="$(team_task_state_field "$task_id" architecture)"
+  task_release_bundle="$(team_task_state_field "$task_id" release_bundle)"
+  task_direction_status="$(team_task_state_field "$task_id" direction_status)"
+  task_direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
+}
+
+require_assigned_worker_to_supervisor() {
+  load_task_assignment
+  [[ "$from" == "$task_worker" ]] || die_rule \
+    "$type sender is not the assigned worker" \
+    "task $task_id is assigned to $task_worker, but sender is $from" \
+    "send from $task_worker"
+  [[ "$to" == "$task_supervisor" ]] || die_rule \
+    "$type target is not the assigned supervisor" \
+    "task $task_id is supervised by $task_supervisor, but target is $to" \
+    "send to $task_supervisor"
+}
+
+require_assigned_supervisor_to_worker() {
+  load_task_assignment
+  [[ "$from" == "$task_supervisor" ]] || die_rule \
+    "$type sender is not the assigned supervisor" \
+    "task $task_id is supervised by $task_supervisor, but sender is $from" \
+    "send from $task_supervisor"
+  [[ "$to" == "$task_worker" ]] || die_rule \
+    "$type target is not the assigned worker" \
+    "task $task_id is assigned to $task_worker, but target is $to" \
+    "send to $task_worker"
+}
+
 case "$type" in
   strategy_request)
-    [[ "$to_role" == "strategist" ]] || die_rule \
-      "strategy_request target must be strategist" \
-      "strategy requests are handled only by the strategist role" \
-      "send strategy_request to the strategist agent"
+    [[ "$to_role" == "strategist" ]] || die_rule "strategy_request target must be strategist" "the strategist owns focused analysis" "send to the strategist agent"
     case "$from_role" in
-      lead)
-        subtype="lead_intake"
+      lead) subtype="lead_intake" ;;
+      manager) subtype="manager_planning" ;;
+      architect) subtype="architect_analysis" ;;
+      general-reviewer|frontend-critic)
+        load_task_assignment
+        [[ "$task_supervisor" == "$from" ]] || die_rule "supervisor is not assigned to $task_id" "only the fixed task supervisor may request task-local analysis" "send from $task_supervisor"
+        subtype="${from_role}-supervision"
+        cc_to="$task_manager"
         ;;
-      manager)
-        subtype="manager_planning"
+      general-worker|frontend-worker)
+        load_task_assignment
+        die_rule "implementation worker cannot request strategist directly" "task-local uncertainty goes through the fixed supervisor" "ask $task_supervisor"
         ;;
-      architect)
-        subtype="architect_analysis"
-        ;;
-      reviewer)
-        subtype="reviewer_supervision"
-        [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
-          "reviewer strategy_request requires TASK" \
-          "reviewer supervision strategy requests must be tied to a dispatched task" \
-          "pass TASK=<task_id> for the task being supervised"
-        state_file="$(team_task_state_file "$task_id")"
-        [[ -f "$state_file" ]] || die_rule \
-          "task state not found for reviewer strategy_request: $task_id" \
-          "manager CC is resolved from the task state, but the task has not been dispatched" \
-          "dispatch the task first, then send the strategy request"
-        assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
-        [[ "$assigned_reviewer" == "$from" ]] || die_rule \
-          "reviewer is not assigned to task $task_id" \
-          "only the task's assigned reviewer may request strategist help for reviewer supervision" \
-          "send from $assigned_reviewer or update the task assignment"
-        cc_to="$(team_task_state_field "$task_id" manager)"
-        [[ -n "$cc_to" ]] || die_rule \
-          "task $task_id is missing manager" \
-          "reviewer strategy_request CC must go to the task manager recorded at dispatch" \
-          "redispatch or repair task state so manager is recorded"
-        if ! team_config_agent_record "$cc_to" >/dev/null; then
-          die_rule \
-            "task $task_id has unknown manager: $cc_to" \
-            "reviewer strategy_request CC target is read from task state but is not present in team config" \
-            "repair task state or dispatch the task with a configured manager"
-        fi
-        cc_role="$(team_config_agent_field "$cc_to" role)"
-        [[ "$cc_role" == "manager" ]] || die_rule \
-          "task $task_id manager is not a manager agent" \
-          "$cc_to has role $cc_role in $TEAM_CONFIG_FILE" \
-          "repair task state or dispatch the task with a manager agent"
-        ;;
-      worker)
-        die_rule \
-          "worker cannot send strategy_request directly" \
-          "workers ask their assigned reviewer; reviewer decides whether strategist input is needed" \
-          "send a question to the assigned reviewer instead"
-        ;;
-      *)
-        die_rule \
-          "role cannot send strategy_request: $from_role" \
-          "strategy_request is limited to lead, manager, architect, and reviewer roles" \
-          "send through lead, manager, architect, or the assigned reviewer"
-        ;;
+      *) die_rule "role cannot request strategy: $from_role" "strategy requests come from lead, manager, architect, or an assigned supervisor" "route the request through an allowed role" ;;
     esac
     artifact_path="$(team_strategy_artifact_path "$task_id" "$subtype")"
-    if [[ -z "$body" ]]; then
-      body="Strategy request from $from."
-    fi
-    body="${body}"$'\n\n'"Strategy artifact path: $artifact_path"
+    [[ -n "$body" ]] || body="Strategy request from $from."
+    body+=$'\n\n'"Strategy artifact path: $artifact_path"
+    ;;
+  strategy_result)
+    [[ "$from_role" == "strategist" ]] || die_rule \
+      "strategy_result sender must be strategist" \
+      "the strategist writes focused analysis results" \
+      "send from the strategist agent"
+    case "$to_role" in
+      lead|manager|architect)
+        ;;
+      general-reviewer|frontend-critic)
+        load_task_assignment
+        [[ "$to" == "$task_supervisor" ]] || die_rule \
+          "strategy result target does not supervise $task_id" \
+          "task supervisor is $task_supervisor" \
+          "send to $task_supervisor"
+        cc_to="$task_manager"
+        ;;
+      *)
+        die_rule \
+          "strategy_result target role is invalid: $to_role" \
+          "strategy results return to Lead, Manager, Architect, or the assigned task Supervisor" \
+          "send the result to the role that requested the strategy work"
+        ;;
+    esac
     ;;
   architecture_request)
-    [[ "$to_role" == "architect" ]] || die_rule \
-      "architecture_request target must be architect" \
-      "architecture requests are handled only by the architect role" \
-      "send architecture_request to the architect agent"
+    [[ "$to_role" == "architect" ]] || die_rule "architecture_request target must be architect" "the architect owns technical direction" "send to the architect agent"
     case "$from_role" in
-      lead)
-        subtype="lead_intent"
-        ;;
-      manager)
-        subtype="manager_design"
-        ;;
-      reviewer)
-        subtype="reviewer_supervision"
-        [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
-          "reviewer architecture_request requires TASK" \
-          "reviewer architecture requests must be tied to a dispatched task" \
-          "pass TASK=<task_id> for the task being supervised"
-        state_file="$(team_task_state_file "$task_id")"
-        [[ -f "$state_file" ]] || die_rule \
-          "task state not found for architecture_request: $task_id" \
-          "manager CC is resolved from task state, but the task has not been dispatched" \
-          "dispatch the task first, then send the architecture request"
-        assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
-        [[ "$assigned_reviewer" == "$from" ]] || die_rule \
-          "reviewer is not assigned to task $task_id" \
-          "only the task's assigned reviewer may request architect help for reviewer supervision" \
-          "send from $assigned_reviewer or update the task assignment"
-        cc_to="$(team_task_state_field "$task_id" manager)"
+      lead) subtype="lead_intent" ;;
+      manager) subtype="manager_design" ;;
+      general-reviewer|frontend-critic)
+        load_task_assignment
+        [[ "$task_supervisor" == "$from" ]] || die_rule "supervisor is not assigned to $task_id" "only the fixed task supervisor may request task-local architecture direction" "send from $task_supervisor"
+        subtype="${from_role}-supervision"
+        cc_to="$task_manager"
         ;;
       release-captain)
-        subtype="release_readiness"
-        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule \
-          "release-captain architecture_request requires BUNDLE" \
-          "release readiness architecture requests must be tied to a release bundle" \
-          "pass BUNDLE=<bundle_id>"
-        release_state_file="$(team_release_state_file "$bundle_id")"
-        [[ -f "$release_state_file" ]] || die_rule \
-          "release state not found for architecture_request: $bundle_id" \
-          "manager CC is resolved from release state, but the release has not been requested" \
-          "run make release-request before asking architect from release-captain"
+        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "release architecture request requires BUNDLE" "release readiness is scoped to one bundle" "pass BUNDLE=<bundle_id>"
+        [[ -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "release state not found: $bundle_id" "the bundle has not been requested" "run make release-request first"
         assigned_release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-        [[ "$assigned_release_captain" == "$from" ]] || die_rule \
-          "release-captain is not assigned to bundle $bundle_id" \
-          "only the bundle's release-captain may request architect help for release readiness" \
-          "send from $assigned_release_captain or request release review with the intended release-captain"
+        [[ "$assigned_release_captain" == "$from" ]] || die_rule "release-captain is not assigned to $bundle_id" "release state names $assigned_release_captain" "send from $assigned_release_captain"
+        subtype="release_readiness"
         cc_to="$(team_release_state_field "$bundle_id" manager)"
         ;;
-      worker)
-        die_rule \
-          "worker cannot send architecture_request directly" \
-          "workers ask their assigned reviewer; reviewer decides whether architect input is needed" \
-          "send a question to the assigned reviewer instead"
+      general-worker|frontend-worker)
+        load_task_assignment
+        die_rule "implementation worker cannot request architect directly" "task-local technical direction goes through the fixed supervisor" "ask $task_supervisor"
         ;;
-      *)
-        die_rule \
-          "role cannot send architecture_request: $from_role" \
-          "architecture_request is limited to lead, manager, reviewer, and release-captain roles" \
-          "send through lead, manager, the assigned reviewer, or release-captain"
-        ;;
+      *) die_rule "role cannot request architecture: $from_role" "architecture requests come from lead, manager, assigned supervisors, or release-captain" "route the request through an allowed role" ;;
     esac
-    if [[ "$subtype" == "reviewer_supervision" || "$subtype" == "release_readiness" ]]; then
-      [[ -n "$cc_to" ]] || die_rule \
-        "architecture_request CC target is missing" \
-        "reviewer and release-captain architecture requests must also notify the relevant manager" \
-        "repair task or release state so manager is recorded"
-    fi
-    if [[ -n "$cc_to" ]]; then
-      if ! team_config_agent_record "$cc_to" >/dev/null; then
-        die_rule \
-          "architecture_request CC target is unknown: $cc_to" \
-          "the resolved manager is not present in team config" \
-          "repair task or release state with a configured manager"
-      fi
-      cc_role="$(team_config_agent_field "$cc_to" role)"
-      [[ "$cc_role" == "manager" ]] || die_rule \
-        "architecture_request CC target is not a manager agent" \
-        "$cc_to has role $cc_role in $TEAM_CONFIG_FILE" \
-        "repair task or release state with a manager agent"
-    fi
     artifact_path="$(team_architecture_artifact_path "$task_id" "$bundle_id" "$subtype")"
     if [[ -n "$task_id" && "$task_id" != "-" ]]; then
-      state_file="$(team_task_state_file "$task_id")"
-      [[ -f "$state_file" ]] || die_rule \
-        "task state not found for architecture_request: $task_id" \
-        "task-scoped architecture requests update task architecture state" \
-        "dispatch the task first or omit TASK for a general architecture request"
-      manager="$(team_task_state_field "$task_id" manager)"
-      owner="$(team_task_state_field "$task_id" owner)"
-      reviewer="$(team_task_state_field "$task_id" reviewer)"
-      status="$(team_task_state_field "$task_id" status)"
-      base_commit="$(team_task_state_field "$task_id" base_commit)"
-      head_commit="$(team_task_state_field "$task_id" head_commit)"
-      report_file="$(team_task_state_field "$task_id" report)"
-      review_file="$(team_task_state_field "$task_id" review)"
-      review_decision="$(team_task_state_field "$task_id" review_decision)"
-      current_done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
-      release_bundle="$(team_task_state_field "$task_id" release_bundle)"
+      load_task_assignment
       team_write_task_state \
-        "$task_id" \
-        "$manager" \
-        "$owner" \
-        "$reviewer" \
-        "$status" \
-        "$base_commit" \
-        "$head_commit" \
-        "$report_file" \
-        "$review_file" \
-        "$review_decision" \
-        "$current_done_recommendation" \
-        "true" \
-        "$artifact_path" \
-        "$release_bundle"
+        "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "$task_status" \
+        "$task_base_commit" "$task_head_commit" "$task_report" "$task_supervision_artifact" \
+        "$task_supervision_decision" "${task_done_recommendation:-false}" "true" "$artifact_path" \
+        "$task_release_bundle" "$task_direction_status" "$task_direction_artifact"
     fi
-    if [[ -z "$body" ]]; then
-      body="Architecture request from $from."
-    fi
-    body="${body}"$'\n\n'"Architecture artifact path: $artifact_path"
+    [[ -n "$body" ]] || body="Architecture request from $from."
+    body+=$'\n\n'"Architecture artifact path: $artifact_path"
     ;;
   architecture_result)
-    [[ "$from_role" == "architect" ]] || die_rule \
-      "architecture_result sender must be architect" \
-      "architecture results are written by the architect role" \
-      "send architecture_result from architect"
+    [[ "$from_role" == "architect" ]] || die_rule "architecture_result sender must be architect" "the architect writes architecture results" "send from architect"
     case "$to_role" in
-      lead|manager)
-        ;;
-      reviewer)
-        [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
-          "architecture_result to reviewer requires TASK" \
-          "manager CC and reviewer assignment are read from task state" \
-          "pass TASK=<task_id>"
-        state_file="$(team_task_state_file "$task_id")"
-        [[ -f "$state_file" ]] || die_rule \
-          "task state not found for architecture_result: $task_id" \
-          "architecture_result to a reviewer must reference a dispatched task" \
-          "dispatch the task first or send the result to lead or manager"
-        assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
-        [[ "$assigned_reviewer" == "$to" ]] || die_rule \
-          "architecture_result reviewer mismatch for $task_id" \
-          "task state reviewer is $assigned_reviewer, but target is $to" \
-          "send to $assigned_reviewer or update the task assignment"
-        cc_to="$(team_task_state_field "$task_id" manager)"
-        [[ -n "$cc_to" ]] || die_rule \
-          "task $task_id is missing manager" \
-          "architecture_result to a reviewer must also notify the task manager" \
-          "redispatch or repair task state so manager is recorded"
+      lead|manager) ;;
+      general-reviewer|frontend-critic)
+        load_task_assignment
+        [[ "$to" == "$task_supervisor" ]] || die_rule "architecture result target does not supervise $task_id" "task supervisor is $task_supervisor" "send to $task_supervisor"
+        cc_to="$task_manager"
         ;;
       release-captain)
-        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule \
-          "architecture_result to release-captain requires BUNDLE" \
-          "manager CC and release-captain assignment are read from release state" \
-          "pass BUNDLE=<bundle_id>"
-        release_state_file="$(team_release_state_file "$bundle_id")"
-        [[ -f "$release_state_file" ]] || die_rule \
-          "release state not found for architecture_result: $bundle_id" \
-          "architecture_result to a release-captain must reference a release request" \
-          "run make release-request first or send the result to lead or manager"
-        assigned_release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-        [[ "$assigned_release_captain" == "$to" ]] || die_rule \
-          "architecture_result release-captain mismatch for $bundle_id" \
-          "release state release_captain is $assigned_release_captain, but target is $to" \
-          "send to $assigned_release_captain or create a new release request"
+        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "architecture_result requires BUNDLE" "the result returns to one release review" "pass BUNDLE=<bundle_id>"
+        [[ "$to" == "$(team_release_state_field "$bundle_id" release_captain)" ]] || die_rule "architecture result target is not assigned to $bundle_id" "release state names another captain" "send to the assigned release-captain"
         cc_to="$(team_release_state_field "$bundle_id" manager)"
-        [[ -n "$cc_to" ]] || die_rule \
-          "release $bundle_id is missing manager" \
-          "architecture_result to a release-captain must also notify the release manager" \
-          "rerun make release-request or repair release state so manager is recorded"
         ;;
-      *)
-        die_rule \
-          "architecture_result target role is invalid: $to_role" \
-          "architecture results return to lead, manager, an assigned reviewer, or an assigned release-captain" \
-          "send architecture_result to the requester recorded in the architecture request"
-        ;;
+      *) die_rule "architecture_result target role is invalid: $to_role" "results return to the requester role" "send to lead, manager, assigned supervisor, or release-captain" ;;
     esac
-    if [[ -n "$cc_to" ]]; then
-      if ! team_config_agent_record "$cc_to" >/dev/null; then
-        die_rule \
-          "architecture_result CC target is unknown: $cc_to" \
-          "the resolved manager is not present in team config" \
-          "repair task or release state with a configured manager"
-      fi
-      cc_role="$(team_config_agent_field "$cc_to" role)"
-      [[ "$cc_role" == "manager" ]] || die_rule \
-        "architecture_result CC target is not a manager agent" \
-        "$cc_to has role $cc_role in $TEAM_CONFIG_FILE" \
-        "repair task or release state with a manager agent"
-    fi
     ;;
   release_request)
-    [[ "$to_role" == "release-captain" ]] || die_rule \
-      "release_request target must be release-captain" \
-      "release requests are handled only by the release-captain role" \
-      "send release_request to the release-captain agent"
-    [[ "$from_role" == "manager" ]] || die_rule \
-      "release_request sender must be manager" \
-      "release bundles are owned by manager" \
-      "send release_request from manager"
-    [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule \
-      "release_request requires BUNDLE" \
-      "release requests must reference a release bundle" \
-      "pass BUNDLE=<bundle_id>"
-    release_state_file="$(team_release_state_file "$bundle_id")"
-    [[ -f "$release_state_file" ]] || die_rule \
-      "release state not found for release_request: $bundle_id" \
-      "release_request messages are sent by make release-request after state is written" \
-      "run make release-request BUNDLE=$bundle_id TASKS='<task ids>'"
-    release_manager="$(team_release_state_field "$bundle_id" manager)"
-    release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-    [[ "$release_manager" == "$from" ]] || die_rule \
-      "release_request manager mismatch for $bundle_id" \
-      "release state manager is $release_manager, but sender is $from" \
-      "send from $release_manager or create a new release request"
-    [[ "$release_captain" == "$to" ]] || die_rule \
-      "release_request target mismatch for $bundle_id" \
-      "release state release_captain is $release_captain, but target is $to" \
-      "send to $release_captain or create a new release request"
+    [[ "$from_role" == "manager" && "$to_role" == "release-captain" ]] || die_rule "invalid release_request route" "release requests go from manager to release-captain" "use make release-request"
+    [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "release_request requires BUNDLE" "the message must reference a prepared bundle" "pass BUNDLE=<bundle_id>"
+    [[ -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "release state not found: $bundle_id" "make release-request creates state before sending" "run make release-request"
+    [[ "$(team_release_state_field "$bundle_id" manager)" == "$from" ]] || die "release manager mismatch for $bundle_id"
+    [[ "$(team_release_state_field "$bundle_id" release_captain)" == "$to" ]] || die "release-captain mismatch for $bundle_id"
     artifact_path="$(team_relative_path "$(team_release_bundle_file "$bundle_id")")"
-    review_artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
-    if [[ -z "$body" ]]; then
-      body="Release request from $from."
-    fi
-    body="${body}"$'\n\n'"Release bundle path: $artifact_path"$'\n'"Release review path: $review_artifact_path"
+    body="${body:-Release request from $from.}"$'\n\n'"Release bundle path: $artifact_path"$'\n'"Release review path: $(team_relative_path "$(team_release_review_file "$bundle_id")")"
     ;;
   release_result)
-    [[ "$from_role" == "release-captain" ]] || die_rule \
-      "release_result sender must be release-captain" \
-      "release results are written by the release-captain role" \
-      "send release_result from release-captain"
-    [[ "$to_role" == "manager" ]] || die_rule \
-      "release_result target must be manager" \
-      "release results return to the bundle manager" \
-      "send release_result to manager"
-    [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule \
-      "release_result requires BUNDLE" \
-      "release results must reference a release bundle" \
-      "pass BUNDLE=<bundle_id>"
-    release_state_file="$(team_release_state_file "$bundle_id")"
-    [[ -f "$release_state_file" ]] || die_rule \
-      "release state not found for release_result: $bundle_id" \
-      "release_result messages require an existing release request" \
-      "run make release-request first"
-    release_manager="$(team_release_state_field "$bundle_id" manager)"
-    release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-    [[ "$release_manager" == "$to" ]] || die_rule \
-      "release_result target mismatch for $bundle_id" \
-      "release state manager is $release_manager, but target is $to" \
-      "send to $release_manager"
-    [[ "$release_captain" == "$from" ]] || die_rule \
-      "release_result sender mismatch for $bundle_id" \
-      "release state release_captain is $release_captain, but sender is $from" \
-      "send from $release_captain"
+    [[ "$from_role" == "release-captain" && "$to_role" == "manager" ]] || die_rule "invalid release_result route" "release results return from release-captain to manager" "use make release-report"
+    [[ -n "$bundle_id" && -f "$(team_release_state_file "$bundle_id")" ]] || die "release state not found: $bundle_id"
+    [[ "$(team_release_state_field "$bundle_id" manager)" == "$to" ]] || die "release manager mismatch for $bundle_id"
+    [[ "$(team_release_state_field "$bundle_id" release_captain)" == "$from" ]] || die "release-captain mismatch for $bundle_id"
     artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
     ;;
-  checkpoint)
-    [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
-      "checkpoint requires TASK" \
-      "checkpoints are task-local progress signals from worker to reviewer" \
-      "pass TASK=<task_id>"
-    [[ "$from_role" == "worker" ]] || die_rule \
-      "checkpoint sender must be worker" \
-      "implementation checkpoints are sent by the assigned worker" \
-      "send checkpoint from the task worker"
-    state_file="$(team_task_state_file "$task_id")"
-    [[ -f "$state_file" ]] || die_rule \
-      "task state not found for checkpoint: $task_id" \
-      "checkpoints require a dispatched task with owner and reviewer state" \
-      "dispatch the task first"
-    owner="$(team_task_state_field "$task_id" owner)"
-    assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
-    [[ "$owner" == "$from" ]] || die_rule \
-      "worker is not assigned to task $task_id" \
-      "checkpoint must come from the task owner recorded in task state" \
-      "send from $owner or update the task assignment"
-    [[ "$to" == "$assigned_reviewer" ]] || die_rule \
-      "checkpoint target must be task reviewer" \
-      "checkpoint is a reviewer supervision signal for the reviewer recorded in task state" \
-      "send checkpoint to $assigned_reviewer"
+  completion_ready|completion_ack)
+    [[ -n "$bundle_id" && -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "$type requires a shipped BUNDLE" "completion messages close one release" "pass BUNDLE=<bundle_id> after SHIP"
+    release_manager="$(team_release_state_field "$bundle_id" manager)"
+    release_status="$(team_release_state_field "$bundle_id" status)"
+    release_decision="$(team_release_state_field "$bundle_id" decision)"
+    [[ "$release_status" == "ship" && "$release_decision" == "SHIP" ]] || die_rule "release is not shipped: $bundle_id" "status=$release_status decision=$release_decision" "wait for release-captain SHIP"
+    if [[ "$type" == "completion_ready" ]]; then
+      [[ "$from_role" == "manager" && "$to_role" == "lead" && "$from" == "$release_manager" ]] || die_rule "invalid completion_ready route" "the bundle manager sends readiness to lead" "send from $release_manager to lead"
+    else
+      [[ "$from_role" == "lead" && "$to" == "$release_manager" ]] || die_rule "invalid completion_ack route" "lead acknowledges the bundle manager" "send from lead to $release_manager"
+    fi
+    artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
     ;;
-  review_feedback)
-    [[ -n "$task_id" && "$task_id" != "-" ]] || die_rule \
-      "review_feedback requires TASK" \
-      "review feedback is task-local supervision and must be tied to a task" \
-      "pass TASK=<task_id>"
-    [[ "$from_role" == "reviewer" ]] || die_rule \
-      "review_feedback sender must be reviewer" \
-      "only the assigned reviewer sends task-local supervision feedback" \
-      "send review_feedback from the task reviewer"
-    state_file="$(team_task_state_file "$task_id")"
-    [[ -f "$state_file" ]] || die_rule \
-      "task state not found for review_feedback: $task_id" \
-      "review feedback requires a dispatched task with owner and reviewer state" \
-      "dispatch the task first"
-    owner="$(team_task_state_field "$task_id" owner)"
-    assigned_reviewer="$(team_task_state_field "$task_id" reviewer)"
-    [[ "$assigned_reviewer" == "$from" ]] || die_rule \
-      "reviewer is not assigned to task $task_id" \
-      "review_feedback must come from the reviewer recorded in task state" \
-      "send from $assigned_reviewer or update the task assignment"
-    [[ "$to" == "$owner" ]] || die_rule \
-      "review_feedback target must be task owner" \
-      "review feedback is sent to the worker assigned in task state" \
-      "send review_feedback to $owner"
+  manager_fix)
+    [[ "$from_role" == "manager" ]] || die_rule "manager_fix sender must be manager" "only Manager returns an accepted task to its implementation pair" "send from manager"
+    load_task_assignment
+    [[ "$from" == "$task_manager" ]] || die "task manager is $task_manager, not $from"
+    [[ "$task_status" == "supervision_ok" ]] || die_rule "task is not awaiting Manager done decision: $task_id" "status=$task_status, but manager_fix requires supervision_ok" "wait for supervisor OK or use supervision_feedback earlier"
+    [[ "$to" == "$task_worker" || "$to" == "$task_supervisor" ]] || die_rule "manager_fix target is outside the implementation pair" "the task pair is $task_worker and $task_supervisor" "send to one of the task pair"
+    team_write_task_state \
+      "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "manager_fix" \
+      "$task_base_commit" "$task_head_commit" "$task_report" "$task_supervision_artifact" \
+      "FIX" "false" "$task_architecture_required" "$task_architecture" "$task_release_bundle" \
+      "$task_direction_status" "$task_direction_artifact"
+    ;;
+  task_assigned)
+    [[ "$from_role" == "manager" ]] || die "task_assigned sender must be manager"
+    load_task_assignment
+    [[ "$from" == "$task_manager" && "$to" == "$task_worker" ]] || die "task_assigned route does not match task state"
+    ;;
+  supervision_assigned)
+    [[ "$from_role" == "manager" ]] || die "supervision_assigned sender must be manager"
+    load_task_assignment
+    [[ "$from" == "$task_manager" && "$to" == "$task_supervisor" ]] || die "supervision_assigned route does not match task state"
+    ;;
+  supervision_checkpoint|ready_for_supervision|view_direction_ready)
+    require_assigned_worker_to_supervisor
+    if [[ "$type" == "view_direction_ready" ]]; then
+      [[ "$from_role" == "frontend-worker" && "$to_role" == "frontend-critic" ]] || die_rule "view_direction_ready requires the frontend pair" "general implementation uses supervision_checkpoint" "send from frontend-worker to frontend-critic"
+    fi
+    ;;
+  supervision_feedback)
+    require_assigned_supervisor_to_worker
+    ;;
+  view_direction_result)
+    load_task_assignment
+    [[ "$from" == "$task_supervisor" && "$from_role" == "frontend-critic" ]] || die "view_direction_result sender must be the assigned frontend-critic"
+    [[ "$to" == "$task_worker" || "$to" == "$task_manager" ]] || die "view_direction_result target must be task worker or manager"
+    ;;
+  supervision_result)
+    load_task_assignment
+    [[ "$from" == "$task_supervisor" ]] || die "supervision_result sender must be the assigned supervisor"
+    [[ "$to" == "$task_worker" || "$to" == "$task_manager" ]] || die "supervision_result target must be task worker or manager"
+    ;;
+  research_request)
+    [[ "$from_role" =~ ^(lead|manager|strategist|architect|release-captain)$ ]] || die "invalid research_request sender role: $from_role"
+    [[ "$to_role" == "research-worker" && -n "$research_id" ]] || die "direct research_request requires an assigned research worker and request id"
+    [[ -f "$(team_research_state_file "$research_id")" ]] || die "research state not found: $research_id"
+    [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research caller mismatch: $research_id"
+    [[ "$(team_research_state_field "$research_id" worker)" == "$to" ]] || die "research worker mismatch: $research_id"
+    artifact_path=".agents/queue/research/${research_id}.md"
+    ;;
+  research_question)
+    [[ "$from_role" == "research-worker" ]] || die "research_question sender must be research-worker"
+    [[ -n "$research_id" ]] || die "research_question requires research id"
+    [[ "$(team_research_state_field "$research_id" worker)" == "$from" ]] || die "research question sender is not assigned: $research_id"
+    [[ "$(team_research_state_field "$research_id" caller)" == "$to" ]] || die "research question target is not caller: $research_id"
+    ;;
+  research_answer)
+    [[ -n "$research_id" ]] || die "research_answer requires research id"
+    [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research answer sender is not caller: $research_id"
+    [[ "$(team_research_state_field "$research_id" worker)" == "$to" ]] || die "research answer target is not assigned worker: $research_id"
+    ;;
+  research_cancelled)
+    [[ -n "$research_id" ]] || die "research_cancelled requires research id"
+    [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research cancellation sender is not caller: $research_id"
+    [[ "$(team_research_state_field "$research_id" worker)" == "$to" ]] || die "research cancellation target is not assigned worker: $research_id"
+    ;;
+  research_result)
+    [[ -n "$research_id" ]] || die "research_result requires research id"
+    [[ "$(team_research_state_field "$research_id" worker)" == "$from" ]] || die "research result sender is not assigned worker: $research_id"
+    [[ "$(team_research_state_field "$research_id" caller)" == "$to" ]] || die "research result target is not caller: $research_id"
+    artifact_path="$(team_research_state_field "$research_id" artifact)"
+    ;;
+  note|intake|approval|decision|question|answer|request)
+    ;;
+  *)
+    die_rule \
+      "unknown message type: $type" \
+      "message routing accepts only protocol types" \
+      "use a type documented in .agents/docs/TEAM_PROTOCOL.md"
     ;;
 esac
 
+if [[ -n "$cc_to" ]]; then
+  team_config_agent_record "$cc_to" >/dev/null || die "resolved CC target is not configured: $cc_to"
+  [[ "$(team_config_agent_field "$cc_to" role)" == "manager" ]] || die "resolved CC target is not manager: $cc_to"
+fi
+
 if [[ -z "$body" ]]; then
   if [[ -n "$task_id" && "$task_id" != "-" ]]; then
-    body="$TEAM_QUEUE_DIR/tasks/$task_id.md を確認してください。"
+    body=".agents/queue/tasks/$task_id.md を確認してください。"
   else
-    body="$TEAM_QUEUE_DIR/inbox/$to.jsonl を確認してください。"
+    body="inbox $to を確認してください。"
   fi
 fi
 
 if [[ -z "$requires_attention" ]]; then
-  if [[ "$type" == "note" ]]; then
-    requires_attention="false"
-  else
-    requires_attention="true"
-  fi
+  [[ "$type" == "note" ]] && requires_attention="false" || requires_attention="true"
 fi
 
 write_message() {
@@ -569,8 +419,7 @@ write_message() {
   inbox_file="$TEAM_QUEUE_DIR/inbox/$message_to.jsonl"
   message_file="$TEAM_STATE_DIR/messages/$message_id.json"
   processed_dir="$TEAM_STATE_DIR/processed/$message_to"
-
-  line="{\"id\":\"$(json_string "$message_id")\",\"from\":\"$(json_string "$from")\",\"to\":\"$(json_string "$message_to")\",\"type\":\"$(json_string "$type")\",\"subtype\":\"$(json_string "$subtype")\",\"task_id\":\"$(json_string "$task_id")\",\"bundle_id\":\"$(json_string "$bundle_id")\",\"artifact_path\":\"$(json_string "$artifact_path")\",\"cc_of\":\"$(json_string "$message_cc_of")\",\"done_recommendation\":\"$(json_string "$done_recommendation")\",\"created_at\":\"$created_at\",\"body\":\"$(json_string "$message_body")\"}"
+  line="{\"id\":\"$(json_string "$message_id")\",\"from\":\"$(json_string "$from")\",\"to\":\"$(json_string "$message_to")\",\"type\":\"$(json_string "$type")\",\"subtype\":\"$(json_string "$subtype")\",\"task_id\":\"$(json_string "$task_id")\",\"bundle_id\":\"$(json_string "$bundle_id")\",\"research_id\":\"$(json_string "$research_id")\",\"artifact_path\":\"$(json_string "$artifact_path")\",\"cc_of\":\"$(json_string "$message_cc_of")\",\"done_recommendation\":\"$(json_string "$done_recommendation")\",\"requires_attention\":\"$(json_string "$message_requires_attention")\",\"created_at\":\"$created_at\",\"body\":\"$(json_string "$message_body")\"}"
 
   acquire_team_lock "inbox-$message_to"
   printf '%s\n' "$line" >> "$inbox_file"
@@ -582,22 +431,24 @@ write_message() {
   release_team_lock
 
   if [[ "$message_requires_attention" == "true" ]]; then
-    if ! "$SCRIPT_DIR/team_nudge.sh" "$message_to"; then
-      warn "nudge failed for $message_to; inbox entry is still available at $inbox_file"
-    fi
+    "$SCRIPT_DIR/team_nudge.sh" "$message_to" >/dev/null || warn "nudge failed for $message_to; inbox message remains available"
   fi
-
   printf '%s\n' "$message_id"
 }
 
 message_id="$(write_message "$to" "$body" "" "$requires_attention")"
+team_record_task_message_activity "$message_id"
 printf 'message_id=%s\n' "$message_id"
 
 if [[ -n "$cc_to" ]]; then
   cc_body="CC of $type $message_id from $from to $to."$'\n\n'"$body"
   cc_message_id="$(write_message "$cc_to" "$cc_body" "$message_id" "true")"
+  team_record_task_message_activity "$cc_message_id"
   printf 'cc_to=%s\n' "$cc_to"
   printf 'cc_message_id=%s\n' "$cc_message_id"
 fi
 
-team_mark_inbox_processed "$from" "$task_id" "$bundle_id"
+case "$type" in
+  research_request|research_question|research_answer|research_cancelled|research_result) ;;
+  *) team_mark_inbox_processed "$from" "$task_id" "$bundle_id" ;;
+esac

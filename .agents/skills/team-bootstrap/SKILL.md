@@ -34,6 +34,7 @@ Ask one question at a time.
 - package name, public entrypoints, and first user-visible behavior。
 - `make smoke` で確認する代表的な利用者向け動作。
 - `make post-change` に追加したい必須 contract。
+- frontend を含む場合、agent が同じ画面を再現できる起動・操作・screenshot の標準的な確認方法。
 
 十分に固まったら、project shape、stack、entrypoint、`make post-change`、`make smoke` を短くまとめてから初期化する。
 
@@ -46,6 +47,7 @@ Ask one question at a time.
 - `make smoke` は代表的な利用者向け動作を短時間で実行する command にする。
 - 選ばなかった言語や未使用 scaffold は残さない。
 - `AGENTS.md` には選んだ stack の command だけを書く。
+- visual frontend がある場合は、`AGENTS.md` に project に必要な厚さの `Visual Verification` 節を置く。専用 schema は作らず、複雑な手順は既存 docs や project command を参照する。
 - 必要な package manager lockfile を作る。
 - 必須 tool が無い場合は blocker として扱う。
 
@@ -57,7 +59,7 @@ bootstrap 実装では、template の初期記述を実プロジェクトの con
 - `AGENTS.md`: 選んだ stack の command、package dir、test/smoke 期待値、ownership note。
 - `Makefile`: project の `post-change` と `smoke`。
 - package metadata: package name、version、description、entrypoint、build backend、lockfile。
-- `.agents/config/agent-team.yaml`: default が合わない場合の team name、tmux session、model、command。
+- `.agents/config/agent-team.yaml`: default が合わない場合の team name、tmux session、agent records、CLI、model、effort、supervisor pairing。
 
 project-facing docs から、古い example、toy name、未使用 stack command、template 固有の文言を消す。
 
@@ -112,5 +114,4 @@ Done means:
 - `.agents/skills/team-bootstrap/` is removed.
 - bootstrap-only Make targets are removed.
 - `.agents/scripts/team_bootstrap.sh` and `.agents/scripts/team_bootstrap_team.sh` are removed.
-- `.agents/harness.mk` and `.agents/tests/` are removed unless the initialized project intentionally keeps template self-tests.
-- no references remain to removed bootstrap scripts, bootstrap targets, or template self-tests.
+- no references remain to removed bootstrap scripts or bootstrap targets.

@@ -1,41 +1,48 @@
 # customizable-agent-teams
 
-ローカルの tmux 上で、Claude Code / Codex などの coding agent を **Lead / Manager / Strategist / Architect / Release Captain / Reviewer / Worker** のチームとして動かすためのプロジェクトテンプレートです。
+ローカルの tmux 上で、Claude Code と Codex を役割分担させるプロジェクトテンプレートです。人間との対話、進行管理、技術判断、調査、一般実装、frontend 実装、task-local supervision、release 判断を別々の agent が担当します。
 
-人間は Lead にだけ話します。Lead は曖昧な依頼を丁寧に擦り合わせ、Manager が task 分解と進行管理を持ち、Worker と Reviewer がペアで実装を進めます。Strategist は深い調査、Architect は技術方針、Release Captain は完了前の全体確認を担当します。
+人間は Lead にだけ話します。Manager は依存関係と dispatch を担い、General Worker / General Reviewer と Frontend Worker / Frontend Critic の固定ペアが実装を進めます。4体の Research Worker はコードベース調査、フィジビリティ確認、Web検索を並列処理します。
 
 ![customizable-agent-teams workflow](.agents/assets/agent-team-flow.png)
 
 ## 特徴
 
 - **Lead は人間との共同思考に集中** — Lead は実装も dispatch もせず、質問、承認取得、意図の翻訳に専念します。
-- **Manager がチーム運用を所有** — task 作成、worker/reviewer 割当、dispatch、escalation、done 判定、release bundle 作成、`STATE.md` 更新を担当します。
+- **Manager がチーム運用を所有** — task 作成、Worker 選択、dispatch、escalation、done 判定、release bundle 作成、`STATE.md` 更新を担当します。
 - **Strategist を常駐** — 深い bug 調査、比較、実行計画を成果物として残します。
 - **Architect が技術方針を所有** — 抽象化、境界、テスト方針、統合時の一貫性を見ます。
 - **Release Captain が全体確認** — task 単位の OK とは別に、bundle が人間へ完了報告できる状態かを判定します。
-- **Reviewer が task-local supervisor** — 常駐 reviewer が worker の相談窓口になり、途中 feedback、strategy 相談、final review を担当します。
+- **General lane** — 3組の General Worker / General Reviewer が主要な実装を担当します。Manager は関連領域の継続性を見て Worker を選び、Supervisor は固定ペアから決まります。
+- **Research pool** — 4体の Research Worker がコードベース、feasibility、Web を調査し、根拠と結果を caller へ直接返します。
+- **Frontend lane** — Frontend Worker が実画面を見ながら実装し、Claude Opus の Frontend Critic が view direction と完成画面を別視点で厳しく確認します。
 - **shared root** — 全 agent が同じ repo root で動きます。venv / node_modules / `.env` / direnv を重複させません。
-- **CLI / model の混在** — `.agents/config/agent-team.yaml` で役割ごとに CLI・model・起動コマンドを変更できます。
+- **CLI / model の混在** — `.agents/config/agent-team.yaml` の agent records で CLI・model・effort・人数・固定ペアを変更できます。
 
 ## 仕組み
 
 | 役割 | 配置 | 責務 |
 | --- | --- | --- |
 | **Lead** | tmux `lead` pane | 人間の唯一の窓口。曖昧な依頼を擦り合わせ、必要な判断を人間に確認し、Manager に依頼する。project code は編集しない。 |
-| **Manager** | tmux `manager` pane | task 分解、worker/reviewer 割当、dispatch、escalation 対応、done 判定、release bundle 作成、`.agents/state/STATE.md` の主編集者。project code は編集しない。 |
+| **Manager** | tmux `manager` pane | task 分解、Worker 選択、dispatch、escalation 対応、done 判定、release bundle 作成、`.agents/state/STATE.md` の主編集者。 |
 | **Strategist** | tmux `strategist` pane | 深い調査、複数案比較、実行計画。 |
 | **Architect** | tmux `architect` pane | 技術方針、設計一貫性、境界、テスト期待値を判断する。 |
 | **Release Captain** | tmux `release-captain` pane | 複数 task のまとまりを確認し、`SHIP` / `FIX` / `BLOCKED` を返す。 |
-| **Reviewer** | tmux `reviewer-N` pane | worker の task-local supervisor。質問受付、途中 feedback、strategy 相談、final review を担当する。project code は編集しない。 |
-| **Worker** | tmux `worker-N` pane | shared root で実装、検証、commit、report を担当する。 |
+| **General Worker** | tmux `general-worker-N` pane | 主力実装、検証、commit、report。 |
+| **General Reviewer** | tmux `general-reviewer-N` pane | 固定 General Worker の相談、途中 feedback、final review。 |
+| **Research Worker** | tmux `research-worker-N` pane | codebase、feasibility、Web の事実調査。project code は編集しない。 |
+| **Frontend Worker** | tmux `frontend-worker-N` pane | view direction を固め、実画面を反復確認しながら frontend を実装する。 |
+| **Frontend Critic** | tmux `frontend-critic-N` pane | view direction、visual、interaction、accessibility、frontend code と tests を supervision する。 |
 
 ```text
 Human
   -> Lead
   -> Manager
-  -> Worker + Reviewer pair
+  -> General Worker + General Reviewer
+     or Frontend Worker + Frontend Critic
+  -> Research Worker pool when evidence is needed
   -> Strategist / Architect when deeper thinking is needed
-  -> Reviewer OK/FIX/ASK_MANAGER
+  -> Supervisor OK/FIX/ASK_MANAGER
   -> Manager marks done
   -> Release Captain SHIP/FIX/BLOCKED
   -> Lead reports completion
@@ -44,10 +51,12 @@ Human
 Escalation は狭い範囲で決められる role から順に上がります。
 
 ```text
-Worker -> Reviewer -> Manager -> Lead -> Human
-Reviewer / Manager / Lead -> Architect
-Reviewer / Manager / Architect / Lead -> Strategist
+General Worker -> General Reviewer -> Manager -> Lead -> Human
+Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
+General Reviewer / Frontend Critic / Manager / Lead -> Architect
+General Reviewer / Frontend Critic / Manager / Architect / Lead -> Strategist
 Release Captain -> Architect
+Lead / Manager / Strategist / Architect / Release Captain -> Research Worker pool
 ```
 
 ## 必要なツール
@@ -133,41 +142,41 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 
 ## チームの設定
 
-`.agents/config/agent-team.yaml` で役割・model・CLI・起動コマンド・agent 数を変更できます。
+`.agents/config/agent-team.yaml` の `agents:` list で役割、CLI、model、effort、window、agent 数を変更できます。General Worker と Frontend Worker は `supervisor:` で固定ペアを指定します。
 
-- `team.lead` — Lead の CLI / model / window / command
-- `team.manager` — Manager の CLI / model / window / command
-- `team.strategist` — Strategist の CLI / model / window / command
-- `team.architect` — Architect の CLI / model / window / command
-- `team.release-captain` — Release Captain の CLI / model / window / command
-- `team.reviewers` — Reviewer pool
-- `team.workers` — Worker pool
+起動 command は `cli / model / effort` から生成されます。Claude Code には `--dangerously-skip-permissions`、Codex には `--dangerously-bypass-approvals-and-sandbox` が常に付きます。Codex の Research Worker には Web検索も有効になります。
 
 ## 日常運用
 
 | 操作 | コマンド | 主に使う役割 |
 | --- | --- | --- |
 | チーム起動 / 再起動 | `make team-start` → `make team-attach` | 人間 |
-| 状態確認 | `make team-status` / `make state` | Manager / Lead |
-| inbox 確認 | `make inbox AGENT=worker-1` | 全員 |
-| 未送信プロンプトの送信 | `make team-submit AGENT=worker-1` | 全員 |
+| 状態・進捗確認 | `make team-status` / `make state` | Manager / Lead |
+| agent surface 確認 | `make agent-surfaces` | Manager / Supervisor |
+| inbox 確認 | `make inbox AGENT=general-worker-1` | 全員 |
+| 未送信プロンプトの送信 | `make team-submit AGENT=general-worker-1` | 全員 |
 | agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY="..."` | 全員 |
-| 長文の agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=/tmp/message.md` | 全員 |
-| 記録のみの note | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=note TASK=T-001 BODY="..."` | 全員 |
-| 返信して inbox を閉じる | `make team-reply FROM=manager TO=lead IN_REPLY_TO=<message_id> TYPE=note BODY_FILE=/tmp/reply.md` | 全員 |
-| task dispatch | `make dispatch TASK=T-001 WORKER=worker-1 REVIEWER=reviewer-1` | Manager |
-| 検証ゲート | `make post-change` / `make smoke` | Worker |
-| worker checkpoint | `make team-send FROM=worker-1 TO=reviewer-1 TYPE=checkpoint TASK=T-001 BODY_FILE=/tmp/checkpoint.md` | Worker |
-| reviewer feedback | `make team-send FROM=reviewer-1 TO=worker-1 TYPE=review_feedback TASK=T-001 BODY="..."` | Reviewer |
-| strategist 相談 | `make team-send FROM=reviewer-1 TO=strategist TASK=T-001 BODY="..."` | Lead / Manager / Reviewer |
-| architect 相談 | `make team-send FROM=reviewer-1 TO=architect TASK=T-001 BODY="..."` | Lead / Manager / Reviewer / Release Captain |
-| worker report | `make report TASK=T-001 AGENT=worker-1 STATUS=needs_review` | Worker |
-| reviewer decision | `make review-report TASK=T-001 REVIEWER=reviewer-1 DECISION=OK` | Reviewer |
+| 長文の agent 連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=.agents/queue/state/tmp/message.md` | 全員 |
+| 記録のみの note | `make team-send TO=general-worker-1 TYPE=note TASK=T-001 BODY="..."` | 全員 |
+| inbox へ返信 | `make team-reply IN_REPLY_TO=<message_id> TYPE=answer BODY_FILE=.agents/queue/state/tmp/reply.md` | 全員 |
+| research 依頼 | `make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research.md` | Lead / Manager / Strategist / Architect / Release Captain |
+| task dispatch | `make dispatch TASK=T-001` | Manager |
+| task contract 確認 | `make task-lint TASK=T-001` | Manager / Supervisor |
+| 検証ゲート | `make post-change` / `make smoke` | Implementation Worker |
+| supervision checkpoint | `make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=T-001 BODY_FILE=.agents/queue/state/tmp/checkpoint.md` | Implementation Worker |
+| supervision feedback | `make team-send TO=<worker_id> TYPE=supervision_feedback TASK=T-001 BODY="..."` | Supervisor |
+| manager 差し戻し | `make team-send TO=<pair_agent_id> TYPE=manager_fix TASK=T-001 BODY_FILE=.agents/queue/state/tmp/manager-fix.md` | Manager |
+| strategist 相談 | `make team-send TO=strategist TASK=T-001 BODY="..."` | Lead / Manager / Supervisor / Architect |
+| architect 相談 | `make team-send TO=architect TASK=T-001 BODY="..."` | Lead / Manager / Supervisor / Release Captain |
+| implementation report | `make report TASK=T-001 STATUS=needs_supervision` | Implementation Worker |
+| direction decision | `make direction-report TASK=T-001 DECISION=PROCEED` | Frontend Critic |
+| supervision decision | `make supervision-report TASK=T-001 DECISION=OK` | General Reviewer / Frontend Critic |
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
 | release bundle 準備 | `make release-prepare BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
 | release review 依頼 | `make release-request BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
 | release decision | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
-| 完了報告準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BODY="..."` | Manager |
+| 完了報告準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BUNDLE=R-001 BODY="..."` | Manager |
+| 完了報告済み通知 | `make team-send FROM=lead TO=manager TYPE=completion_ack BUNDLE=R-001 BODY="..."` | Lead |
 | 停止 | `make team-stop` | 人間 |
 
 team pane の中では `TEAM_AGENT_ID` が sender になります。repo shell から直接送る場合は `FROM=<agent_id>` を指定します。
@@ -178,7 +187,7 @@ repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指�
 | パス | 内容 |
 | --- | --- |
 | `AGENTS.md` | 全 agent 共通の作業ルール（`CLAUDE.md` は symlink） |
-| `.agents/config/agent-team.yaml` | 役割・model・起動コマンド設定 |
+| `.agents/config/agent-team.yaml` | agent・role・model・effort・固定 supervisor 設定 |
 | `.agents/agent-team.mk` | agent team 操作用の Make targets |
 | `.agents/harness.mk` | このテンプレート自体の保守用 test target |
 | `.agents/docs/TEAM_PROTOCOL.md` | agent team の手順 |
@@ -186,12 +195,12 @@ repo shell から直接 dispatch する場合は `MANAGER=<manager_id>` も指�
 | `.agents/state/MEMORY.md` | 中長期の rules / tips / pitfalls / user preferences |
 | `.agents/skills/` | Claude Code / Codex 共通の skill（`.claude/skills`・`.codex/skills` は symlink） |
 | `.agents/scripts/` | 各コマンドの実体 |
-| `.agents/queue/` | tasks / inbox / reports / reviews / strategy / architecture / releases / proposals / state |
+| `.agents/queue/` | tasks / reports / reviews / critiques / visuals / research / strategy / architecture / releases / proposals / state |
 | `.agents/tests/team/` | このテンプレート自体の test |
 | `Makefile` | project の `post-change` / `smoke` と `.agents/agent-team.mk` の import |
 
 ## ドキュメント
 
 - [`AGENTS.md`](AGENTS.md) — 役割ごとの作業ルール
-- [`.agents/docs/TEAM_PROTOCOL.md`](.agents/docs/TEAM_PROTOCOL.md) — task / review / state の詳細
+- [`.agents/docs/TEAM_PROTOCOL.md`](.agents/docs/TEAM_PROTOCOL.md) — role と lifecycle の全体像
 - [`.agents/state/MEMORY.md`](.agents/state/MEMORY.md) — 共有 memory のルール

@@ -1,111 +1,68 @@
 ---
 name: team-manager
-description: Guides manager operation, STATE execution updates, work sizing, task decomposition, dependency and parallel dispatch, worker/reviewer assignment, escalations, done decisions, and release bundle preparation. Use when a manager receives lead intake or task progress.
+description: Guides Manager work sizing, STATE execution updates, dependency planning, research requests, general/frontend task creation, worker selection, dispatch, escalations, done decisions, and release preparation. Use when Manager receives lead intake, task progress, supervision results, or release results.
 ---
 
 # team-manager
 
-## Inputs
+## Role
 
-- `.agents/docs/TEAM_PROTOCOL.md`
-- `.agents/state/STATE.md`
-- `.agents/state/MEMORY.md`
-- `.agents/queue/tasks/TEMPLATE.md`
-- relevant strategy artifacts in `.agents/queue/strategy/`
-- relevant architecture notes in `.agents/queue/architecture/`
-
-## Operating Bias
-
-- Preserve the human intent from lead.
-- Keep `.agents/state/STATE.md` current and short.
-- Decompose work into independently reviewable tasks.
-- Prefer parallel dispatch when tasks can proceed without waiting for each other's output.
-- Do not serialize because a task is uncertain. Add reviewer supervision, request architect input, or request strategist input, then dispatch the bounded task.
-- Serialize only when a task needs another task's output, shares a file boundary that cannot be split cleanly, changes the same user-visible contract, or would make verification ambiguous.
+- Preserve Lead's intent while owning execution, dependencies, assignments, and current state.
+- Keep `.agents/state/STATE.md` short and true at each handoff.
+- Select the smallest coordination shape that preserves ownership and verification clarity.
 - Do not edit project code.
 
 ## Work Sizing
 
-Choose the smallest coordination shape that preserves ownership, review quality, and verification clarity.
+- `micro`: fold small cleanup or polish into the nearest coherent active task.
+- `research`: request codebase facts, feasibility evidence, or external sources from `research-worker` without creating an implementation task.
+- `general`: use a general-worker for the primary implementation surface.
+- `frontend`: use frontend-worker when rendered UI quality and critic iteration are central to the task.
+- `parallel`: dispatch independent tasks together after mapping dependencies and ownership.
+- `strategy/architecture`: ask Strategist or Architect before decomposition when the missing decision changes the task graph or technical direction.
 
-- `micro`: fold into the nearest active task, release fix, or manager note. Do not create a standalone task for small cleanup, orphan file removal, wording fixes, or bootstrap polish when an existing owner can absorb it.
-- `single-task`: use one worker/reviewer pair when the work has one natural owner and one coherent review surface.
-- `parallel`: dispatch independent tasks in the same batch when they do not depend on each other's output and have clear file or behavior boundaries.
-- `strategy/architecture`: ask strategist or architect before decomposition when the missing decision changes the task graph, technical direction, or verification boundary.
+Do not serialize unrelated work because it is uncertain. Bound uncertainty with supervision or specialist input, then dispatch independent tasks in the same batch.
 
-Do not split work just because it feels safer. Split when ownership, review perspective, or verification boundary truly differs.
+Request research with:
+
+```bash
+make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
+```
+
+## Task Design
+
+- Use `GENERAL_TEMPLATE.md` for general-worker and `FRONTEND_TEMPLATE.md` for frontend-worker.
+- Choose the Worker using availability, file ownership, and continuity with earlier related work.
+- One implementation worker may have only one task until Manager marks it done.
+- The fixed Supervisor is resolved from config at dispatch.
+- Define observable acceptance, explicit paths, verification, evidence, and escalation boundaries.
+- Split substantive frontend and backend ownership when one supervisor could not confidently judge the whole change.
+
+Check and dispatch:
+
+```bash
+make task-lint TASK=<task_id>
+make dispatch TASK=<task_id>
+```
+
+## STATE
+
+Record only the current execution picture: dependency shape, active tasks, blockers, bundle candidate, and next role/action. Use `make team-status` between handoffs. Remove completed task detail; keep durable lessons in proposals and evidence in task artifacts.
+
+Refresh STATE after intake, dispatch, supervision result, task done, release request/result, resolved escalation, and before `completion_ready`.
 
 ## Escalation
 
-- Resolve task operation questions yourself when they are about assignment, dependency, status, or evidence.
-- Ask architect when technical direction or design consistency needs a named owner.
-- Ask strategist when deep debugging, option comparison, or execution planning benefits from separate analysis.
-- Escalate to lead only for human approval, product intent, user-visible behavior, scope, priority, or trade-off decisions.
-- When reviewer escalates, decide the next owner: worker, reviewer, architect, strategist, release-captain, lead, or blocked.
-- Treat lead `intake` as authorization to decompose, assign, dispatch, and prepare release within the stated intent. Ask lead before starting only when the intake itself is missing a required human-facing decision.
-
-## STATE Rhythm
-
-Keep `STATE.md` correct at each handoff.
-
-- After intake: replace waiting text with the current work sizing, dependency shape, and next manager action.
-- Before dispatch: list active tasks, owners, reviewers, dependency edges, and parallel batch.
-- After dispatch: show which role acts next for each active task.
-- After review result or blocker: update task state, blocker, and next owner before sending new messages.
-- After task done: remove done task details from Active Tasks and keep only decisions that still affect current work.
-- Before release prepare: record the bundle candidate and included done tasks.
-- Before release request: refresh the bundle, STATE, included tasks, and release-captain next action.
-- After release result: record `SHIP` / `FIX` / `BLOCKED` and the next role.
-- Before completion_ready: compress STATE so it matches the final snapshot manager is sending to lead.
-
-## Dependency Pass
-
-Before dispatch, write the working dependency shape in `STATE.md`:
-
-- work sizing decision
-- task candidates
-- dependency edges
-- parallel batch
-- blocked decisions
-- next action
-
-If two tasks are independent enough to have separate owners and reviews, dispatch them in the same batch.
-
-## Task Shape
-
-- For follow-up tasks, verify referenced files, commits, and artifacts against current `HEAD` before writing the task.
-- 1 task = 1 natural implementation owner.
-- Assign exactly one worker and one reviewer to each implementation task.
-- Make `Allowed paths` and `Do not modify` explicit.
-- Include context, constraints, acceptance, verification, report evidence, reviewer supervision, escalation path, and memory proposal expectations.
-- Make the task-local reviewer the worker's first contact for blockers, uncertainty, low confidence, and scope temptation.
-- Request architect input when technical direction or design consistency needs a named owner.
-- Request strategist input when deep debugging, option comparison, or execution planning benefits from separate analysis.
-
-## Dispatch
-
-```bash
-make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
-```
-
-When dispatching outside a manager pane, include `MANAGER=<manager_id>`.
+- Resolve assignment, dependency, status, and evidence questions.
+- Ask Architect for technical direction and Strategist for deep analysis.
+- Escalate human approval, product intent, user-visible behavior, scope, priority, or trade-offs to Lead.
+- When a Supervisor escalates, select the next owner and return a concrete decision.
 
 ## Done And Release
 
-- Mark a task `done` only after reviewer `OK`, `done_recommendation=true`, sufficient report evidence, and any required architecture note.
-- Prepare a release bundle when a coherent set of done tasks is ready for whole-system review.
-- Run `make release-prepare BUNDLE=<bundle_id> TASKS="..."`.
-- Fill `.agents/queue/releases/<bundle_id>.md` with current goal, evidence, and known issues.
-- Run `make release-request BUNDLE=<bundle_id> TASKS="..."` after STATE and the bundle match the current snapshot.
-- Send `completion_ready` to lead only after release-captain returns `SHIP`.
-- Compress `STATE.md` after task done, release result, or resolved escalation.
-
-## Quality Check
-
-- No unresolved `TBD` / `TODO` in task acceptance.
-- Every important requirement maps to task acceptance.
-- Parallel tasks have clear ownership boundaries.
-- Reviewer can supervise without asking manager for task-local context.
-- Verification commands or explicit verification gaps are present.
-- `STATE.md` shows the current whole picture without stale task logs.
-- Completed task details live in task, report, review, and release artifacts, not in `STATE.md`.
+- Mark done only after Supervisor `OK`, `done_recommendation=true`, complete report evidence, and required architecture notes.
+- If a global issue appears after Supervisor `OK`, send `manager_fix` to the same implementation pair.
+- The worker/supervisor pair becomes available when Manager marks the task done.
+- Prepare and request a release bundle from a coherent set of done tasks.
+- Send `completion_ready` only after Release Captain returns `SHIP`.
+- Compress STATE after completion handoff.

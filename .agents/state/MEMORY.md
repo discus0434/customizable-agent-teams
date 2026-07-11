@@ -3,7 +3,7 @@
 ## Update Rules
 
 - `.agents/state/MEMORY.md` は lead だけが編集する。
-- worker / reviewer / strategist / architect / release-captain は `.agents/queue/memory_proposals/` に proposal を作る。
+- lead 以外の role は `.agents/queue/memory_proposals/` に proposal を作る。
 - 次回以降の作業で再利用できる rules、tips、pitfalls、user preferences だけを残す。
 - 1 entry = 1 lesson。
 - source task / report / review / strategy / architecture / release / commit を必ず付ける。

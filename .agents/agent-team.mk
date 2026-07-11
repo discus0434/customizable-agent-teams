@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox dispatch report review-report release-prepare release-request release-report state state-update memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch report direction-report supervision-report release-prepare release-request release-report state state-update memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -44,18 +44,19 @@ team-send:
 	fi
 
 team-reply:
-	@test -n "$(FROM)" || { echo "FROM is required" >&2; exit 2; }
-	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }
 	@test -n "$(IN_REPLY_TO)" || { echo "IN_REPLY_TO is required" >&2; exit 2; }
-	@test -n "$(TYPE)" || { echo "TYPE is required" >&2; exit 2; }
 	@if [ -n "$(BODY_FILE)" ] && [ -n "$(BODY)" ]; then \
 		echo "BODY and BODY_FILE cannot both be set" >&2; \
 		exit 2; \
 	fi
-	@if [ -n "$(BODY_FILE)" ]; then \
-		./.agents/scripts/team_reply.sh --from "$(FROM)" --to "$(TO)" --in-reply-to "$(IN_REPLY_TO)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)"; \
+	@args="--in-reply-to $(IN_REPLY_TO)"; \
+	if [ -n "$(FROM)" ]; then args="$$args --from $(FROM)"; fi; \
+	if [ -n "$(TO)" ]; then args="$$args --to $(TO)"; fi; \
+	if [ -n "$(TYPE)" ]; then args="$$args --type $(TYPE)"; fi; \
+	if [ -n "$(BODY_FILE)" ]; then \
+		./.agents/scripts/team_reply.sh $$args --body-file "$(BODY_FILE)"; \
 	else \
-		./.agents/scripts/team_reply.sh --from "$(FROM)" --to "$(TO)" --in-reply-to "$(IN_REPLY_TO)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(BODY)"; \
+		./.agents/scripts/team_reply.sh $$args "$(BODY)"; \
 	fi
 
 team-submit:
@@ -66,31 +67,45 @@ inbox:
 	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }
 	@if [ -n "$(MARK)" ]; then \
 		./.agents/scripts/team_inbox.sh "$(AGENT)" --mark "$(MARK)"; \
+	elif [ -n "$(RAW)" ]; then \
+		./.agents/scripts/team_inbox.sh "$(AGENT)" --raw; \
 	else \
 		./.agents/scripts/team_inbox.sh "$(AGENT)"; \
 	fi
 
+agent-surfaces:
+	@./.agents/scripts/team_agent_surfaces.sh
+
+task-lint:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@./.agents/scripts/team_task_lint.sh "$(TASK)"
+
 report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(AGENT)" || { echo "AGENT is required" >&2; exit 2; }
 	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
-	./.agents/scripts/team_report.sh "$(TASK)" "$(AGENT)" "$(STATUS)"
+	./.agents/scripts/team_report.sh "$(TASK)" "$(STATUS)"
 
 dispatch:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(WORKER)" || { echo "WORKER is required" >&2; exit 2; }
-	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
 	@if [ -n "$(MANAGER)" ]; then \
-		./.agents/scripts/team_dispatch.sh --manager "$(MANAGER)" "$(TASK)" "$(WORKER)" "$(REVIEWER)"; \
+		./.agents/scripts/team_dispatch.sh --manager "$(MANAGER)" "$(TASK)"; \
 	else \
-		./.agents/scripts/team_dispatch.sh "$(TASK)" "$(WORKER)" "$(REVIEWER)"; \
+		./.agents/scripts/team_dispatch.sh "$(TASK)"; \
 	fi
 
-review-report:
+direction-report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(REVIEWER)" || { echo "REVIEWER is required" >&2; exit 2; }
 	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
-	@./.agents/scripts/team_review_report.sh "$(TASK)" "$(REVIEWER)" "$(DECISION)"
+	@if [ -n "$(BODY_FILE)" ]; then \
+		./.agents/scripts/team_direction_report.sh "$(TASK)" "$(DECISION)" "$(BODY_FILE)"; \
+	else \
+		./.agents/scripts/team_direction_report.sh "$(TASK)" "$(DECISION)"; \
+	fi
+
+supervision-report:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
+	@./.agents/scripts/team_supervision_report.sh "$(TASK)" "$(DECISION)"
 
 release-prepare:
 	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }

@@ -1,148 +1,85 @@
 # Agent Team Rules
 
-## Start Here
-
-Identify yourself:
+## Start
 
 ```bash
 make team-identity
 ```
 
-Use the reported `TEAM_AGENT_ID` and `TEAM_AGENT_ROLE` as your source of truth.
-
-Before workflow work, read:
+Use the reported agent id, role, and team root as the source of truth. Before team work, read:
 
 1. `.agents/docs/TEAM_PROTOCOL.md`
 2. `.agents/state/MEMORY.md`
 3. `.agents/state/STATE.md`
 
-When a message assigns a task, also read:
+Implementation workers also read `.agents/queue/tasks/<task_id>.md`.
 
-```text
-$TEAM_ROOT/.agents/queue/tasks/<task_id>.md
-```
+All panes use the same repository root. Shared artifacts live under `.agents/queue/`. Use `/tmp` for private scratch work and `.agents/queue/state/tmp/` for temporary content another agent must read.
 
-Queue, inbox, report, review, strategy, architecture, release, proposal, and state artifacts live under `TEAM_ROOT`. All team panes work in the same repository root.
-
-Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for temporary state that must be visible to the team.
-
-## Tooling
+## Tooling And Verification
 
 - Use `gh` for GitHub operations.
-- Use `direnv exec . <command>` when repository environment variables must be loaded.
-- Missing required tools are blockers. Report the missing command.
-
-## Verification
-
+- Use `direnv exec . <command>` when repository environment variables are required.
+- Missing required tools are blockers; report the exact command.
 - `make post-change` is the required change gate.
-- `make smoke` is the project behavior smoke selected during bootstrap.
-- Worker reports must include task-specific verification, `make post-change`, and `make smoke` evidence.
+- `make smoke` checks representative project behavior.
+- Implementation reports include task-specific checks, `make post-change`, and `make smoke` evidence.
 
 ## Communication
 
-- Human users talk only to the lead pane.
-- Agents send messages with `make team-send`.
-- `TYPE=note` records information. Use `request`, `question`, or a workflow message type when the recipient should act.
-- When a pane receives `inbox <agent_id>`, run:
+Human users talk only to Lead. Agents communicate with `make team-send` and `make team-reply`.
 
 ```bash
 make inbox AGENT=<agent_id>
+make team-send TO=<agent_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/message.md
+make team-reply IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=.agents/queue/state/tmp/reply.md
 ```
 
-- `inbox <agent_id>: 0 messages` means there is no pending message.
-- Common action types are `intake`, `task_assigned`, `review_watch_assigned`, `checkpoint`, `review_feedback`, `ready_for_review`, `review_result`, `release_request`, `release_result`, and `completion_ready`.
-- Task and release commands close the related inbox messages.
-- Use `make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md` when answering an inbox item.
-- Use `MARK=<message_id>` only after handling a message that needs no reply.
-- If a pane shows an unsubmitted `inbox <agent_id>` prompt, rebuild and submit the notification with:
+- `inbox <agent_id>: 0 pending` means no action is waiting.
+- `TYPE=note` is a record and does not enter the attention queue.
+- `supervision_assigned` and `supervision_checkpoint` close when read.
+- Use `supervision_feedback` when an implementation worker must act.
+- Task and release commands close the related action messages.
+- Use `MARK=<message_id>` only after handling a pending item that needs no reply.
+- Use `make team-status` for current tasks, research work, agent panes, and inboxes.
+- If an inbox prompt remains unsubmitted in a pane, run `make team-submit AGENT=<agent_id>`.
+
+Request research without choosing an individual worker:
 
 ```bash
-make team-submit AGENT=<agent_id>
+make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
 ```
+
+## Ownership
+
+| Role | Owns | Skill |
+| --- | --- | --- |
+| Lead | human intent, acceptance, approvals, human escalation | `team-lead` |
+| Manager | execution, task graph, assignments, STATE, done, release bundles | `team-manager` |
+| Strategist | deep focused analysis and option comparison | `team-strategist` |
+| Architect | technical direction and design consistency | `team-architect` |
+| General Worker | primary implementation | `team-general-worker` |
+| General Reviewer | general-worker supervision and final review | `team-general-reviewer` |
+| Research Worker | codebase, feasibility, and external evidence | `team-research-worker` |
+| Frontend Worker | rendered frontend implementation | `team-frontend-worker` |
+| Frontend Critic | view direction and complete frontend supervision | `team-frontend-critic` |
+| Release Captain | whole-system readiness | `team-release-captain` |
+
+General Workers and Frontend Workers edit project code. Research Workers use `/tmp` for experiments and do not edit project code. Supervisors, Lead, Manager, Strategist, Architect, and Release Captain operate through messages and artifacts.
 
 ## Escalation
 
-- Worker asks the assigned reviewer first for blockers, uncertainty, low confidence, or task boundary questions.
-- Reviewer answers task-local questions, asks architect or strategist when useful, and escalates to manager when the task cannot proceed cleanly.
-- Manager escalates to lead only for human approval, product intent, user-visible behavior, scope, priority, or trade-offs.
-- Lead talks to the human and returns a decision to manager.
-- Architect owns technical direction. Strategist owns focused deep analysis. Release Captain owns whole-system readiness.
+```text
+General Worker -> General Reviewer -> Manager -> Lead -> Human
+Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
+```
 
-## Roles
+General Reviewer and Frontend Critic may ask Architect or Strategist. Manager, Lead, Architect, Strategist, and Release Captain may request Research Workers. Manager escalates only human-facing intent, scope, priority, approval, user-visible behavior, or trade-offs to Lead.
 
-### lead
+## State, Memory, And Skills
 
-- Human-facing intent owner.
-- Clarifies ambiguous requests one question at a time.
-- Sends manager the human's intent, constraints, preferences, and approvals with `make team-send`.
-- `intake` lets manager begin tasking inside the stated intent. Use `approval` or `decision` for later human-facing judgments.
-- Answers manager escalations that require human judgment.
-- Edits `.agents/state/STATE.md` Intent when human-derived goal, acceptance, or escalation rules change.
-- Reviews memory and skill proposals.
-- Does not edit project code or dispatch tasks.
-
-### manager
-
-- Team operation owner.
-- Primary editor of `.agents/state/STATE.md`.
-- Creates task files, assigns worker/reviewer pairs, dispatches tasks, handles escalations, marks done, and prepares release bundles.
-- Treats lead `intake` as the start signal unless a required human-facing decision is missing.
-- Maps dependencies before dispatch and sends independent tasks in the same batch.
-- Uses reviewer supervision, architect input, or strategist input to bound uncertainty instead of serializing unrelated work.
-- Updates `STATE.md` at handoffs so Execution, Active Tasks, Bundles, Blockers, and Next Actions describe the current snapshot.
-- Does not normally enter worker/reviewer task-local details.
-- Does not edit project code.
-
-### strategist
-
-- Handles deep debugging, option comparison, execution planning, and focused analysis.
-- Writes the requested strategy artifact.
-- Does not manage progress, dispatch tasks, edit project code, or edit `STATE.md`.
-
-### architect
-
-- Owns technical direction and design consistency.
-- Writes architecture notes when requested.
-- Can ask strategist for deep investigation or option comparison.
-- Does not manage progress, dispatch tasks, edit project code, or edit `STATE.md`.
-
-### reviewer
-
-- Task-local supervisor for the assigned worker.
-- Receives worker questions first.
-- Receives worker checkpoints while implementation is in progress.
-- Gives task-local feedback during implementation.
-- Requests strategist input when deep task-local analysis is needed.
-- Requests architect input when task-local design direction is unclear.
-- Escalates to manager when the task boundary, acceptance, cross-task impact, blocker, or supervision ability changes.
-- Writes final review artifacts and decisions.
-- Does not edit project code.
-
-### release-captain
-
-- Reviews release bundles.
-- Decides `SHIP`, `FIX`, or `BLOCKED`.
-- Asks architect when whole-system technical consistency is unclear.
-- Returns release results to manager.
-- Does not edit project code or `STATE.md`.
-
-### worker
-
-- Implements assigned tasks in the shared repository root.
-- Asks the assigned reviewer first when blocked, unsure, low-confidence, or tempted to change scope.
-- Respects `Allowed paths` and `Do not modify`.
-- Records reviewer feedback handling and strategy artifacts in the report.
-- Records architecture notes when used.
-- Runs verification, commits, and writes the report.
-- Proposes memory changes instead of editing `.agents/state/MEMORY.md`.
-
-## State And Memory
-
-- `.agents/state/STATE.md` is current truth, not a log.
-- Lead owns Intent in `STATE.md`.
-- Manager owns execution state in `STATE.md`.
-- Other roles do not edit `STATE.md`.
-- `.agents/state/MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences.
-- Lead is the only editor of `MEMORY.md`.
-- Other roles write durable lessons to `.agents/queue/memory_proposals/`.
-- Reviewer, architect, and strategist may propose new project skills in `.agents/queue/skill_proposals/` when they observe recurring stuck patterns.
+- `STATE.md` is current truth, not a log. Lead owns Intent; Manager owns execution state.
+- `MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences. Lead is its only editor.
+- Any role may write a memory proposal.
+- General Reviewer, Frontend Critic, Architect, Strategist, and Research Worker may write project skill proposals for recurring domain procedures.
+- Lead reviews memory and skill proposals. Use the agent environment's built-in skill creation guidance when editing skills.

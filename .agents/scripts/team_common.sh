@@ -208,6 +208,10 @@ ensure_team_dirs() {
     "$TEAM_QUEUE_DIR/inbox" \
     "$TEAM_QUEUE_DIR/reports" \
     "$TEAM_QUEUE_DIR/reviews" \
+    "$TEAM_QUEUE_DIR/critiques" \
+    "$TEAM_QUEUE_DIR/direction-critiques" \
+    "$TEAM_QUEUE_DIR/visuals" \
+    "$TEAM_QUEUE_DIR/research" \
     "$TEAM_QUEUE_DIR/strategy" \
     "$TEAM_QUEUE_DIR/architecture" \
     "$TEAM_QUEUE_DIR/releases" \
@@ -218,6 +222,8 @@ ensure_team_dirs() {
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
     "$TEAM_STATE_DIR/releases" \
+    "$TEAM_STATE_DIR/research" \
+    "$TEAM_STATE_DIR/task_progress" \
     "$TEAM_STATE_DIR/tmp" \
     "$TEAM_STATE_DIR/tasks"
 }
@@ -388,7 +394,260 @@ release_team_lock() {
 
 extract_json_field() {
   local field="$1"
-  sed -n "s/.*\"$field\":\"\\([^\"]*\\)\".*/\\1/p"
+  awk -v field="$field" '
+    {
+      needle = "\"" field "\":\""
+      start = index($0, needle)
+      if (!start) {
+        next
+      }
+      i = start + length(needle)
+      value = ""
+      escaped = 0
+      for (; i <= length($0); i++) {
+        char = substr($0, i, 1)
+        if (escaped) {
+          if (char == "n") {
+            value = value "\n"
+          } else if (char == "r") {
+            value = value "\r"
+          } else if (char == "t") {
+            value = value "\t"
+          } else {
+            value = value char
+          }
+          escaped = 0
+          continue
+        }
+        if (char == "\\") {
+          escaped = 1
+          continue
+        }
+        if (char == "\"") {
+          print value
+          found = 1
+          exit
+        }
+        value = value char
+      }
+    }
+  '
+}
+
+team_resolve_existing_path() {
+  local relative_path="$1"
+  local path
+  local target
+  local dir
+
+  path="$TEAM_ROOT/$relative_path"
+  [[ -e "$path" || -L "$path" ]] || return 0
+
+  while [[ -L "$path" ]]; do
+    dir="$(dirname "$path")"
+    target="$(readlink "$path")"
+    if [[ "$target" == /* ]]; then
+      path="$target"
+    else
+      path="$dir/$target"
+    fi
+  done
+
+  [[ -e "$path" ]] || return 0
+  dir="$(cd "$(dirname "$path")" && pwd -P)"
+  printf '%s/%s\n' "$dir" "$(basename "$path")"
+}
+
+team_task_markdown_section_paths() {
+  local task_file="$1"
+  local section="$2"
+  awk -v section="$section" '
+    function trim(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    function parse_path(line, value, parts, token) {
+      if (match(line, /`[^`]+`/)) {
+        return substr(line, RSTART + 1, RLENGTH - 2)
+      }
+      value = line
+      sub(/^[[:space:]]*-[[:space:]]+/, "", value)
+      value = trim(value)
+      split(value, parts, /[[:space:]]+/)
+      token = parts[1]
+      gsub(/[,:;。）、)]$/, "", token)
+      if (token ~ /^[A-Za-z0-9._\/@%+=:,{}*?[\]-]+$/ && (token ~ /^([.][\/A-Za-z0-9._-]|\/)/ || token ~ /\// || token ~ /[.][A-Za-z0-9_*?[\]-]+$/ || token ~ /^(Makefile|Dockerfile|LICENSE|README|AGENTS|CLAUDE)$/)) {
+        return token
+      }
+      return ""
+    }
+    $0 == "## " section {
+      in_section = 1
+      next
+    }
+    /^## / && in_section {
+      exit
+    }
+    in_section && /^[[:space:]]*-[[:space:]]+/ {
+      value = parse_path($0)
+      if (value != "") {
+        print value
+      }
+    }
+  ' "$task_file"
+}
+
+team_task_markdown_section_invalid_path_bullets() {
+  local task_file="$1"
+  local section="$2"
+  awk -v section="$section" '
+    function trim(value) {
+      sub(/^[[:space:]]+/, "", value)
+      sub(/[[:space:]]+$/, "", value)
+      return value
+    }
+    function parse_path(line, value, parts, token) {
+      if (match(line, /`[^`]+`/)) {
+        return substr(line, RSTART + 1, RLENGTH - 2)
+      }
+      value = line
+      sub(/^[[:space:]]*-[[:space:]]+/, "", value)
+      value = trim(value)
+      split(value, parts, /[[:space:]]+/)
+      token = parts[1]
+      gsub(/[,:;。）、)]$/, "", token)
+      if (token ~ /^[A-Za-z0-9._\/@%+=:,{}*?[\]-]+$/ && (token ~ /^([.][\/A-Za-z0-9._-]|\/)/ || token ~ /\// || token ~ /[.][A-Za-z0-9_*?[\]-]+$/ || token ~ /^(Makefile|Dockerfile|LICENSE|README|AGENTS|CLAUDE)$/)) {
+        return token
+      }
+      return ""
+    }
+    $0 == "## " section {
+      in_section = 1
+      next
+    }
+    /^## / && in_section {
+      exit
+    }
+    in_section && /^[[:space:]]*-[[:space:]]+/ {
+      if (parse_path($0) == "") {
+        print FNR ":" $0
+      }
+    }
+  ' "$task_file"
+}
+
+team_message_body_summary() {
+  awk '
+    {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line != "") {
+        print line
+        found = 1
+        exit
+      }
+    }
+    END {
+      if (!found) {
+        print ""
+      }
+    }
+  '
+}
+
+team_task_progress_file() {
+  local task_id="$1"
+  printf '%s/task_progress/%s.jsonl\n' "$TEAM_STATE_DIR" "$task_id"
+}
+
+team_message_auto_process_on_read() {
+  local message_type="$1"
+  case "$message_type" in
+    supervision_checkpoint|supervision_assigned|research_cancelled)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+team_mark_message_processed() {
+  local agent_id="$1"
+  local message_id="$2"
+
+  [[ -n "$agent_id" && -n "$message_id" ]] || return 0
+  mkdir -p "$TEAM_STATE_DIR/processed/$agent_id"
+  printf '%s\n' "$(team_now_utc)" > "$TEAM_STATE_DIR/processed/$agent_id/$message_id"
+}
+
+team_mark_research_inbox_processed() {
+  local agent_id="$1"
+  local request_id="$2"
+  shift 2
+
+  local inbox_file="$TEAM_QUEUE_DIR/inbox/$agent_id.jsonl"
+  local line message_id message_request message_type wanted_type type_matches
+
+  [[ -n "$agent_id" && -n "$request_id" && -f "$inbox_file" ]] || return 0
+  while IFS= read -r line; do
+    message_request="$(printf '%s\n' "$line" | extract_json_field research_id)"
+    [[ "$message_request" == "$request_id" ]] || continue
+
+    if [[ $# -gt 0 ]]; then
+      message_type="$(printf '%s\n' "$line" | extract_json_field type)"
+      type_matches=0
+      for wanted_type in "$@"; do
+        if [[ "$message_type" == "$wanted_type" ]]; then
+          type_matches=1
+          break
+        fi
+      done
+      [[ "$type_matches" == "1" ]] || continue
+    fi
+
+    message_id="$(printf '%s\n' "$line" | extract_json_field id)"
+    team_mark_message_processed "$agent_id" "$message_id"
+  done < "$inbox_file"
+}
+
+team_record_task_message_activity() {
+  local message_id="$1"
+  local message_file="$TEAM_STATE_DIR/messages/$message_id.json"
+  local line
+  local task_id
+  local message_type
+  local message_from
+  local message_to
+  local created_at
+  local body
+  local summary
+  local progress_file
+
+  [[ -f "$message_file" ]] || return 0
+  line="$(cat "$message_file")"
+  task_id="$(printf '%s\n' "$line" | extract_json_field task_id)"
+  [[ -n "$task_id" && "$task_id" != "-" ]] || return 0
+
+  message_type="$(printf '%s\n' "$line" | extract_json_field type)"
+  message_from="$(printf '%s\n' "$line" | extract_json_field from)"
+  message_to="$(printf '%s\n' "$line" | extract_json_field to)"
+  created_at="$(printf '%s\n' "$line" | extract_json_field created_at)"
+  body="$(printf '%s\n' "$line" | extract_json_field body)"
+  summary="$(printf '%s\n' "$body" | team_message_body_summary)"
+  progress_file="$(team_task_progress_file "$task_id")"
+
+  mkdir -p "$(dirname "$progress_file")"
+  printf '{"message_id":"%s","task_id":"%s","type":"%s","from":"%s","to":"%s","created_at":"%s","summary":"%s"}\n' \
+    "$(json_string "$message_id")" \
+    "$(json_string "$task_id")" \
+    "$(json_string "$message_type")" \
+    "$(json_string "$message_from")" \
+    "$(json_string "$message_to")" \
+    "$(json_string "$created_at")" \
+    "$(json_string "$summary")" >> "$progress_file"
 }
 
 team_mark_inbox_processed() {
@@ -452,6 +711,92 @@ team_task_state_field() {
   extract_json_field "$field" < "$state_file"
 }
 
+team_research_id() {
+  printf 'research_%s_%s_%s\n' "$(team_now_compact_utc)" "$$" "$RANDOM"
+}
+
+team_research_state_file() {
+  local request_id="$1"
+  printf '%s/research/%s.json\n' "$TEAM_STATE_DIR" "$request_id"
+}
+
+team_research_state_field() {
+  local request_id="$1"
+  local field="$2"
+  local state_file
+  state_file="$(team_research_state_file "$request_id")"
+  [[ -f "$state_file" ]] || return 0
+  extract_json_field "$field" < "$state_file"
+}
+
+team_write_research_state() {
+  local request_id="$1"
+  local caller="$2"
+  local worker="$3"
+  local status="$4"
+  local request_message_id="$5"
+  local artifact="$6"
+  local task_id="$7"
+  local question_message_id="$8"
+  local created_at="$9"
+  local state_file
+  local updated_at
+
+  state_file="$(team_research_state_file "$request_id")"
+  updated_at="$(team_now_utc)"
+  mkdir -p "$(dirname "$state_file")"
+  printf '{"request_id":"%s","caller":"%s","worker":"%s","status":"%s","request_message_id":"%s","artifact":"%s","task_id":"%s","question_message_id":"%s","created_at":"%s","updated_at":"%s"}\n' \
+    "$(json_string "$request_id")" \
+    "$(json_string "$caller")" \
+    "$(json_string "$worker")" \
+    "$(json_string "$status")" \
+    "$(json_string "$request_message_id")" \
+    "$(json_string "$artifact")" \
+    "$(json_string "$task_id")" \
+    "$(json_string "$question_message_id")" \
+    "$(json_string "$created_at")" \
+    "$updated_at" > "$state_file"
+}
+
+team_research_worker_active_request() {
+  local worker="$1"
+  local state_file
+  local state_worker
+  local state_status
+
+  while IFS= read -r state_file; do
+    state_worker="$(extract_json_field worker < "$state_file")"
+    [[ "$state_worker" == "$worker" ]] || continue
+    state_status="$(extract_json_field status < "$state_file")"
+    case "$state_status" in
+      assigning|active|waiting_for_caller)
+        basename "$state_file" .json
+        return 0
+        ;;
+    esac
+  done < <(find "$TEAM_STATE_DIR/research" -maxdepth 1 -type f -name '*.json' | sort)
+  return 1
+}
+
+team_markdown_section_has_content() {
+  local file="$1"
+  local section="$2"
+  awk -v section="$section" '
+    $0 == "## " section { in_section = 1; next }
+    /^## / && in_section { exit }
+    in_section {
+      line = $0
+      sub(/^[[:space:]]+/, "", line)
+      sub(/[[:space:]]+$/, "", line)
+      if (line != "" && line !~ /^<!--/ && line !~ /^Status:/) {
+        found = 1
+        exit
+      }
+    }
+    END { exit found ? 0 : 1 }
+  ' "$file"
+}
+
 team_release_state_file() {
   local bundle_id="$1"
   printf '%s/releases/%s.json\n' "$TEAM_STATE_DIR" "$bundle_id"
@@ -469,18 +814,20 @@ team_release_state_field() {
 team_write_task_state() {
   local task_id="$1"
   local manager="$2"
-  local owner="$3"
-  local reviewer="$4"
+  local worker="$3"
+  local supervisor="$4"
   local status="$5"
   local base_commit="$6"
   local head_commit="$7"
   local report="$8"
-  local review="$9"
-  local review_decision="${10}"
+  local supervision_artifact="$9"
+  local supervision_decision="${10}"
   local done_recommendation="${11}"
   local architecture_required="${12}"
   local architecture="${13}"
   local release_bundle="${14}"
+  local direction_status="${15}"
+  local direction_artifact="${16}"
   local state_file
   local updated_at
 
@@ -488,22 +835,60 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","manager":"%s","owner":"%s","reviewer":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","review":"%s","review_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","manager":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$manager")" \
-    "$(json_string "$owner")" \
-    "$(json_string "$reviewer")" \
+    "$(json_string "$worker")" \
+    "$(json_string "$supervisor")" \
     "$(json_string "$status")" \
     "$(json_string "$base_commit")" \
     "$(json_string "$head_commit")" \
     "$(json_string "$report")" \
-    "$(json_string "$review")" \
-    "$(json_string "$review_decision")" \
+    "$(json_string "$supervision_artifact")" \
+    "$(json_string "$supervision_decision")" \
     "$(json_string "$done_recommendation")" \
     "$(json_string "$architecture_required")" \
     "$(json_string "$architecture")" \
     "$(json_string "$release_bundle")" \
+    "$(json_string "$direction_status")" \
+    "$(json_string "$direction_artifact")" \
     "$updated_at" > "$state_file"
+}
+
+team_task_worker_is_busy() {
+  local worker="$1"
+  local state_file
+  local state_worker
+  local state_status
+
+  while IFS= read -r state_file; do
+    state_worker="$(extract_json_field worker < "$state_file")"
+    [[ "$state_worker" == "$worker" ]] || continue
+    state_status="$(extract_json_field status < "$state_file")"
+    if [[ "$state_status" != "done" ]]; then
+      basename "$state_file" .json
+      return 0
+    fi
+  done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name '*.json' | sort)
+  return 1
+}
+
+team_task_supervisor_is_busy() {
+  local supervisor="$1"
+  local state_file
+  local state_supervisor
+  local state_status
+
+  while IFS= read -r state_file; do
+    state_supervisor="$(extract_json_field supervisor < "$state_file")"
+    [[ "$state_supervisor" == "$supervisor" ]] || continue
+    state_status="$(extract_json_field status < "$state_file")"
+    if [[ "$state_status" != "done" ]]; then
+      basename "$state_file" .json
+      return 0
+    fi
+  done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name '*.json' | sort)
+  return 1
 }
 
 team_write_release_state() {
@@ -539,10 +924,10 @@ team_require_release_task_ready() {
   local task_id="$2"
   local task_state_file
   local task_status
-  local review_decision
+  local supervision_decision
   local done_recommendation
   local report_file
-  local task_review_file
+  local supervision_artifact
   local architecture_required
   local architecture
 
@@ -550,13 +935,13 @@ team_require_release_task_ready() {
   [[ -f "$task_state_file" ]] || die_rule \
     "release task state is missing: $task_id" \
     "release review requires every included task to have current machine state" \
-    "dispatch, review, and mark $task_id done before including it in $bundle_id"
+    "dispatch, supervise, and mark $task_id done before including it in $bundle_id"
 
   task_status="$(team_task_state_field "$task_id" status)"
-  review_decision="$(team_task_state_field "$task_id" review_decision)"
+  supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
   done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
   report_file="$(team_task_state_field "$task_id" report)"
-  task_review_file="$(team_task_state_field "$task_id" review)"
+  supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
   architecture_required="$(team_task_state_field "$task_id" architecture_required)"
   architecture="$(team_task_state_field "$task_id" architecture)"
 
@@ -564,22 +949,22 @@ team_require_release_task_ready() {
     "release task is not done: $task_id" \
     "task state has status=$task_status, but release review requires status=done" \
     "manager must finish $task_id or remove it from release bundle $bundle_id"
-  [[ "$review_decision" == "OK" ]] || die_rule \
-    "release task review is not OK: $task_id" \
-    "task state has review_decision=$review_decision, but release review requires review_decision=OK" \
-    "reviewer must record OK before manager includes $task_id in release bundle $bundle_id"
+  [[ "$supervision_decision" == "OK" ]] || die_rule \
+    "release task supervision is not OK: $task_id" \
+    "task state has supervision_decision=$supervision_decision, but release review requires supervision_decision=OK" \
+    "the assigned supervisor must record OK before manager includes $task_id in release bundle $bundle_id"
   [[ "$done_recommendation" == "true" ]] || die_rule \
     "release task is not recommended done: $task_id" \
     "task state has done_recommendation=$done_recommendation, but release review requires done_recommendation=true" \
-    "reviewer must recommend done before manager includes $task_id in release bundle $bundle_id"
+    "the assigned supervisor must recommend done before manager includes $task_id in release bundle $bundle_id"
   [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
     "release task report is missing: $task_id" \
     "task state points to report=$report_file" \
     "worker must write the report before $task_id is included in release bundle $bundle_id"
-  [[ -n "$task_review_file" && -f "$task_review_file" ]] || die_rule \
-    "release task review artifact is missing: $task_id" \
-    "task state points to review=$task_review_file" \
-    "reviewer must write the review artifact before $task_id is included in release bundle $bundle_id"
+  [[ -n "$supervision_artifact" && -f "$supervision_artifact" ]] || die_rule \
+    "release task supervision artifact is missing: $task_id" \
+    "task state points to supervision_artifact=$supervision_artifact" \
+    "the assigned supervisor must write the final artifact before $task_id is included in release bundle $bundle_id"
 
   if [[ "$architecture_required" == "true" ]]; then
     [[ -n "$architecture" && -f "$TEAM_ROOT/$architecture" ]] || die_rule \
@@ -646,7 +1031,7 @@ team_require_report_matches_task_state() {
   [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
     "report file not found for $task_id" \
     "task state points to a report that does not exist" \
-    "worker must run make report TASK=$task_id AGENT=<worker_id> STATUS=needs_review"
+    "the assigned worker must run make report TASK=$task_id STATUS=needs_supervision"
   team_require_report_field "$report_file" "Base commit" "$base_commit"
   team_require_report_field "$report_file" "Head commit" "$head_commit"
 }
@@ -678,9 +1063,9 @@ team_update_markdown_field() {
   mv "$tmp" "$file"
 }
 
-team_review_decision() {
-  local review_file="$1"
-  [[ -f "$review_file" ]] || return 0
+team_supervision_decision() {
+  local supervision_file="$1"
+  [[ -f "$supervision_file" ]] || return 0
   awk '
     /^Decision:[[:space:]]*(OK|FIX|ASK_MANAGER)[[:space:]]*$/ {
       value = $0
@@ -692,7 +1077,7 @@ team_review_decision() {
     END {
       exit found ? 0 : 1
     }
-  ' "$review_file"
+  ' "$supervision_file"
 }
 
 team_state_file() {

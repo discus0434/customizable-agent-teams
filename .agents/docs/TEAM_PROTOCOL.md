@@ -1,6 +1,6 @@
 # Team Protocol
 
-This file is the team map. Role-specific operating detail lives in `.agents/skills/team-<role>/SKILL.md`. The task template lives at `.agents/queue/tasks/TEMPLATE.md`; reports, reviews, releases, and state are created or updated by Make targets.
+This file is the team map. Role-specific decisions and artifact formats live in `.agents/skills/team-<role>/SKILL.md`.
 
 ## Start
 
@@ -9,217 +9,113 @@ make team-identity
 make inbox AGENT=<agent_id>
 ```
 
-Use `TEAM_AGENT_ID`, `TEAM_AGENT_ROLE`, and `TEAM_ROOT` as the source of truth. Queue, state, report, review, strategy, architecture, release, and proposal artifacts are canonical under `TEAM_ROOT`.
-`inbox <agent_id>: 0 messages` means there is no pending message.
-
-Use `/tmp` for private scratch work. Use `.agents/queue/state/tmp/` only for temporary state that must be visible to the team.
-
-For multi-line or quote-heavy messages, write the body to a file:
-
-```bash
-make team-send FROM=<from_id> TO=<to_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=/tmp/message.md
-```
-
-Use `TYPE=note` for records. Use `request`, `question`, or the workflow message type when the recipient should act.
-
-Workflow message types:
-
-| Type | Sender -> Receiver |
-| --- | --- |
-| `intake` | Lead -> Manager |
-| `task_assigned` | Manager -> Worker |
-| `review_watch_assigned` | Manager -> Reviewer |
-| `checkpoint` | Worker -> Reviewer |
-| `review_feedback` | Reviewer -> Worker |
-| `ready_for_review` | Worker -> Reviewer |
-| `review_result` | Reviewer -> Worker or Manager |
-| `release_request` | Manager -> Release Captain |
-| `release_result` | Release Captain -> Manager |
-| `completion_ready` | Manager -> Lead |
-
-To answer an inbox item and close it:
-
-```bash
-make team-reply FROM=<from_id> TO=<to_id> IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=/tmp/reply.md
-```
-
-If a pane shows an unsubmitted `inbox <agent_id>` prompt:
-
-```bash
-make team-submit AGENT=<agent_id>
-```
+Use the reported identity and `TEAM_ROOT`. `make team-status` shows current implementation tasks, research requests, panes, and inboxes.
 
 ## Roles
 
-| Role | Owns | Detail |
-| --- | --- | --- |
-| Lead | human intent, acceptance, approvals, human escalation | `.agents/skills/team-lead/SKILL.md` |
-| Manager | team operation, task graph, dispatch, done decisions, release bundles, execution state | `.agents/skills/team-manager/SKILL.md` |
-| Strategist | focused analysis, deep debugging, option comparison, execution planning | `.agents/skills/team-strategist/SKILL.md` |
-| Architect | technical direction and design consistency | `.agents/skills/team-architect/SKILL.md` |
-| Reviewer | task-local supervision and review decision | `.agents/skills/team-reviewer/SKILL.md` |
-| Release Captain | whole-system release readiness | `.agents/skills/team-release-captain/SKILL.md` |
-| Worker | assigned implementation, verification, report | `.agents/skills/team-worker/SKILL.md` |
+```text
+Human -> Lead -> Manager
+                   |-> General Worker + General Reviewer
+                   |-> Frontend Worker + Frontend Critic
+                   `-> Release Captain
 
-Project files are edited by workers. Lead, Manager, Strategist, Architect, Reviewer, and Release Captain operate through artifacts and messages unless a task explicitly assigns otherwise.
+Lead / Manager / Strategist / Architect / Release Captain -> Research Worker pool
+General Reviewer / Frontend Critic / Manager / Lead -> Architect or Strategist
+```
 
-## Escalation
+- General Worker and General Reviewer are fixed one-to-one pairs.
+- Frontend Worker and Frontend Critic are a fixed pair.
+- An implementation worker holds one task until Manager marks it done.
+- Research Workers have no Supervisor and do not edit project code.
+
+## Implementation Tasks
+
+Manager creates a task from `GENERAL_TEMPLATE.md` or `FRONTEND_TEMPLATE.md`, selects `Worker`, then runs:
+
+```bash
+make task-lint TASK=<task_id>
+make dispatch TASK=<task_id>
+```
+
+Dispatch resolves the fixed `Supervisor` from config. The implementation flow is:
 
 ```text
-Worker -> Reviewer -> Manager -> Lead -> Human
+task_assigned / supervision_assigned
+-> implementation and supervision
+-> report + ready_for_supervision
+-> Supervisor OK / FIX / ASK_MANAGER
+-> Manager done or manager_fix
 ```
 
-Side channels:
+Frontend tasks add a direction step before major UI implementation:
 
 ```text
-Reviewer / Manager / Lead -> Architect
-Reviewer / Manager / Architect / Lead -> Strategist
-Release Captain -> Architect
+view_direction_ready
+-> PROCEED / REVISE / NOT_NEEDED / ASK_MANAGER
+-> rendered implementation and visual iteration
+-> final critique
 ```
 
-- Worker asks the assigned reviewer first for blockers, uncertainty, low confidence, task boundary questions, or technical doubts.
-- Reviewer handles task-local supervision and escalates task boundary, acceptance, blocker, cross-task impact, or supervision problems to Manager.
-- Manager escalates only human approval, product intent, user-visible behavior, scope, priority, or trade-off decisions to Lead.
-- Lead talks to the human and returns decisions to Manager.
-
-## State And Memory
-
-`.agents/state/STATE.md` is current truth, not a log.
-
-- Lead owns Intent.
-- Manager owns execution state.
-- Other roles do not edit STATE.
-- Keep completed task details in task, report, review, and release artifacts.
-- Remove done tasks from Active Tasks.
-- Keep Recent Decisions only while they affect current decisions.
-- Make Next Actions name the next role and action.
-- Compress STATE after task done, release result, or resolved escalation.
-
-`.agents/state/MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences. Lead edits MEMORY after reviewing `.agents/queue/memory_proposals/`. Other roles propose memory changes instead of editing MEMORY.
-
-## Work Sizing
-
-Manager chooses the smallest coordination shape that preserves ownership, review quality, and verification clarity.
-
-- `micro`: fold into the nearest active task, release fix, or manager note.
-- `single-task`: use one worker/reviewer pair when the work has one natural owner and one coherent review surface.
-- `parallel`: dispatch independent tasks in the same batch when they do not depend on each other's output and have clear file or behavior boundaries.
-- `strategy/architecture`: ask Strategist or Architect before decomposition when the missing decision changes the task graph, technical direction, or verification boundary.
-
-Split work when ownership, review perspective, or verification boundary truly differs.
-
-## Lifecycle
-
-Human talks to Lead. Lead sends Manager `intake`, `approval`, or `decision`.
-
-`intake` starts manager execution inside the stated intent. `approval` and `decision` answer later questions from manager or contract changes from the human.
-
-Manager creates tasks from:
-
-```text
-.agents/queue/tasks/TEMPLATE.md
-```
-
-Manager updates `STATE.md` before each outward handoff: dispatch, done decision, release request, release result, and completion_ready.
-
-Manager dispatches:
+Common commands:
 
 ```bash
-make dispatch TASK=<task_id> WORKER=<worker_id> REVIEWER=<reviewer_id>
-```
-
-Before follow-up dispatch, Manager checks the named files, commits, and artifacts against current `HEAD`.
-
-Worker implements, verifies, commits, and reports:
-
-```bash
-make post-change
-make smoke
-git add <changed-files>
-git commit -m "<task_id>: <summary>"
-make report TASK=<task_id> AGENT=<worker_id> STATUS=needs_review
-```
-
-Worker fills the generated report and sends `ready_for_review` to the assigned Reviewer. During implementation, Worker may send task checkpoints to Reviewer:
-
-```bash
-make team-send FROM=<worker_id> TO=<reviewer_id> TYPE=checkpoint TASK=<task_id> BODY_FILE=/tmp/checkpoint.md
-```
-
-Reviewer supervises during implementation with `review_feedback` when useful, then records one decision:
-
-```bash
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=OK
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=FIX
-make review-report TASK=<task_id> REVIEWER=<reviewer_id> DECISION=ASK_MANAGER
-```
-
-Manager marks a task done only after reviewer `OK`, `done_recommendation=true`, sufficient report evidence, and any required architecture note:
-
-```bash
+make report TASK=<task_id> STATUS=needs_supervision
+make direction-report TASK=<task_id> DECISION=<decision>
+make supervision-report TASK=<task_id> DECISION=<OK|FIX|ASK_MANAGER>
 make state-update TASK=<task_id> STATUS=done
 ```
 
-Manager prepares the release bundle draft:
+## Research
+
+Lead, Manager, Strategist, Architect, and Release Captain request the shared pool with:
+
+```bash
+make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
+```
+
+The request is assigned FIFO to an available Research Worker. Each worker handles one active request. Results return directly to the caller; follow-up work is a new request and may go to any available worker. Queued, active, and waiting requests appear in `make team-status`.
+
+Research Workers may ask their caller a clarification question. The caller may cancel its own request by replying to the request id with `TYPE=cancel`.
+
+## Specialists And Escalation
+
+Implementation Workers ask their fixed Supervisor first. Supervisors handle task-local questions and escalate task boundary, acceptance, cross-task impact, or unresolved blockers to Manager.
+
+```bash
+make team-send TO=strategist TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/strategy-request.md
+make team-send TO=architect TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/architecture-request.md
+```
+
+Manager escalates human-facing decisions to Lead. Lead talks to the human and returns a decision.
+
+## Release
+
+Manager bundles done tasks:
 
 ```bash
 make release-prepare BUNDLE=<bundle_id> TASKS="T-001 T-002"
-```
-
-Manager fills `.agents/queue/releases/<bundle_id>.md`, refreshes STATE, and requests whole-system release review:
-
-```bash
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
 ```
 
-Release Captain refreshes the release bundle, task state, referenced artifacts, and STATE immediately before the final decision. Caveats describe only what is still true in that final snapshot.
+Release Captain checks whole-system consistency, including representative visual evidence for frontend tasks, and records `SHIP`, `FIX`, or `BLOCKED`. After `SHIP`, Manager sends `completion_ready`; Lead reports to the human and sends `completion_ack`.
 
-Release Captain writes `.agents/queue/releases/<bundle_id>_review.md` and records:
+## State And Artifacts
 
-```bash
-make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<release_captain_id> DECISION=SHIP
-make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<release_captain_id> DECISION=FIX
-make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<release_captain_id> DECISION=BLOCKED
-```
-
-After `SHIP`, Manager sends Lead `completion_ready` with summary, evidence, release review path, and caveats.
-
-## Specialist Requests
-
-Use `make team-send`; the scripts create artifact paths and notify the relevant Manager when needed.
-
-```bash
-make team-send FROM=<requester_id> TO=strategist TASK=<task_id> BODY_FILE=/tmp/strategy-request.md
-make team-send FROM=<requester_id> TO=architect TASK=<task_id> BODY_FILE=/tmp/architecture-request.md
-make team-send FROM=<requester_id> TO=architect BUNDLE=<bundle_id> BODY_FILE=/tmp/architecture-request.md
-```
-
-Workers route specialist needs through the assigned Reviewer.
-
-## Artifacts
+- `STATE.md` contains only current intent, execution, blockers, bundles, and next actions.
+- Completed detail belongs in task, report, review or critique, research, architecture, strategy, and release artifacts.
+- `MEMORY.md` contains reusable medium/long-term knowledge, not progress.
 
 | Path | Purpose |
 | --- | --- |
-| `.agents/state/STATE.md` | current truth |
-| `.agents/state/MEMORY.md` | medium/long-term rules, tips, pitfalls, preferences |
-| `.agents/queue/tasks/<task_id>.md` | task contract |
-| `.agents/queue/inbox/<agent_id>.jsonl` | messages |
-| `.agents/queue/reports/<task_id>_<worker_id>.md` | worker report |
-| `.agents/queue/reviews/<task_id>_<reviewer_id>.md` | reviewer result |
-| `.agents/queue/strategy/*.md` | strategist artifact |
-| `.agents/queue/architecture/*.md` | architect note |
-| `.agents/queue/releases/<bundle_id>.md` | release bundle |
-| `.agents/queue/releases/<bundle_id>_review.md` | release-captain result |
-| `.agents/queue/memory_proposals/*.md` | memory proposal |
-| `.agents/queue/skill_proposals/*.md` | project skill proposal |
-| `.agents/queue/state/tasks/<task_id>.json` | task machine state |
-| `.agents/queue/state/releases/<bundle_id>.json` | release machine state |
-| `.agents/queue/state/processed/<agent_id>/<message_id>` | processed inbox marker |
-
-Task and release action commands mark related inbox messages processed. Use `make team-reply` when answering an inbox item. Use `make inbox AGENT=<agent_id> MARK=<message_id>` only after handling a message that needs no reply.
-
-## Proposals
-
-Memory proposals describe durable future behavior and are reviewed by Lead.
-
-Skill proposals are for recurring project or domain procedures. Reviewer, Architect, and Strategist may propose them under `.agents/queue/skill_proposals/`; Lead reviews accepted proposals using the agent environment's built-in skill creation guidance.
+| `.agents/queue/tasks/` | implementation contracts and templates |
+| `.agents/queue/reports/` | implementation evidence |
+| `.agents/queue/reviews/` | General Reviewer decisions |
+| `.agents/queue/direction-critiques/` | frontend direction decisions |
+| `.agents/queue/critiques/` | final frontend decisions |
+| `.agents/queue/visuals/` | shared rendered evidence |
+| `.agents/queue/research/` | research requests and results |
+| `.agents/queue/strategy/` | Strategist artifacts |
+| `.agents/queue/architecture/` | Architect notes |
+| `.agents/queue/releases/` | release bundles and decisions |
+| `.agents/queue/memory_proposals/` | proposed durable memory |
+| `.agents/queue/skill_proposals/` | proposed project skills |

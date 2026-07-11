@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_dispatch.sh [--manager <manager_id>] <task_id> <worker_id> <reviewer_id>" >&2
+  echo "usage: team_dispatch.sh [--manager <manager_id>] <task_id>" >&2
 }
 
 manager_id=""
@@ -27,87 +27,100 @@ while [[ $# -gt 0 ]]; do
       shift
       break
       ;;
-    --*)
-      die "unknown option: $1"
-      ;;
-    *)
-      break
-      ;;
+    --*) die "unknown option: $1" ;;
+    *) break ;;
   esac
 done
 
-[[ $# -eq 3 ]] || { usage; exit 2; }
+[[ $# -eq 1 ]] || { usage; exit 2; }
 
 task_id="$1"
-worker_id="$2"
-reviewer_id="$3"
-
 [[ "$task_id" != */* ]] || die "task_id must not contain '/': $task_id"
-[[ "$manager_id" != */* ]] || die "manager_id must not contain '/': $manager_id"
-[[ "$worker_id" != */* ]] || die "worker_id must not contain '/': $worker_id"
-[[ "$reviewer_id" != */* ]] || die "reviewer_id must not contain '/': $reviewer_id"
 
 ensure_team_dirs
+team_config_validate
 
 if [[ -z "$manager_id" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
     "manager is required for dispatch" \
-    "dispatch records the task manager in task state, but this shell has no TEAM_AGENT_ID" \
-    "run dispatch inside a manager team pane or pass MANAGER=<manager_id>"
+    "dispatch records the task manager, but this shell has no TEAM_AGENT_ID" \
+    "run dispatch inside a manager pane or pass MANAGER=<manager_id>"
   manager_id="$TEAM_AGENT_ID"
 fi
 
+team_config_agent_record "$manager_id" >/dev/null || die_rule \
+  "unknown manager: $manager_id" \
+  "the dispatch sender must be present in $TEAM_CONFIG_FILE" \
+  "run from the configured manager pane or pass MANAGER=<manager_id>"
+manager_role="$(team_config_agent_field "$manager_id" role)"
+[[ "$manager_role" == "manager" ]] || die_rule \
+  "dispatch sender is not manager: $manager_id" \
+  "$manager_id has role $manager_role" \
+  "run dispatch from the manager pane"
+
 task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
 state_file="$(team_task_state_file "$task_id")"
+[[ -f "$task_file" ]] || die_rule \
+  "task file not found: $task_id" \
+  "dispatch requires a completed implementation task contract" \
+  "create $task_file from GENERAL_TEMPLATE.md or FRONTEND_TEMPLATE.md"
+[[ ! -f "$state_file" ]] || die_rule \
+  "task is already dispatched: $task_id" \
+  "$state_file already records an assignment" \
+  "continue the existing task lifecycle instead of dispatching it again"
 
-[[ -f "$task_file" ]] || die "task file not found: $task_file"
-[[ ! -f "$state_file" ]] || die "task state already exists: $state_file"
+"$SCRIPT_DIR/team_task_lint.sh" "$task_id" >/dev/null
 
-if ! team_config_agent_record "$worker_id" >/dev/null; then
-  die "unknown worker: $worker_id"
-fi
-if ! team_config_agent_record "$reviewer_id" >/dev/null; then
-  die "unknown reviewer: $reviewer_id"
-fi
-if ! team_config_agent_record "$manager_id" >/dev/null; then
-  die "unknown manager: $manager_id"
-fi
-
-manager_role="$(team_config_agent_field "$manager_id" role)"
+worker_id="$(team_task_markdown_field "$task_file" Worker)"
 worker_role="$(team_config_agent_field "$worker_id" role)"
-reviewer_role="$(team_config_agent_field "$reviewer_id" role)"
-[[ "$manager_role" == "manager" ]] || die_rule \
-  "dispatch manager must be a manager agent" \
-  "$manager_id has role $manager_role in $TEAM_CONFIG_FILE" \
-  "run dispatch from a manager pane or pass MANAGER=<manager_id> for an agent with role manager"
-[[ "$worker_role" == "worker" ]] || die "$worker_id is not a worker agent"
-[[ "$reviewer_role" == "reviewer" ]] || die "$reviewer_id is not a reviewer agent"
+supervisor_id="$(team_config_agent_field "$worker_id" supervisor)"
+supervisor_role="$(team_config_agent_field "$supervisor_id" role)"
+architecture_required="$(team_task_markdown_field "$task_file" "Architecture required")"
 
-task_owner="$(team_task_markdown_field "$task_file" Owner)" || die "task Owner is missing: $task_file"
-task_reviewer="$(team_task_markdown_field "$task_file" Reviewer)" || die "task Reviewer is missing: $task_file"
-architecture_required="$(team_task_markdown_field "$task_file" "Architecture required")" || die_rule \
-  "task Architecture required is missing: $task_file" \
-  "dispatch needs to know whether architect review is required for the done gate" \
-  "add 'Architecture required: true' or 'Architecture required: false' to the task file"
-[[ "$task_owner" == "$worker_id" ]] || die "task Owner mismatch: expected $worker_id, got $task_owner"
-[[ "$task_reviewer" == "$reviewer_id" ]] || die "task Reviewer mismatch: expected $reviewer_id, got $task_reviewer"
-case "$architecture_required" in
-  true|false) ;;
-  *) die_rule \
-    "invalid Architecture required value: $architecture_required" \
-    "Architecture required must be true or false" \
-    "set Architecture required to true or false" ;;
+if busy_task="$(team_task_worker_is_busy "$worker_id")"; then
+  die_rule \
+    "implementation worker is busy: $worker_id" \
+    "$worker_id is still assigned to $busy_task" \
+    "wait for Manager to mark $busy_task done or choose another implementation worker"
+fi
+if busy_task="$(team_task_supervisor_is_busy "$supervisor_id")"; then
+  die_rule \
+    "implementation supervisor is busy: $supervisor_id" \
+    "$supervisor_id is still assigned to $busy_task" \
+    "wait for Manager to mark $busy_task done or choose another fixed worker pair"
+fi
+
+case "$worker_role:$supervisor_role" in
+  general-worker:general-reviewer)
+    direction_status="not_applicable"
+    supervision_path=".agents/queue/reviews/${task_id}_${supervisor_id}.md"
+    ;;
+  frontend-worker:frontend-critic)
+    direction_status="pending"
+    supervision_path=".agents/queue/critiques/${task_id}_${supervisor_id}.md"
+    ;;
+  *)
+    die_rule \
+      "invalid implementation pair: $worker_id and $supervisor_id" \
+      "$worker_role cannot be supervised by $supervisor_role" \
+      "fix the supervisor pairing in $TEAM_CONFIG_FILE"
+    ;;
 esac
 
-git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die "git HEAD does not exist yet. Commit the template before dispatching tasks."
+git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die_rule \
+  "git HEAD does not exist" \
+  "implementation tasks require a committed base" \
+  "commit the initialized repository before dispatching tasks"
 base_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
+
+team_update_markdown_field "$task_file" "Supervisor" "$supervisor_id"
 
 acquire_team_lock "dispatch-$task_id"
 team_write_task_state \
   "$task_id" \
   "$manager_id" \
   "$worker_id" \
-  "$reviewer_id" \
+  "$supervisor_id" \
   "dispatched" \
   "$base_commit" \
   "" \
@@ -117,13 +130,20 @@ team_write_task_state \
   "false" \
   "$architecture_required" \
   "" \
+  "" \
+  "$direction_status" \
   ""
 release_team_lock
 
-worker_body="$task_file を読み、担当 reviewer は ${reviewer_id}、task manager は ${manager_id} です。task の checkpoint に到達したら TYPE=checkpoint を ${reviewer_id} に送り、実装、検証、commit、report 作成後、ready_for_review を ${reviewer_id} に送ってください。"
-reviewer_body="$task_file を読み、担当 worker ${worker_id} と直接やりとりしてください。task-local supervisor として checkpoint、相談、review_feedback、ready_for_review を扱い、final review artifact を .agents/queue/reviews/${task_id}_${reviewer_id}.md に書いてください。"
+if [[ "$worker_role" == "frontend-worker" ]]; then
+  worker_body="$task_file を読み、固定 supervisor は $supervisor_id です。まず view direction を共有し、critic の response を受けてから主要 UI 実装へ進んでください。実画面を確認しながら実装、検証、commit、report を行い、ready_for_supervision を送ってください。"
+  supervisor_body="$task_file を読み、固定 worker $worker_id を task-local に監督してください。最初に direction critique の要否を判断し、必要なら view direction を固めてから実装を進めます。最終 artifact は $supervision_path です。"
+else
+  worker_body="$task_file を読み、固定 supervisor は $supervisor_id です。自然な節目で supervision_checkpoint を送り、実装、検証、commit、report 作成後に ready_for_supervision を送ってください。"
+  supervisor_body="$task_file を読み、固定 worker $worker_id と直接やりとりしてください。task-local supervisor として checkpoint、相談、feedback、ready_for_supervision を扱い、最終 artifact を $supervision_path に書いてください。"
+fi
 
 team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
-team_send_with_body_file "$manager_id" review_watch_assigned "$task_id" "" "$reviewer_id" "$reviewer_body" >/dev/null
+team_send_with_body_file "$manager_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
 
-echo "$state_file"
+printf '%s\n' "$state_file"

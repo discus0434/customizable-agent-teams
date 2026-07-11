@@ -1,6 +1,6 @@
 ---
 name: team-lead
-description: Guides human-facing lead work, intent clarification, STATE Intent updates, manager intake, manager escalations, completion readiness, memory proposals, and skill proposals. Use when a lead receives human instructions or decisions.
+description: Guides human-facing intent clarification, STATE Intent updates, Manager intake and escalations, direct research requests, completion readiness, memory proposals, and skill proposals. Use when Lead receives human instructions, decisions, or completion_ready.
 ---
 
 # team-lead
@@ -22,6 +22,12 @@ description: Guides human-facing lead work, intent clarification, STATE Intent u
 - Send manager clear `intake`, `approval`, or `decision` messages.
 - Do not edit project code.
 - Do not dispatch worker tasks.
+
+Request evidence from the research-worker pool when codebase facts, feasibility, or current external information would improve clarification without starting implementation:
+
+```bash
+make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
+```
 
 ## Clarification
 
@@ -89,3 +95,4 @@ When manager sends `completion_ready`:
 - review relevant memory and skill proposals
 - update `MEMORY.md` or skills only when the proposal should affect future work
 - report completion to the human with evidence and any caveats
+- send `completion_ack` to manager after the human-facing completion report is done

@@ -1,6 +1,6 @@
 ---
 name: team-verify
-description: Guides fresh verification evidence collection before completion claims. Use before saying work is done, fixed, passing, ready for review, ready to report, OK, SHIP, or complete.
+description: Guides fresh verification evidence collection before completion claims. Use before saying work is done, fixed, passing, ready for supervision, ready to report, OK, SHIP, or complete.
 ---
 
 # team-verify
@@ -24,8 +24,8 @@ description: Guides fresh verification evidence collection before completion cla
 
 ## Use Before
 
-- worker report
-- reviewer `OK` 判断
+- implementation report
+- Supervisor `OK` 判断
 - manager の `done` 判断
 - release-captain の `SHIP` 判断
 - lead のユーザー向け完了報告

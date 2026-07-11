@@ -43,10 +43,12 @@ write_agent_state() {
   local role="$2"
   local cli="$3"
   local model="$4"
-  local window="$5"
-  local command="$6"
-  local pane="$7"
-  local session="$8"
+  local effort="$5"
+  local window="$6"
+  local supervisor="$7"
+  local command="$8"
+  local pane="$9"
+  local session="${10}"
   local state_file="$TEAM_STATE_DIR/agents/$id.env"
 
   {
@@ -54,7 +56,9 @@ write_agent_state() {
     printf 'role=%s\n' "$(shell_quote "$role")"
     printf 'cli=%s\n' "$(shell_quote "$cli")"
     printf 'model=%s\n' "$(shell_quote "$model")"
+    printf 'effort=%s\n' "$(shell_quote "$effort")"
     printf 'window=%s\n' "$(shell_quote "$window")"
+    printf 'supervisor=%s\n' "$(shell_quote "$supervisor")"
     printf 'command=%s\n' "$(shell_quote "$command")"
     printf 'pane=%s\n' "$(shell_quote "$pane")"
     printf 'session=%s\n' "$(shell_quote "$session")"
@@ -111,7 +115,7 @@ send_boot_nudge() {
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=lead agent_id=$id として待機してください。人間の指示はこの pane に直接来ます。実装や dispatch はせず、必要な擦り合わせをしてから manager に依頼します。agent 間通知は inbox $id です。"
       ;;
     manager)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=manager agent_id=$id として待機してください。STATE の主編集者として task 分解、dispatch、進捗、review 受領を担当します。通知は inbox $id です。"
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=manager agent_id=$id として待機してください。STATE の主編集者として task 分解、dispatch、進捗、supervision result 受領を担当します。通知は inbox $id です。"
       ;;
     strategist)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=strategist agent_id=$id として待機してください。strategy_request を受けたら .agents/queue/strategy/ に成果物を書きます。通知は inbox $id です。"
@@ -122,11 +126,20 @@ send_boot_nudge() {
     release-captain)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=release-captain agent_id=$id として待機してください。release_request を受けたら release bundle を確認し、SHIP/FIX/BLOCKED を返します。通知は inbox $id です。"
       ;;
-    reviewer)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=reviewer agent_id=$id として待機してください。review_watch_assigned を受けたら worker と直接やりとりし、review artifact を書きます。通知は inbox $id です。"
+    general-reviewer)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-reviewer agent_id=$id として待機してください。supervision_assigned を受けたら固定ペアの general-worker と直接やりとりし、task-local supervision と final review を行います。通知は inbox $id です。"
       ;;
-    worker)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=worker agent_id=$id として待機してください。task_assigned を受けたら担当 reviewer と連携して実装、検証、commit、report を行います。通知は inbox $id です。"
+    general-worker)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-worker agent_id=$id として待機してください。task_assigned を受けたら固定 supervisor と連携して実装、検証、commit、report を行います。通知は inbox $id です。"
+      ;;
+    research-worker)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=research-worker agent_id=$id として待機してください。research_request を受けたら事実と根拠を中心に調査し、指定 artifact に結果を書いて caller へ返します。project code は編集しません。通知は inbox $id です。"
+      ;;
+    frontend-worker)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=frontend-worker agent_id=$id として待機してください。task_assigned を受けたら frontend-critic と view direction を固め、実画面を確認しながら実装、検証、commit、report を行います。通知は inbox $id です。"
+      ;;
+    frontend-critic)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=frontend-critic agent_id=$id として待機してください。supervision_assigned を受けたら view direction と実画面品質を厳しく確認し、task 全体の final critique を行います。project code は編集しません。通知は inbox $id です。"
       ;;
     *)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=$role agent_id=$id として待機してください。通知は inbox $id です。"
@@ -139,14 +152,18 @@ agent_launch_command() {
   local role="$2"
   local cli="$3"
   local model="$4"
-  local session="$5"
-  local command="$6"
+  local effort="$5"
+  local supervisor="$6"
+  local session="$7"
+  local command="$8"
 
-  printf 'TEAM_AGENT_ID=%s TEAM_AGENT_ROLE=%s TEAM_AGENT_CLI=%s TEAM_AGENT_MODEL=%s TEAM_SESSION=%s TEAM_ROOT=%s TEAM_CONFIG_FILE=%s %s' \
+  printf 'TEAM_AGENT_ID=%s TEAM_AGENT_ROLE=%s TEAM_AGENT_CLI=%s TEAM_AGENT_MODEL=%s TEAM_AGENT_EFFORT=%s TEAM_AGENT_SUPERVISOR=%s TEAM_SESSION=%s TEAM_ROOT=%s TEAM_CONFIG_FILE=%s %s' \
     "$(shell_quote "$id")" \
     "$(shell_quote "$role")" \
     "$(shell_quote "$cli")" \
     "$(shell_quote "$model")" \
+    "$(shell_quote "$effort")" \
+    "$(shell_quote "$supervisor")" \
     "$(shell_quote "$session")" \
     "$(shell_quote "$TEAM_ROOT")" \
     "$(shell_quote "$TEAM_CONFIG_FILE")" \
@@ -156,6 +173,7 @@ agent_launch_command() {
 main() {
   require_command tmux
   ensure_team_dirs
+  team_config_validate
 
   local session
   session="$(team_config_session)"
@@ -182,7 +200,7 @@ main() {
 
   local first=1
   [[ "$session_exists" -eq 1 ]] && first=0
-  while IFS='|' read -r id role cli model window command; do
+  while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
     if [[ "$lead_only" -eq 1 && "$role" != "lead" ]]; then
       continue
@@ -191,10 +209,10 @@ main() {
       continue
     fi
     [[ -n "$window" ]] || window="$id"
-    [[ -n "$command" ]] || die "agent $id has no command"
+    command="$(team_config_agent_command "$id")"
 
     local launch_command
-    launch_command="$(agent_launch_command "$id" "$role" "$cli" "$model" "$session" "$command")"
+    launch_command="$(agent_launch_command "$id" "$role" "$cli" "$model" "$effort" "$supervisor" "$session" "$command")"
 
     if [[ "$first" -eq 1 ]]; then
       tmux new-session -d -s "$session" -n "$window" -c "$TEAM_ROOT" "$launch_command"
@@ -216,7 +234,7 @@ main() {
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     send_boot_nudge "$pane" "$id" "$role" "$cli"
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
-    write_agent_state "$id" "$role" "$cli" "$model" "$window" "$command" "$pane" "$session"
+    write_agent_state "$id" "$role" "$cli" "$model" "$effort" "$window" "$supervisor" "$command" "$pane" "$session"
   done < <(team_config_agents)
 
   tmux set-option -t "$session" status on >/dev/null

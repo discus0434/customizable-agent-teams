@@ -20,7 +20,7 @@
 
 ## Active Tasks
 
-| Task | Owner | Reviewer | Status | Next Action |
+| Task | Worker | Supervisor | Status | Next Action |
 | --- | --- | --- | --- | --- |
 
 ## Bundles

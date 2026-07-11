@@ -4,6 +4,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/team_common.sh"
+source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
   echo "usage: team_nudge.sh <agent_id>" >&2
@@ -19,8 +20,13 @@ fi
 
 require_command tmux
 state_file="$TEAM_STATE_DIR/agents/$agent_id.env"
+configured_session="$(team_config_session)"
 
 if [[ ! -f "$state_file" ]]; then
+  if [[ -n "$configured_session" ]] && ! tmux has-session -t "$configured_session" 2>/dev/null; then
+    echo "[team] queued for $agent_id; tmux session is not running yet" >&2
+    exit 0
+  fi
   warn "no pane state for $agent_id; message was written but no tmux nudge was sent"
   exit 1
 fi
@@ -34,8 +40,8 @@ if [[ -z "${pane:-}" || -z "${session:-}" ]]; then
 fi
 
 if ! tmux has-session -t "$session" 2>/dev/null; then
-  warn "tmux session is not running: $session"
-  exit 1
+  echo "[team] queued for $agent_id; tmux session is not running yet" >&2
+  exit 0
 fi
 
 if ! team_tmux_pane_in_session "$pane" "$session"; then

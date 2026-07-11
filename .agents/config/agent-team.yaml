@@ -1,76 +1,127 @@
 team:
   name: customizable-agent-teams
   session: agent-team
-  lead:
-    id: lead
+
+agents:
+  - id: lead
     role: lead
     cli: claude
     model: claude-fable-5
+    effort: xhigh
     window: lead
-    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort xhigh
-  manager:
-    id: manager
+
+  - id: manager
     role: manager
     cli: codex
     model: gpt-5.6-sol
+    effort: xhigh
     window: manager
-    command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
-  strategist:
-    id: strategist
+
+  - id: strategist
     role: strategist
     cli: claude
     model: claude-fable-5
+    effort: max
     window: strategist
-    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort max
-  architect:
-    id: architect
+
+  - id: architect
     role: architect
     cli: claude
     model: claude-fable-5
+    effort: max
     window: architect
-    command: claude --dangerously-skip-permissions --model claude-fable-5 --effort max
-  release-captain:
-    id: release-captain
+
+  - id: release-captain
     role: release-captain
     cli: codex
     model: gpt-5.6-sol
+    effort: xhigh
     window: release-captain
-    command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
-  reviewers:
-    - id: reviewer-1
-      role: reviewer
-      cli: codex
-      model: gpt-5.6-sol
-      window: reviewer-1
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
-    - id: reviewer-2
-      role: reviewer
-      cli: codex
-      model: gpt-5.6-sol
-      window: reviewer-2
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
-    - id: reviewer-3
-      role: reviewer
-      cli: codex
-      model: gpt-5.6-sol
-      window: reviewer-3
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
-  workers:
-    - id: worker-1
-      role: worker
-      cli: codex
-      model: gpt-5.6-sol
-      window: worker-1
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
-    - id: worker-2
-      role: worker
-      cli: codex
-      model: gpt-5.6-sol
-      window: worker-2
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
-    - id: worker-3
-      role: worker
-      cli: codex
-      model: gpt-5.6-sol
-      window: worker-3
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
+
+  - id: general-reviewer-1
+    role: general-reviewer
+    cli: codex
+    model: gpt-5.6-sol
+    effort: high
+    window: general-reviewer-1
+
+  - id: general-reviewer-2
+    role: general-reviewer
+    cli: codex
+    model: gpt-5.6-sol
+    effort: high
+    window: general-reviewer-2
+
+  - id: general-reviewer-3
+    role: general-reviewer
+    cli: codex
+    model: gpt-5.6-sol
+    effort: high
+    window: general-reviewer-3
+
+  - id: general-worker-1
+    role: general-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: medium
+    window: general-worker-1
+    supervisor: general-reviewer-1
+
+  - id: general-worker-2
+    role: general-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: medium
+    window: general-worker-2
+    supervisor: general-reviewer-2
+
+  - id: general-worker-3
+    role: general-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: medium
+    window: general-worker-3
+    supervisor: general-reviewer-3
+
+  - id: research-worker-1
+    role: research-worker
+    cli: codex
+    model: gpt-5.6-terra
+    effort: high
+    window: research-worker-1
+
+  - id: research-worker-2
+    role: research-worker
+    cli: codex
+    model: gpt-5.6-terra
+    effort: high
+    window: research-worker-2
+
+  - id: research-worker-3
+    role: research-worker
+    cli: codex
+    model: gpt-5.6-terra
+    effort: high
+    window: research-worker-3
+
+  - id: research-worker-4
+    role: research-worker
+    cli: codex
+    model: gpt-5.6-terra
+    effort: high
+    window: research-worker-4
+
+  - id: frontend-critic-1
+    role: frontend-critic
+    cli: claude
+    model: claude-opus-4-8
+    effort: xhigh
+    window: frontend-critic-1
+
+  - id: frontend-worker-1
+    role: frontend-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: xhigh
+    window: frontend-worker-1
+    supervisor: frontend-critic-1

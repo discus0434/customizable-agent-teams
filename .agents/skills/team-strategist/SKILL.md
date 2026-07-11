@@ -1,6 +1,6 @@
 ---
 name: team-strategist
-description: Guides strategist analysis for deep debugging, option comparison, execution planning, and focused investigation. Use when a strategist receives a strategy request from architect, manager, lead, or reviewer.
+description: Guides deep debugging, option comparison, execution planning, focused investigation, and research delegation. Use when Strategist receives a strategy request from Architect, Manager, Lead, general-reviewer, or frontend-critic.
 ---
 
 # team-strategist
@@ -20,8 +20,9 @@ description: Guides strategist analysis for deep debugging, option comparison, e
 - Do not edit `.agents/state/STATE.md`.
 - Write the strategy artifact to the `Strategy artifact path:` shown in the request.
 - Notify the requester with the artifact path and a short summary.
-- If the request came from a reviewer, keep the answer scoped to the task unless the artifact explicitly names task-external impact.
+- If the request came from an implementation Supervisor, keep the answer scoped to the task unless the artifact explicitly names task-external impact.
 - If the request came from an architect, provide analysis the architect can integrate into technical direction.
+- Request research-worker evidence when codebase facts, feasibility experiments, or current external sources can be investigated independently.
 
 ## Output
 

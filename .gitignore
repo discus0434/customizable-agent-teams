@@ -101,6 +101,14 @@ CMakeCache.txt
 !.agents/queue/reports/.gitkeep
 .agents/queue/reviews/*
 !.agents/queue/reviews/.gitkeep
+.agents/queue/critiques/*
+!.agents/queue/critiques/.gitkeep
+.agents/queue/direction-critiques/*
+!.agents/queue/direction-critiques/.gitkeep
+.agents/queue/visuals/*
+!.agents/queue/visuals/.gitkeep
+.agents/queue/research/*
+!.agents/queue/research/.gitkeep
 .agents/queue/strategy/*
 !.agents/queue/strategy/.gitkeep
 .agents/queue/architecture/*
@@ -118,4 +126,5 @@ CMakeCache.txt
 !.agents/queue/skill_proposals/.gitkeep
 .agents/queue/tasks/*
 !.agents/queue/tasks/.gitkeep
-!.agents/queue/tasks/TEMPLATE.md
+!.agents/queue/tasks/GENERAL_TEMPLATE.md
+!.agents/queue/tasks/FRONTEND_TEMPLATE.md

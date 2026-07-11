@@ -7,43 +7,34 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 ensure_team_dirs
+team_config_validate
 
-latest_task_message_summary() {
+latest_task_progress_summary() {
   local task_id="$1"
-  local wanted_type="$2"
+  local progress_file
   local line
-  local message_id
-  local message_task
-  local message_type
-  local message_from
-  local latest=""
-
-  while IFS= read -r message_file; do
-    line="$(cat "$message_file")"
-    message_task="$(printf '%s\n' "$line" | extract_json_field task_id)"
-    [[ "$message_task" == "$task_id" ]] || continue
-    message_type="$(printf '%s\n' "$line" | extract_json_field type)"
-    [[ "$message_type" == "$wanted_type" ]] || continue
-    message_id="$(printf '%s\n' "$line" | extract_json_field id)"
-    message_from="$(printf '%s\n' "$line" | extract_json_field from)"
-    latest="$message_id from=$message_from"
-  done < <(find "$TEAM_STATE_DIR/messages" -maxdepth 1 -type f -name '*.json' | sort)
-
-  printf '%s\n' "$latest"
+  progress_file="$(team_task_progress_file "$task_id")"
+  [[ -f "$progress_file" ]] || return 0
+  line="$(tail -n 1 "$progress_file")"
+  [[ -n "$line" ]] || return 0
+  printf '%s %s->%s' \
+    "$(printf '%s\n' "$line" | extract_json_field type)" \
+    "$(printf '%s\n' "$line" | extract_json_field from)" \
+    "$(printf '%s\n' "$line" | extract_json_field to)"
+  summary="$(printf '%s\n' "$line" | extract_json_field summary)"
+  [[ -n "$summary" ]] && printf ' %s' "$summary"
+  printf '\n'
 }
 
 session="$(team_config_session)"
 session_running=0
-
-echo "Team: $(team_config_name)"
-echo "Session: $session"
-echo
+printf 'Team: %s\nSession: %s\n\n' "$(team_config_name)" "$session"
 
 echo "Agents:"
-printf '%-16s %-16s %-18s %s\n' "id" "role" "model" "window"
-while IFS='|' read -r id role cli model window command; do
+printf '%-22s %-20s %-18s %-7s %s\n' "id" "role" "model" "effort" "window"
+while IFS='|' read -r id role _cli model effort window _supervisor; do
   [[ -n "$id" ]] || continue
-  printf '%-16s %-16s %-18s %s\n' "$id" "$role" "$model" "$window"
+  printf '%-22s %-20s %-18s %-7s %s\n' "$id" "$role" "$model" "$effort" "$window"
 done < <(team_config_agents)
 echo
 
@@ -57,118 +48,91 @@ fi
 echo
 
 echo "Agent pane status:"
-while IFS='|' read -r id role cli model window command; do
+while IFS='|' read -r id role _cli _model _effort window _supervisor; do
   [[ -n "$id" ]] || continue
-  state_file="$TEAM_STATE_DIR/agents/$id.env"
-  pane=""
-  state_session=""
-  status=""
-  detail=""
+  agent_state="$TEAM_STATE_DIR/agents/$id.env"
   if [[ "$session_running" -ne 1 ]]; then
-    status="not-running"
-    detail="session=$session"
-  elif [[ ! -f "$state_file" ]]; then
-    status="missing-state"
-    detail="window=$window"
+    pane_status="not-running session=$session"
+  elif [[ ! -f "$agent_state" ]]; then
+    pane_status="missing-state window=$window"
   else
     configured_session="$session"
     pane=""
+    state_session=""
     session=""
     # shellcheck disable=SC1090
-    source "$state_file"
+    source "$agent_state"
     state_session="${session:-}"
     session="$configured_session"
-    if [[ -z "${pane:-}" || -z "$state_session" ]]; then
-      status="incomplete-state"
-      detail="window=$window"
-    elif team_tmux_pane_in_session "$pane" "$session"; then
-      status="live"
-      detail="pane=$pane"
+    if [[ -n "${pane:-}" ]] && team_tmux_pane_in_session "$pane" "$session"; then
+      pane_status="live pane=$pane"
     else
-      status="missing-pane"
-      detail="pane=$pane window=$window"
+      pane_status="missing-pane pane=${pane:-none} window=$window state_session=${state_session:-none}"
     fi
   fi
-  printf '  %-16s %-16s %s %s\n' "$id" "$role" "$status" "$detail"
+  printf '  %-22s %-20s %s\n' "$id" "$role" "$pane_status"
 done < <(team_config_agents)
 echo
 
 echo "Current STATE.md:"
-state_file="$(team_state_file)"
-if [[ -f "$state_file" ]]; then
-  echo "  $state_file"
-else
-  echo "  missing: $state_file"
-fi
+[[ -f "$(team_state_file)" ]] && printf '  %s\n' "$(team_state_file)" || printf '  missing: %s\n' "$(team_state_file)"
 echo
 
 echo "Tasks:"
 task_count=0
 while IFS= read -r task_file; do
-  task_name="$(basename "$task_file" .md)"
-  [[ "$task_name" == "TEMPLATE" ]] && continue
+  task_id="$(basename "$task_file" .md)"
+  case "$task_id" in GENERAL_TEMPLATE|FRONTEND_TEMPLATE) continue ;; esac
   task_count=$((task_count + 1))
-  manager="unassigned"
-  owner="unassigned"
-  reviewer="unassigned"
-  status="no-state"
-  head_commit=""
-  review_decision=""
-  done_recommendation=""
-  checkpoint=""
-  strategy_artifact=""
-  architecture_required=""
-  architecture=""
-  release_bundle=""
-  state_file="$TEAM_STATE_DIR/tasks/$task_name.json"
-  if [[ -f "$state_file" ]]; then
-    manager="$(team_task_state_field "$task_name" manager)"
-    owner="$(team_task_state_field "$task_name" owner)"
-    reviewer="$(team_task_state_field "$task_name" reviewer)"
-    status="$(team_task_state_field "$task_name" status)"
-    head_commit="$(team_task_state_field "$task_name" head_commit)"
-    review_decision="$(team_task_state_field "$task_name" review_decision)"
-    done_recommendation="$(team_task_state_field "$task_name" done_recommendation)"
-    architecture_required="$(team_task_state_field "$task_name" architecture_required)"
-    architecture="$(team_task_state_field "$task_name" architecture)"
-    release_bundle="$(team_task_state_field "$task_name" release_bundle)"
+  task_state="$(team_task_state_file "$task_id")"
+  if [[ ! -f "$task_state" ]]; then
+    printf '  %s status=not-dispatched\n' "$task_id"
+    continue
   fi
-  while IFS= read -r candidate; do
-    strategy_artifact="$(team_relative_path "$candidate")"
-  done < <(find "$TEAM_QUEUE_DIR/strategy" -maxdepth 1 -type f -name "${task_name}_*.md" | sort)
-  checkpoint="$(latest_task_message_summary "$task_name" checkpoint)"
+  manager="$(team_task_state_field "$task_id" manager)"
+  worker="$(team_task_state_field "$task_id" worker)"
+  supervisor="$(team_task_state_field "$task_id" supervisor)"
+  status="$(team_task_state_field "$task_id" status)"
+  head_commit="$(team_task_state_field "$task_id" head_commit)"
+  supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
+  done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
+  direction_status="$(team_task_state_field "$task_id" direction_status)"
+  release_bundle="$(team_task_state_field "$task_id" release_bundle)"
   short_head="$head_commit"
   [[ ${#short_head} -gt 12 ]] && short_head="${short_head:0:12}"
-  line="  $task_name manager=${manager:-none} owner=${owner:-none} reviewer=${reviewer:-none} status=$status head=${short_head:-none} review=${review_decision:-none} done_recommendation=${done_recommendation:-false}"
-  if [[ -n "$checkpoint" ]]; then
-    line="$line checkpoint=\"$checkpoint\""
-  fi
-  if [[ -n "$strategy_artifact" ]]; then
-    line="$line strategy=$strategy_artifact"
-  fi
-  if [[ "$architecture_required" == "true" || -n "$architecture" ]]; then
-    line="$line architecture_required=${architecture_required:-false}"
-    if [[ -n "$architecture" ]]; then
-      line="$line architecture=$architecture"
-    fi
-  fi
-  if [[ -n "$release_bundle" ]]; then
-    line="$line release_bundle=$release_bundle"
-  fi
+  line="  $task_id manager=$manager worker=$worker supervisor=$supervisor status=$status head=${short_head:-none} supervision=${supervision_decision:-none} done_recommendation=${done_recommendation:-false}"
+  [[ "$direction_status" != "not_applicable" && -n "$direction_status" ]] && line+=" direction=$direction_status"
+  progress="$(latest_task_progress_summary "$task_id")"
+  [[ -n "$progress" ]] && line+=" progress=\"$progress\""
+  [[ -n "$release_bundle" ]] && line+=" release_bundle=$release_bundle"
   echo "$line"
 done < <(find "$TEAM_QUEUE_DIR/tasks" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$task_count" -gt 0 ]] || echo "  none"
 echo
 
+echo "Research:"
+research_count=0
+while IFS= read -r research_state; do
+  request_id="$(extract_json_field request_id < "$research_state")"
+  status="$(extract_json_field status < "$research_state")"
+  case "$status" in queued|active|waiting_for_caller) ;; *) continue ;; esac
+  research_count=$((research_count + 1))
+  caller="$(extract_json_field caller < "$research_state")"
+  worker="$(extract_json_field worker < "$research_state")"
+  task_id="$(extract_json_field task_id < "$research_state")"
+  artifact="$(extract_json_field artifact < "$research_state")"
+  printf '  %s caller=%s worker=%s status=%s task=%s artifact=%s\n' "$request_id" "$caller" "${worker:-queued}" "$status" "${task_id:--}" "$artifact"
+done < <(find "$TEAM_STATE_DIR/research" -maxdepth 1 -type f -name '*.json' | sort)
+[[ "$research_count" -gt 0 ]] || echo "  none"
+echo
+
 echo "Inbox:"
-while IFS='|' read -r id role cli model window command; do
+while IFS='|' read -r id _role _cli _model _effort _window _supervisor; do
   [[ -n "$id" ]] || continue
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0
   pending=0
-  latest_pending_id=""
-  latest_pending_type=""
-  latest_pending_from=""
+  latest=""
   if [[ -f "$inbox_file" ]]; then
     while IFS= read -r line; do
       message_id="$(printf '%s\n' "$line" | extract_json_field id)"
@@ -176,85 +140,50 @@ while IFS='|' read -r id role cli model window command; do
       total=$((total + 1))
       if [[ ! -f "$TEAM_STATE_DIR/processed/$id/$message_id" ]]; then
         pending=$((pending + 1))
-        latest_pending_id="$message_id"
-        latest_pending_type="$(printf '%s\n' "$line" | extract_json_field type)"
-        latest_pending_from="$(printf '%s\n' "$line" | extract_json_field from)"
+        latest="$message_id type=$(printf '%s\n' "$line" | extract_json_field type) from=$(printf '%s\n' "$line" | extract_json_field from)"
       fi
     done < "$inbox_file"
   fi
-  if [[ "$pending" -gt 0 ]]; then
-    echo "  $id pending=$pending total=$total latest=$latest_pending_id type=$latest_pending_type from=$latest_pending_from"
-  else
-    echo "  $id pending=0 total=$total"
-  fi
+  printf '  %s pending=%s total=%s' "$id" "$pending" "$total"
+  [[ -n "$latest" ]] && printf ' latest=%s' "$latest"
+  printf '\n'
 done < <(team_config_agents)
 echo
 
-echo "Reports:"
-report_count=0
-while IFS= read -r report_file; do
-  report_count=$((report_count + 1))
-  echo "  $(basename "$report_file")"
-done < <(find "$TEAM_QUEUE_DIR/reports" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$report_count" -gt 0 ]] || echo "  none"
-echo
-
-echo "Reviews:"
-review_count=0
-while IFS= read -r review_file; do
-  review_count=$((review_count + 1))
-  echo "  $(basename "$review_file")"
-done < <(find "$TEAM_QUEUE_DIR/reviews" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$review_count" -gt 0 ]] || echo "  none"
-echo
-
-echo "Strategy:"
-strategy_count=0
-while IFS= read -r strategy_file; do
-  strategy_count=$((strategy_count + 1))
-  echo "  $(basename "$strategy_file")"
-done < <(find "$TEAM_QUEUE_DIR/strategy" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$strategy_count" -gt 0 ]] || echo "  none"
-echo
-
-echo "Architecture:"
-architecture_count=0
-while IFS= read -r architecture_file; do
-  architecture_count=$((architecture_count + 1))
-  echo "  $(basename "$architecture_file")"
-done < <(find "$TEAM_QUEUE_DIR/architecture" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$architecture_count" -gt 0 ]] || echo "  none"
-echo
+for artifact_group in "Reports:$TEAM_QUEUE_DIR/reports" "Reviews:$TEAM_QUEUE_DIR/reviews" "Critiques:$TEAM_QUEUE_DIR/critiques" "Direction critiques:$TEAM_QUEUE_DIR/direction-critiques" "Strategy:$TEAM_QUEUE_DIR/strategy" "Architecture:$TEAM_QUEUE_DIR/architecture"; do
+  label="${artifact_group%%:*}"
+  directory="${artifact_group#*:}"
+  printf '%s:\n' "$label"
+  count=0
+  while IFS= read -r artifact; do
+    count=$((count + 1))
+    printf '  %s\n' "$(basename "$artifact")"
+  done < <(find "$directory" -maxdepth 1 -type f -name '*.md' | sort)
+  [[ "$count" -gt 0 ]] || echo "  none"
+  echo
+done
 
 echo "Releases:"
 release_count=0
-while IFS= read -r release_state_file; do
+while IFS= read -r release_state; do
   release_count=$((release_count + 1))
-  bundle_id="$(basename "$release_state_file" .json)"
-  release_manager="$(team_release_state_field "$bundle_id" manager)"
-  release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-  release_status="$(team_release_state_field "$bundle_id" status)"
-  release_decision="$(team_release_state_field "$bundle_id" decision)"
-  bundle_artifact="$(team_release_state_field "$bundle_id" bundle_artifact)"
-  review_artifact="$(team_release_state_field "$bundle_id" review_artifact)"
-  echo "  $bundle_id manager=${release_manager:-none} release_captain=${release_captain:-none} status=${release_status:-none} decision=${release_decision:-none} bundle=$(team_relative_path "$bundle_artifact") review=$(team_relative_path "$review_artifact")"
+  bundle_id="$(basename "$release_state" .json)"
+  printf '  %s manager=%s release_captain=%s status=%s decision=%s\n' \
+    "$bundle_id" \
+    "$(team_release_state_field "$bundle_id" manager)" \
+    "$(team_release_state_field "$bundle_id" release_captain)" \
+    "$(team_release_state_field "$bundle_id" status)" \
+    "$(team_release_state_field "$bundle_id" decision)"
 done < <(find "$TEAM_STATE_DIR/releases" -maxdepth 1 -type f -name '*.json' | sort)
 [[ "$release_count" -gt 0 ]] || echo "  none"
 echo
 
-echo "Memory proposals:"
-proposal_count=0
-while IFS= read -r proposal_file; do
-  proposal_count=$((proposal_count + 1))
-  echo "  $(basename "$proposal_file")"
-done < <(find "$TEAM_QUEUE_DIR/memory_proposals" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$proposal_count" -gt 0 ]] || echo "  none"
-
-echo
-echo "Skill proposals:"
-skill_proposal_count=0
-while IFS= read -r proposal_file; do
-  skill_proposal_count=$((skill_proposal_count + 1))
-  echo "  $(basename "$proposal_file")"
-done < <(find "$TEAM_QUEUE_DIR/skill_proposals" -maxdepth 1 -type f -name '*.md' | sort)
-[[ "$skill_proposal_count" -gt 0 ]] || echo "  none"
+for proposal_group in "Memory proposals:$TEAM_QUEUE_DIR/memory_proposals" "Skill proposals:$TEAM_QUEUE_DIR/skill_proposals"; do
+  label="${proposal_group%%:*}"
+  directory="${proposal_group#*:}"
+  printf '%s:\n' "$label"
+  count=0
+  while IFS= read -r artifact; do count=$((count + 1)); printf '  %s\n' "$(basename "$artifact")"; done < <(find "$directory" -maxdepth 1 -type f -name '*.md' | sort)
+  [[ "$count" -gt 0 ]] || echo "  none"
+  echo
+done

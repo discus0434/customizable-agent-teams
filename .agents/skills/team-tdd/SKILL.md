@@ -1,6 +1,6 @@
 ---
 name: team-tdd
-description: Guides test-first implementation for behavior changes, bug fixes, core logic, adapters, queues, state, and tests. Use when a worker can express the expected contract before implementation.
+description: Guides test-first implementation for behavior changes, bug fixes, core logic, adapters, queues, state, and tests. Use when an implementation worker can express the expected contract before implementation.
 ---
 
 # team-tdd
