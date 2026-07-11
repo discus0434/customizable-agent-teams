@@ -42,35 +42,35 @@ team:
       cli: codex
       model: gpt-5.6-sol
       window: reviewer-1
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
     - id: reviewer-2
       role: reviewer
       cli: codex
       model: gpt-5.6-sol
       window: reviewer-2
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
     - id: reviewer-3
       role: reviewer
       cli: codex
       model: gpt-5.6-sol
       window: reviewer-3
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="high"
   workers:
     - id: worker-1
       role: worker
       cli: codex
-      model: gpt-5.6-terra
+      model: gpt-5.6-sol
       window: worker-1
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
     - id: worker-2
       role: worker
       cli: codex
-      model: gpt-5.6-terra
+      model: gpt-5.6-sol
       window: worker-2
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
     - id: worker-3
       role: worker
       cli: codex
-      model: gpt-5.6-terra
+      model: gpt-5.6-sol
       window: worker-3
-      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-terra -c model_reasoning_effort="xhigh"
+      command: codex --dangerously-bypass-approvals-and-sandbox --model gpt-5.6-sol -c model_reasoning_effort="medium"
