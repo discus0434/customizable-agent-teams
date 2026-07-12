@@ -84,7 +84,7 @@ case "$decision" in
     team_update_markdown_field "$direction_file" "Task" ".agents/queue/tasks/$task_id.md"
     team_update_markdown_field "$direction_file" "Worker" "$worker"
     direction_artifact="$(team_relative_path "$direction_file")"
-    body="View direction decision: $decision. $direction_artifact を確認してください。"
+    body="View direction decision: ${decision}。${direction_artifact}を確認してください。"
     case "$decision" in
       PROCEED) direction_status="proceed"; target="$worker" ;;
       REVISE) direction_status="revise"; target="$worker" ;;

@@ -135,13 +135,8 @@ team_write_task_state \
   ""
 release_team_lock
 
-if [[ "$worker_role" == "frontend-worker" ]]; then
-  worker_body="$task_file を読み、固定 supervisor は $supervisor_id です。まず view direction を共有し、critic の response を受けてから主要 UI 実装へ進んでください。実画面を確認しながら実装、検証、task commit、report を行い、ready_for_supervision を送ってください。"
-  supervisor_body="$task_file を読み、固定 worker $worker_id を task-local に監督してください。最初に direction critique の要否を判断し、必要なら view direction を固めてから実装を進めます。最終 artifact は $supervision_path です。"
-else
-  worker_body="$task_file を読み、固定 supervisor は $supervisor_id です。Reviewerの入力が実装を有意に変え得る時は supervision_checkpoint で相談してください。実装、検証、task commit、report 作成後に ready_for_supervision を送ってください。"
-  supervisor_body="$task_file を読み、固定 worker $worker_id と直接やりとりしてください。task-local supervisor として checkpoint、相談、feedback、ready_for_supervision を扱い、最終 artifact を $supervision_path に書いてください。"
-fi
+worker_body="${task_file}を読み、固定Supervisor ${supervisor_id}と連携してtaskを進めてください。"
+supervisor_body="${task_file}を読み、固定Worker ${worker_id}の相談と最終判断を担当してください。最終成果物は${supervision_path}へ書いてください。"
 
 team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
 team_send_with_body_file "$manager_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null

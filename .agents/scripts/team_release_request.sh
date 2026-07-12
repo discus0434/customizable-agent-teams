@@ -8,23 +8,17 @@ source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
   cat >&2 <<'USAGE'
-usage: team_release_request.sh [--manager <manager_id>] [--release-captain <agent_id>] <bundle_id> <task_id>...
+usage: team_release_request.sh [--manager <manager_id>] <bundle_id> <task_id>...
 USAGE
 }
 
 manager_id=""
-release_captain_id=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --manager)
       [[ $# -ge 2 ]] || die "--manager requires a value"
       manager_id="$2"
-      shift 2
-      ;;
-    --release-captain)
-      [[ $# -ge 2 ]] || die "--release-captain requires a value"
-      release_captain_id="$2"
       shift 2
       ;;
     -h|--help)
@@ -52,6 +46,7 @@ shift
 [[ "$bundle_id" != */* ]] || die "bundle_id must not contain '/': $bundle_id"
 
 ensure_team_dirs
+team_config_validate
 
 if [[ -z "$manager_id" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
@@ -61,27 +56,7 @@ if [[ -z "$manager_id" ]]; then
   manager_id="$TEAM_AGENT_ID"
 fi
 
-if [[ -z "$release_captain_id" ]]; then
-  release_captains="$(team_config_role_agent_ids release-captain)"
-  release_captain_count="$(printf '%s\n' "$release_captains" | sed '/^$/d' | wc -l | tr -d ' ')"
-  case "$release_captain_count" in
-    1)
-      release_captain_id="$(printf '%s\n' "$release_captains" | sed -n '1p')"
-      ;;
-    0)
-      die_rule \
-        "release-captain is not configured" \
-        "release-request needs exactly one release-captain or an explicit RELEASE_CAPTAIN" \
-        "add a release-captain to .agents/config/agent-team.yaml or pass RELEASE_CAPTAIN=<agent_id>"
-      ;;
-    *)
-      die_rule \
-        "multiple release-captains are configured" \
-        "release-request cannot infer which release-captain owns this bundle" \
-        "pass RELEASE_CAPTAIN=<agent_id>"
-      ;;
-  esac
-fi
+release_captain_id="$(team_config_role_agent_ids release-captain)"
 
 if ! team_config_agent_record "$manager_id" >/dev/null; then
   die "unknown manager: $manager_id"
@@ -99,7 +74,7 @@ release_captain_role="$(team_config_agent_field "$release_captain_id" role)"
 [[ "$release_captain_role" == "release-captain" ]] || die_rule \
   "release-request target must be a release-captain agent" \
   "$release_captain_id has role $release_captain_role in $TEAM_CONFIG_FILE" \
-  "pass RELEASE_CAPTAIN=<agent_id> for a release-captain agent"
+  "correct the release-captain entry in $TEAM_CONFIG_FILE"
 
 tasks=""
 for task_id in "$@"; do
@@ -205,7 +180,7 @@ for task_id in "$@"; do
 done
 release_team_lock
 
-body="Release bundle $bundle_id を確認してください。"
+body="Release bundle ${bundle_id}を確認してください。"
 team_send_with_body_file "$manager_id" release_request "" "$bundle_id" "$release_captain_id" "$body" >/dev/null
 
 printf 'bundle=%s\n' "$bundle_rel"

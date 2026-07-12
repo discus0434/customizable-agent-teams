@@ -1,42 +1,35 @@
 ---
 name: team-memory
-description: Guides lead review of memory proposals and MEMORY updates. Use when .agents/queue/memory_proposals contains proposed medium/long-term rules, tips, pitfalls, or user preferences.
+description: Leadが.agents/queue/memory_proposalsにある提案を審査し、中長期に再利用するrule、tip、pitfall、user preferenceの採否を決めてMEMORYを更新または整理するときに使う。
 ---
 
 # team-memory
 
-## Inputs
-
-- `.agents/state/MEMORY.md`
-- `.agents/queue/memory_proposals/*.md`
-- proposal の source task / report / review / strategy / architecture / release / manager state
-
-## Accept
+## 採択条件
 
 - 次回以降の作業で再利用できる。
-- 1 entry 1 lesson。
-- source task / report / review / strategy / architecture / release / commit を追える。
-- 既存 entry と重複しない。
-- 秘密情報、raw log、未検証の推測を含まない。
+- 一つのentryに一つの教訓だけがある。
+- sourceとなるtask、report、review、strategy、architecture、release、commitを追跡できる。
+- credential、private data、raw log、未検証の推測を含まない。
 
-## Process
+## 審査
 
 ```bash
 make memory-list
 ```
 
-1. proposal を読む。
-2. `.agents/state/MEMORY.md` を検索して重複や supersede 対象を確認する。
-3. 採択する場合は `## Proposed Entry` に 1 つの MEMORY entry だけを残す。
-4. 既存 entry の更新、置換、削除が必要なら MEMORY を直接編集し、proposal を削除する。
-5. 必要なら proposal file に対応済みであることを report に残す。
+1. proposalとsourceを確認する。
+2. `.agents/state/MEMORY.md`を検索し、重複、訂正、削除が必要なentryを確認する。
+3. 採択する場合は、proposalの`## Proposed Entry`に一つのentryだけを残す。
+4. 新規entryなら`make memory-append PROPOSAL=<proposal_file_or_basename>`で追加する。
+5. 既存entryの訂正、置換、削除が必要な場合は、`MEMORY.md`を直接整理してproposalを削除する。
 
-```bash
-make memory-append PROPOSAL=<proposal_file_or_basename>
-```
+`memory-append`はentryを追加し、proposal fileを削除し、whitespaceを検証する。
 
-`memory-append` appends the single entry under `## Proposed Entry`, removes the proposal file, and runs the MEMORY whitespace gate. If editing MEMORY manually, run:
+`MEMORY.md`を直接編集した場合は、次のcommandを実行する。
 
 ```bash
 git diff --check -- .agents/state/MEMORY.md
 ```
+
+新しい内容を追記するだけで済ませず、重複したentryと現在の判断に合わないentryを削除または置換する。

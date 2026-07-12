@@ -194,8 +194,8 @@ case "$type" in
       *) die_rule "role cannot request strategy: $from_role" "strategy requests come from lead, manager, architect, or an assigned supervisor" "route the request through an allowed role" ;;
     esac
     artifact_path="$(team_strategy_artifact_path "$task_id" "$subtype")"
-    [[ -n "$body" ]] || body="Strategy request from $from."
-    body+=$'\n\n'"Strategy artifact path: $artifact_path"
+    [[ -n "$body" ]] || body="${from}からのstrategy_requestです。"
+    body+=$'\n\n'"Strategy output path: $artifact_path"
     ;;
   strategy_result)
     [[ "$from_role" == "strategist" ]] || die_rule \
@@ -255,8 +255,8 @@ case "$type" in
         "$task_supervision_decision" "${task_done_recommendation:-false}" "true" "$artifact_path" \
         "$task_release_bundle" "$task_direction_status" "$task_direction_artifact"
     fi
-    [[ -n "$body" ]] || body="Architecture request from $from."
-    body+=$'\n\n'"Architecture artifact path: $artifact_path"
+    [[ -n "$body" ]] || body="${from}からのarchitecture_requestです。"
+    body+=$'\n\n'"Architecture output path: $artifact_path"
     ;;
   architecture_result)
     [[ "$from_role" == "architect" ]] || die_rule "architecture_result sender must be architect" "the architect writes architecture results" "send from architect"
@@ -282,7 +282,8 @@ case "$type" in
     [[ "$(team_release_state_field "$bundle_id" manager)" == "$from" ]] || die "release manager mismatch for $bundle_id"
     [[ "$(team_release_state_field "$bundle_id" release_captain)" == "$to" ]] || die "release-captain mismatch for $bundle_id"
     artifact_path="$(team_relative_path "$(team_release_bundle_file "$bundle_id")")"
-    body="${body:-Release request from $from.}"$'\n\n'"Release bundle path: $artifact_path"$'\n'"Release review path: $(team_relative_path "$(team_release_review_file "$bundle_id")")"
+    [[ -n "$body" ]] || body="${from}からのrelease_requestです。"
+    body+=$'\n\n'"Release bundle path: $artifact_path"$'\n'"Release review path: $(team_relative_path "$(team_release_review_file "$bundle_id")")"
     ;;
   release_result)
     [[ "$from_role" == "release-captain" && "$to_role" == "manager" ]] || die_rule "invalid release_result route" "release results return from release-captain to manager" "use make release-report"
@@ -340,7 +341,7 @@ case "$type" in
         "task report or task commits are missing from task state" \
         "run make report TASK=$task_id STATUS=needs_supervision, fill the report, then resend"
       team_require_report_matches_task_state "$task_id" "$task_report" "$task_base_commit" "$task_commits"
-      worker_message="${body:-Implementation and verification are complete.}"
+      worker_message="${body:-実装と検証が完了しました。}"
       body="Task: $task_id"$'\n'
       body+="Task file: .agents/queue/tasks/$task_id.md"$'\n'
       body+="Worker: $task_worker"$'\n'
@@ -409,9 +410,9 @@ fi
 
 if [[ -z "$body" ]]; then
   if [[ -n "$task_id" && "$task_id" != "-" ]]; then
-    body=".agents/queue/tasks/$task_id.md を確認してください。"
+    body=".agents/queue/tasks/$task_id.mdを確認してください。"
   else
-    body="inbox $to を確認してください。"
+    body="inbox ${to}を確認してください。"
   fi
 fi
 
@@ -458,7 +459,7 @@ team_record_task_message_activity "$message_id"
 printf 'message_id=%s\n' "$message_id"
 
 if [[ -n "$cc_to" ]]; then
-  cc_body="CC of $type $message_id from $from to $to."$'\n\n'"$body"
+  cc_body="${from}から${to}へ送られた$type ${message_id}を共有します。"$'\n\n'"$body"
   cc_message_id="$(write_message "$cc_to" "$cc_body" "$message_id" "true")"
   team_record_task_message_activity "$cc_message_id"
   printf 'cc_to=%s\n' "$cc_to"

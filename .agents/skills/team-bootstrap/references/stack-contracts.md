@@ -1,32 +1,25 @@
-# Stack Contracts
+# Stackごとの初期値
 
-## Contents
-
-- Python
-- TypeScript
-- Other Stack
-
-Python and TypeScript are examples of the general rule, not the only supported stacks.
+PythonとTypeScriptは例であり、対応するstackをこの二つに限定しない。
 
 ## Python
 
-Use:
+標準構成として次を使う。
 
-- `uv`
-- `ruff`
-- `pytest`
-- `pyproject.toml`
-- `src/<package_name>/`
-- `tests/`
+- package manager：`uv`。
+- formatterとlinter：`ruff`。
+- test runner：`pytest`。
+- metadata：`pyproject.toml`。
+- source：`src/<package_name>/`。
+- test：`tests/`。
 
-`pyproject.toml`:
+`pyproject.toml`には、project名、version、description、対応Python versionを記載する。
 
-- `[project]` has name, version, description, requires-python.
-- test/dev dependency group has `pytest` and `ruff`.
-- library/package deliverables use a build backend such as `hatchling`.
-- ruff config lives under `tool.ruff` and `tool.ruff.lint`.
+test用dependency groupには`pytest`と`ruff`を含める。
 
-`make post-change` path:
+libraryまたはpackageでは、`hatchling`などのbuild backendを設定する。
+
+`ruff`の設定は`tool.ruff`と`tool.ruff.lint`へ置く。
 
 ```make
 PY_PACKAGE_DIRS := .
@@ -44,33 +37,30 @@ post-change-py:
 	done
 ```
 
-For a package build contract, add `uv build` to `post-change-py`.
+packageのbuildが必要な場合は、`post-change-py`へ`uv build`を加える。
 
 ## TypeScript
 
-Use:
+標準構成として次を使う。
 
-- `pnpm`
-- `typescript`
-- `biome`
-- `vitest`
-- `package.json`
-- `tsconfig.json`
-- `src/`
-- `tests/`
+- package manager：`pnpm`。
+- language：`typescript`。
+- formatterとlinter：`biome`。
+- test runner：`vitest`。
+- metadata：`package.json`。
+- compiler設定：`tsconfig.json`。
+- source：`src/`。
+- test：`tests/`。
 
-`package.json` scripts:
+`package.json`には、実際に使うscriptだけを定義する。
 
-- `format`: `biome format --write .`
-- `lint`: `biome check .`
-- `typecheck`: `tsc --noEmit`
-- `test`: `vitest`
-- `build`: project-specific package/app build when needed
-
-`make post-change` path:
+- `format`：`biome format --write .`。
+- `lint`：`biome check .`。
+- `typecheck`：`tsc --noEmit`。
+- `test`：`vitest`。
+- `build`：deliverableに必要なbuild command。
 
 ```make
-PNPM ?= pnpm
 TS_PACKAGE_DIRS := .
 
 post-change: post-change-ts
@@ -80,29 +70,27 @@ post-change-ts:
 	@set -e; \
 	for dir in $(TS_PACKAGE_DIRS); do \
 		echo "==> $$dir"; \
-		(cd $$dir && $(PNPM) -s format); \
-		(cd $$dir && $(PNPM) -s lint); \
-		(cd $$dir && $(PNPM) -s typecheck); \
-		(cd $$dir && $(PNPM) -s test -- --run); \
+		(cd $$dir && pnpm -s format); \
+		(cd $$dir && pnpm -s lint); \
+		(cd $$dir && pnpm -s typecheck); \
+		(cd $$dir && pnpm -s test -- --run); \
 	done
 ```
 
-For a package/app build contract, add `$(PNPM) -s build` to `post-change-ts`.
+applicationまたはpackageのbuildが必要な場合は、`post-change-ts`へ`pnpm -s build`を加える。
 
-## Other Stack
+## その他のstack
 
-- Choose the stack's normal package manager, formatter, linter, test runner, and build/package command.
-- Initialize real project metadata, dependency files, source layout, tests, and lockfiles for that stack.
-- Wire the selected tools into `make post-change`.
-- Define `make smoke` as a short user-visible behavior check.
-- Update `AGENTS.md` and `README.md` with the actual selected commands.
-- Keep only examples and scaffold for the selected stack.
-- Treat a missing required command as a blocker.
+- そのecosystemで通常使われるpackage manager、formatter、linter、test runner、build commandを選ぶ。
+- 実際のmetadata、dependency file、source、test、lockfileを作る。
+- 選んだtoolを`make post-change`から実行する。
+- `make smoke`には代表的な利用者向けの挙動を設定する。
+- `AGENTS.md`と`README.md`には、実際に使うcommandだけを書く。
 
-Examples:
+代表例は次のとおり。
 
-- Rust: `cargo fmt --all --check`, `cargo clippy --all-targets --all-features -- -D warnings`, `cargo test`, and `cargo build` when needed.
-- Go: `gofmt`, `go vet ./...`, `go test ./...`, and `go build ./...` when needed.
-- Ruby: `bundle`, `rubocop`, `rspec` or `minitest`, and gem/package build when needed.
-- Java/Kotlin: Gradle or Maven wrapper, formatter/linter if selected, test, and build/package tasks.
-- Swift: SwiftPM or Xcode build tooling, formatter/linter if selected, tests, and build.
+- Rust：`cargo fmt --all --check`、`cargo clippy --all-targets --all-features -- -D warnings`、`cargo test`、必要な`cargo build`。
+- Go：`gofmt`、`go vet ./...`、`go test ./...`、必要な`go build ./...`。
+- Ruby：`bundle`、`rubocop`、`rspec`または`minitest`、必要なpackage build。
+- JavaまたはKotlin：Gradle WrapperまたはMaven Wrapper、選んだformatterとlinter、test、build。
+- Swift：SwiftPMまたはXcode build tool、選んだformatterとlinter、test、build。

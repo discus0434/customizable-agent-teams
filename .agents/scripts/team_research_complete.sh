@@ -40,7 +40,7 @@ team_markdown_section_has_content "$TEAM_ROOT/$artifact" Result || {
     "write the evidence-first result before replying"
 }
 
-body="Research result: $artifact"
+body="Research result: ${artifact}を確認してください。"
 "$SCRIPT_DIR/team_send.sh" --from "$worker_id" --type research_result --task "$task_id" --research "$request_id" "$caller" "$body" >/dev/null
 team_write_research_state "$request_id" "$caller" "$worker_id" "completed" "$request_message_id" "$artifact" "$task_id" "$question_message_id" "$created_at"
 team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "completed"

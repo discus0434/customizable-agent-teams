@@ -119,21 +119,21 @@ case "$decision" in
     done_recommendation_text="yes"
     next_status="supervision_ok"
     target="$manager"
-    message="Supervision Decision: OK. Done recommendation: yes. $(team_relative_path "$supervision_file") を確認し、全体制約に問題がなければ task を done にしてください。"
+    message="Supervision Decision: OK。Done recommendation: yes。$(team_relative_path "$supervision_file")を確認し、task間の制約にも問題がなければdoneにしてください。"
     ;;
   FIX)
     done_recommendation="false"
     done_recommendation_text="no"
     next_status="supervision_fix"
     target="$worker"
-    message="Supervision Decision: FIX. Done recommendation: no. $(team_relative_path "$supervision_file") を確認し、修正、検証、task commit、report 更新後に ready_for_supervision を送ってください。"
+    message="Supervision Decision: FIX。Done recommendation: no。$(team_relative_path "$supervision_file")を確認し、修正、検証、task commit、report更新後にready_for_supervisionを送ってください。"
     ;;
   ASK_MANAGER)
     done_recommendation="false"
     done_recommendation_text="no"
     next_status="supervision_ask_manager"
     target="$manager"
-    message="Supervision Decision: ASK_MANAGER. Done recommendation: no. $(team_relative_path "$supervision_file") を確認し、判断または Lead への escalation を行ってください。"
+    message="Supervision Decision: ASK_MANAGER。Done recommendation: no。$(team_relative_path "$supervision_file")を確認し、Managerが判断するか、Leadへ確認してください。"
     ;;
 esac
 

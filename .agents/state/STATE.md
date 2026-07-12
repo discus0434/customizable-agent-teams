@@ -10,7 +10,7 @@
 
 - 未設定。
 
-### Human escalation rules
+### Human Escalation
 
 - 未設定。
 
@@ -31,7 +31,7 @@
 
 - なし。
 
-## Recent Decisions
+## Current Decisions
 
 - なし。
 

@@ -1,42 +1,60 @@
 ---
 name: team-frontend-worker
-description: Guides frontend implementation with an assigned frontend-critic, view-direction review, rendered UI iteration, visual evidence, verification, commits, reports, and final supervision. Use when a frontend-worker receives task_assigned, view_direction_result, supervision_feedback, or manager_fix.
+description: Frontend Workerがtask_assigned、view_direction_result、supervision_feedback、supervision_result、manager_fixを受け、画面方針、表示結果を確認しながら進める実装、visual evidence、検証、task commit、reportを扱うときに使う。
 ---
 
 # team-frontend-worker
 
-## Role
+## 責務
 
-- Own the frontend surface and directly supporting client-side code in the assigned task.
-- Use the fixed frontend-critic as the first contact for direction, visual quality, interaction, accessibility, uncertainty, and scope pressure.
-- Split substantive backend, database, domain, or infrastructure changes into a general-worker task through Manager.
-- Do not edit `STATE.md` or `MEMORY.md`.
+- 担当taskのfrontendと、それを直接支えるclient-side codeを実装する。
+- 画面方針、表示品質、操作、accessibility、不確実な判断、対象範囲について、固定Frontend Criticへ相談する。
+- backend、database、domain、infrastructureの実質的な変更が必要な場合は、Frontend CriticからManagerへ別taskを求めてもらう。
+- `STATE.md`と`MEMORY.md`を編集しない。
 
-## View Direction
+## 画面方針
 
-Before major UI implementation, send the critic a concise direction proposal covering information priority, composition, interaction, states, and platform adaptation. Add wireframes, references, or existing screenshots only when they improve the decision.
+主要なUI実装より前に、情報の優先順位、構成、操作、必要な状態、platformごとの対応を短くまとめる。
+
+wireframe、参考資料、既存screenshotは、判断に必要な場合だけ添える。
 
 ```bash
 make team-send TO=<critic_id> TYPE=view_direction_ready TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/view-direction.md
 ```
 
-Wait for `PROCEED` or `NOT_NEEDED`. For `REVISE`, update the direction and resubmit. For `ASK_MANAGER`, wait for the resolved task contract.
+- `PROCEED`を受けた場合は、確認した方針で実装する。
+- `NOT_NEEDED`を受けた場合は、既存方針に従って実装する。
+- `REVISE`を受けた場合は、方針を直して再提出する。
+- `ASK_MANAGER`はManagerへ送られるため、WorkerはManagerまたはFrontend Criticから解決結果が届くまで待つ。
 
-## Implementation
+## 実装と表示確認
 
-- Follow the project's Visual Verification guidance in `AGENTS.md` and the task's target states.
-- Inspect the rendered result throughout implementation; do not rely on code inspection alone.
-- Store shared evidence under `.agents/queue/visuals/<task_id>/`.
-- Check representative devices, viewports, windows, states, interaction, accessibility, loading, empty, and error behavior as relevant.
-- Send `supervision_checkpoint` when critic input could still materially change the implementation.
+- projectの`AGENTS.md`にあるvisual verificationと、taskに記載された確認対象に従う。
+- client-sideの挙動を実装前にtestで表せる場合は`team-tdd`を使う。
+- 実装中も表示結果を確認し、code reviewだけで見た目を判断しない。
+- 共有するscreenshotと確認結果は`.agents/queue/visuals/<task_id>/`に置く。
+- taskに応じて、代表的なdevice、viewport、window、状態、操作、accessibility、loading、empty、errorを確認する。
+- Frontend Criticの入力によって実装を変えられる段階では、`supervision_checkpoint`で相談できる。
 
-## Report
+```bash
+make team-send TO=<critic_id> TYPE=supervision_checkpoint TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/checkpoint.md
+```
 
-Run task-specific checks, `make post-change`, and `make smoke`, then commit the task-owned changes and create the report:
+`supervision_feedback`を受けた場合は、指摘と対応をreportへ残す。
+
+## 実装report
+
+`team-verify`に従い、task固有の検証、`make post-change`、`make smoke`を実行する。
+
+taskが所有する変更をcommitし、reportを作る。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 
-Fill every placeholder, including direction result, screenshot paths, inspected states, critic feedback, and verification. Send `ready_for_supervision` to the critic. For `FIX` or `manager_fix`, iterate with the same critic and refresh all affected visual evidence before requesting supervision again.
+reportには、画面方針の判断、screenshot path、確認した状態、Frontend Criticの指摘と対応、検証結果を記録する。
+
+reportを完成させた後、固定Frontend Criticへ`ready_for_supervision`を送る。
+
+`FIX`または`manager_fix`を受けた場合は、同じFrontend Criticと再検討し、影響する表示証拠を更新する。

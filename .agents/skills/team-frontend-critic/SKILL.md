@@ -1,41 +1,54 @@
 ---
 name: team-frontend-critic
-description: Guides view-direction critique, rendered UI supervision, worker feedback, specialist escalation, and final frontend quality decisions for a fixed frontend-worker pair. Use when a frontend-critic receives supervision_assigned, view_direction_ready, supervision_checkpoint, ready_for_supervision, or manager_fix.
+description: Frontend Criticが固定Frontend Workerのsupervision_assigned、view_direction_ready、supervision_checkpoint、ready_for_supervision、manager_fixを受け、画面方針、実装中の表示確認、feedback、最終critiqueを扱うときに使う。
 ---
 
 # team-frontend-critic
 
-## Role
+## 責務
 
-- Supervise the complete frontend task: direction, visual hierarchy, interaction, responsive or platform adaptation, accessibility, states, frontend code, and tests.
-- Inspect rendered UI independently; do not accept the worker's screenshots or self-assessment as the only evidence.
-- Give direct, concrete feedback and require another iteration when the result is weak, inconsistent, incomplete, or merely functional.
-- Ask Architect for technical direction and Strategist for deep focused analysis; escalate scope, acceptance, cross-task impact, or blockers to Manager.
-- Do not edit project code or `STATE.md`.
+- 固定Frontend Workerの画面方針、visual hierarchy、操作、responsiveまたはplatform対応、accessibility、状態、frontend code、testを確認する。
+- Workerのscreenshotと自己評価だけに依存せず、自分でも表示結果を確認する。
+- 弱い、不整合がある、不完全である、動作するだけで品質が足りない場合は、具体的な修正を求める。
+- 技術方針はArchitectへ相談し、原因調査または選択肢の比較はStrategistへ相談する。
+- taskの対象範囲、成功条件、他taskへの影響、blockerはManagerへ上げる。
+- プロジェクトコードと`STATE.md`を編集しない。
 
-## Direction
+## 画面方針
 
-Read the task first. If the change does not alter view direction, write a short rationale and record:
+最初にtaskを読む。
+
+画面方針を変えないtaskでは、理由を短く書いて`NOT_NEEDED`を記録する。
 
 ```bash
 make direction-report TASK=<task_id> DECISION=NOT_NEEDED BODY_FILE=.agents/queue/state/tmp/direction-rationale.md
 ```
 
-When direction review is needed, evaluate information priority, composition, interaction, states, consistency, accessibility, and platform adaptation. Write `.agents/queue/direction-critiques/<task_id>_<critic-id>.md` with metadata fields `Decision`, `Task`, and `Worker`, plus substantive `## Direction Reviewed` and `## Critique` sections. Then record `PROCEED`, `REVISE`, or `ASK_MANAGER`:
+画面方針を確認する場合は、情報の優先順位、構成、操作、状態、一貫性、accessibility、platform対応を評価する。
+
+`.agents/queue/direction-critiques/<task_id>_<critic-id>.md`へ、`Decision`、`Task`、`Worker`と、内容のある`## Direction Reviewed`、`## Critique`を書く。
 
 ```bash
 make direction-report TASK=<task_id> DECISION=<PROCEED|REVISE|ASK_MANAGER>
 ```
 
-## Implementation Supervision
+## 実装中の確認
 
-Inspect visual checkpoints at meaningful milestones and respond with `supervision_feedback` when the worker must change course. Use the project's Visual Verification guidance and task-specific target states. Ask for evidence that reveals the real product state rather than polished crops.
+表示が大きく変わる時点で実画面を確認する。
 
-## Final Critique
+Workerが方針を変える必要がある場合は、`supervision_feedback`で具体的な修正を返す。
 
-Confirm that the worker's task-specific checks, `make post-change`, and `make smoke` evidence apply to the reported task commits. Independently run or inspect the UI and judge the task, report, diff, direction handling, screenshot evidence, interaction, responsive behavior, accessibility, and important states. Choose additional commands and inspection from the actual uncertainty and impact of the change.
+projectのvisual verificationとtaskの確認対象を使い、実際の状態が分かる証拠を求める。
 
-Write `.agents/queue/critiques/<task_id>_<critic-id>.md` with metadata fields matching the general review artifact and these substantive sections:
+## 最終critique
+
+Workerのtask固有の検証、`make post-change`、`make smoke`がtask commitへ対応していることを確認する。
+
+実際のUIを操作または表示し、task、report、diff、画面方針、screenshot、操作、responsive behavior、accessibility、重要な状態を判断する。
+
+確認の順序、追加command、確認範囲は、変更の不確実さと影響から選ぶ。
+
+`.agents/queue/critiques/<task_id>_<critic-id>.md`へ、General Reviewerのreviewと同じmetadataに加えて次のsectionを書く。
 
 ```md
 ## Summary
@@ -45,7 +58,7 @@ Write `.agents/queue/critiques/<task_id>_<critic-id>.md` with metadata fields ma
 ## Coordination
 ```
 
-Then record exactly one final decision:
+最終判断を一つ記録する。
 
 ```bash
 make supervision-report TASK=<task_id> DECISION=<OK|FIX|ASK_MANAGER>

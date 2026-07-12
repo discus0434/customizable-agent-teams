@@ -1,17 +1,10 @@
 # Team Protocol
 
-This file is the team map. Role-specific decisions and artifact formats live in `.agents/skills/team-<role>/SKILL.md`.
+この文書は、role間の接続と作業の状態遷移を示す。
 
-## Start
+各roleの判断基準と成果物は、対応する`team-<role>` skillに定める。
 
-```bash
-make team-identity
-make inbox AGENT=<agent_id>
-```
-
-Use the reported identity and `TEAM_ROOT`. `make team-status` shows current implementation tasks, research requests, panes, and inboxes.
-
-## Roles
+## Roleの接続
 
 ```text
 Human -> Lead -> Manager
@@ -20,44 +13,56 @@ Human -> Lead -> Manager
                    |-> Frontend Worker + Frontend Critic
                    `-> Release Captain
 
+Lead / Manager / Architect / General Reviewer / Frontend Critic -> Strategist
+Lead / Manager / General Reviewer / Frontend Critic / Release Captain -> Architect
 Lead / Manager / Strategist / Architect / Release Captain -> Research Worker pool
-General Reviewer / Frontend Critic / Manager / Lead -> Architect or Strategist
 ```
 
-- General Worker or Hard Task Worker and General Reviewer are fixed one-to-one pairs.
-- Frontend Worker and Frontend Critic are a fixed pair.
-- An implementation worker holds one task until Manager marks it done.
-- Research Workers have no Supervisor and do not edit project code.
+General WorkerまたはHard Task Workerには、固定されたGeneral Reviewerが付く。
 
-## Implementation Tasks
+Frontend Workerには、固定されたFrontend Criticが付く。
 
-Manager creates a task from `GENERAL_TEMPLATE.md` or `FRONTEND_TEMPLATE.md`, selects `Worker`, then runs:
+この二種類をまとめてSupervisorと呼ぶ。
+
+Implementation Workerは、Managerがtaskを`done`にするまで次のtaskを持たない。
+
+Research WorkerにはSupervisorを付けず、プロジェクトコードも編集させない。
+
+## 実装task
+
+Managerは`GENERAL_TEMPLATE.md`または`FRONTEND_TEMPLATE.md`からtaskを作り、Workerを指定する。
 
 ```bash
 make task-lint TASK=<task_id>
 make dispatch TASK=<task_id>
 ```
 
-Dispatch resolves the fixed `Supervisor` from config. The implementation flow is:
+`dispatch`は、設定ファイルにある固定Supervisorをtaskへ記録する。
+
+実装taskは次の順序で進む。
 
 ```text
 task_assigned / supervision_assigned
--> implementation and supervision
--> report + ready_for_supervision
+-> 実装と途中相談
+-> task commit / report / ready_for_supervision
 -> Supervisor OK / FIX / ASK_MANAGER
--> Manager done or manager_fix
+-> Manager done / manager_fix
 ```
 
-Frontend tasks add a direction step before major UI implementation:
+Supervisorが`OK`を記録すると、`done_recommendation=true`がManagerへ送られる。
+
+Managerはtask state、report、Supervisorの判断、必要な専門家の成果物を確認して`done`を決める。
+
+Frontend taskでは、主要なUI実装より前に画面方針を確認する。
 
 ```text
 view_direction_ready
 -> PROCEED / REVISE / NOT_NEEDED / ASK_MANAGER
--> rendered implementation and visual iteration
+-> 表示結果を確認しながら実装
 -> final critique
 ```
 
-Common commands:
+taskで使う主なcommandは次のとおり。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"
@@ -69,59 +74,91 @@ make state-update TASK=<task_id> STATUS=done
 
 ## Research
 
-Lead, Manager, Strategist, Architect, and Release Captain request the shared pool with:
+Lead、Manager、Strategist、Architect、Release Captainは、共有poolへ調査を依頼できる。
 
 ```bash
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
 ```
 
-The request is assigned FIFO to an available Research Worker. Each worker handles one active request. Results return directly to the caller; follow-up work is a new request and may go to any available worker. Queued, active, and waiting requests appear in `make team-status`.
+依頼は、空いているResearch Workerへ作成順に割り当てられる。
 
-Research Workers may ask their caller a clarification question. The caller may cancel its own request by replying to the request id with `TYPE=cancel`.
+各Research Workerが同時に担当する依頼は一つとする。
 
-## Specialists And Escalation
+Research Workerは結果を依頼元へ直接返す。
 
-Implementation Workers ask their fixed Supervisor first. Supervisors handle task-local questions and escalate task boundary, acceptance, cross-task impact, or unresolved blockers to Manager.
+追加調査は新しい依頼として扱い、別のResearch Workerへ割り当てられる場合がある。
+
+Research Workerは、調査を進めるために必要な質問を依頼元へ返せる。
+
+依頼元は、調査依頼を送ったときに返されたrequest IDへ、理由を添えて`TYPE=cancel`で返信し、調査を中止できる。
+
+```bash
+make team-reply IN_REPLY_TO=<request_id> TYPE=cancel BODY="<reason>"
+```
+
+## 専門家への相談
+
+Implementation Workerは、まず固定Supervisorへ相談する。
+
+Supervisorは、そのtask内の質問に答える。
+
+taskの対象範囲、成功条件、他taskへの影響、解消できないblockerについてManagerの判断が必要な場合は、SupervisorがManagerへ上げる。
 
 ```bash
 make team-send TO=strategist TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/strategy-request.md
 make team-send TO=architect TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/architecture-request.md
 ```
 
-Manager escalates human-facing decisions to Lead. Lead talks to the human and returns a decision.
+StrategistとArchitectへの依頼では、送信元とtaskまたはrelease bundleから依頼種別と成果物pathが決まる。
+
+Supervisorが送った依頼と結果はManagerにも共有される。
+
+Managerは、人間の判断が必要な内容をLeadへ上げる。
+
+Leadは人間と確認し、Managerへ判断を返す。
 
 ## Release
 
-Manager bundles done tasks:
+Managerは、関連する`done` taskをrelease bundleにまとめる。
 
 ```bash
 make release-prepare BUNDLE=<bundle_id> TASKS="T-001 T-002"
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
 ```
 
-Release Captain checks whole-system consistency, including representative visual evidence for frontend tasks, and records `SHIP`, `FIX`, or `BLOCKED`. Recording `SHIP` runs fresh `make post-change` and `make smoke` checks on the current commit and stores their evidence with the release review. After `SHIP`, Manager sends `completion_ready`; Lead reports to the human and sends `completion_ack`. Manager then compresses STATE and runs:
+Release Captainは、複数taskを統合した状態、利用者に見える挙動、frontendの表示証拠、未解決事項を確認し、`SHIP`、`FIX`、`BLOCKED`のいずれかを記録する。
+
+`SHIP`を記録するcommandは、現在のcommitに対して`make post-change`と`make smoke`を実行し、commit hashとlogをrelease reviewへ保存する。
+
+`SHIP`の後、ManagerはLeadへ`completion_ready`を送る。
+
+Leadは人間へ完了を報告し、Managerへ`completion_ack`を返す。
+
+Managerは`STATE.md`を次の作業に必要な状態へ整理し、完了状態をcommitする。
 
 ```bash
 make state-commit BUNDLE=<bundle_id>
 ```
 
-## State And Artifacts
+## 状態と成果物
 
-- `STATE.md` contains only current intent, execution, blockers, bundles, and next actions.
-- Completed detail belongs in task, report, review or critique, research, architecture, strategy, and release artifacts.
-- `MEMORY.md` contains reusable medium/long-term knowledge, not progress.
+`STATE.md`は、`Intent`、`Execution`、`Active Tasks`、`Bundles`、`Blockers`、`Current Decisions`、`Next Actions`で現在状態を表す。
 
-| Path | Purpose |
+完了した作業の詳細は、task、report、review、critique、research、architecture、strategy、releaseの各成果物へ残す。
+
+`MEMORY.md`には、中長期に再利用する情報だけを残す。
+
+| Path | 内容 |
 | --- | --- |
-| `.agents/queue/tasks/` | implementation contracts and templates |
-| `.agents/queue/reports/` | implementation evidence |
-| `.agents/queue/reviews/` | General Reviewer decisions |
-| `.agents/queue/direction-critiques/` | frontend direction decisions |
-| `.agents/queue/critiques/` | final frontend decisions |
-| `.agents/queue/visuals/` | shared rendered evidence |
-| `.agents/queue/research/` | research requests and results |
-| `.agents/queue/strategy/` | Strategist artifacts |
-| `.agents/queue/architecture/` | Architect notes |
-| `.agents/queue/releases/` | release bundles and decisions |
-| `.agents/queue/memory_proposals/` | proposed durable memory |
-| `.agents/queue/skill_proposals/` | proposed project skills |
+| `.agents/queue/tasks/` | 実装taskとtemplate |
+| `.agents/queue/reports/` | Workerの実装報告と検証結果 |
+| `.agents/queue/reviews/` | General Reviewerの判断 |
+| `.agents/queue/direction-critiques/` | Frontend Criticの画面方針に対する判断 |
+| `.agents/queue/critiques/` | Frontend Criticの最終判断 |
+| `.agents/queue/visuals/` | 表示結果の共有証拠 |
+| `.agents/queue/research/` | 調査依頼と結果 |
+| `.agents/queue/strategy/` | Strategistの分析 |
+| `.agents/queue/architecture/` | Architectの技術判断 |
+| `.agents/queue/releases/` | release bundleとrelease判断 |
+| `.agents/queue/memory_proposals/` | MEMORYへの提案 |
+| `.agents/queue/skill_proposals/` | project skillへの提案 |

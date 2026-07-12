@@ -115,12 +115,8 @@ supervision-report:
 release-prepare:
 	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
 	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
-	@if [ -n "$(MANAGER)" ] && [ -n "$(RELEASE_CAPTAIN)" ]; then \
-		./.agents/scripts/team_release_prepare.sh --manager "$(MANAGER)" --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
-	elif [ -n "$(MANAGER)" ]; then \
+	@if [ -n "$(MANAGER)" ]; then \
 		./.agents/scripts/team_release_prepare.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
-	elif [ -n "$(RELEASE_CAPTAIN)" ]; then \
-		./.agents/scripts/team_release_prepare.sh --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
 	else \
 		./.agents/scripts/team_release_prepare.sh "$(BUNDLE)" $(TASKS); \
 	fi
@@ -128,12 +124,8 @@ release-prepare:
 release-request:
 	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
 	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
-	@if [ -n "$(MANAGER)" ] && [ -n "$(RELEASE_CAPTAIN)" ]; then \
-		./.agents/scripts/team_release_request.sh --manager "$(MANAGER)" --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
-	elif [ -n "$(MANAGER)" ]; then \
+	@if [ -n "$(MANAGER)" ]; then \
 		./.agents/scripts/team_release_request.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
-	elif [ -n "$(RELEASE_CAPTAIN)" ]; then \
-		./.agents/scripts/team_release_request.sh --release-captain "$(RELEASE_CAPTAIN)" "$(BUNDLE)" $(TASKS); \
 	else \
 		./.agents/scripts/team_release_request.sh "$(BUNDLE)" $(TASKS); \
 	fi

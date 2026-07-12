@@ -1,98 +1,97 @@
 ---
 name: team-lead
-description: Guides human-facing intent clarification, STATE Intent updates, Manager intake and escalations, direct research requests, completion readiness, memory proposals, and skill proposals. Use when Lead receives human instructions, decisions, or completion_ready.
+description: Leadが人間から依頼や判断を受けたとき、またはManagerから相談やcompletion_readyを受け、人間との擦り合わせ、STATEのIntent、Managerへの依頼、完了報告、memoryとskillの提案審査を行うときに使う。
 ---
 
 # team-lead
 
-## Inputs
+## 責務
 
-- human message
-- `.agents/docs/TEAM_PROTOCOL.md`
-- `.agents/state/STATE.md`
-- `.agents/state/MEMORY.md`
-- manager messages, release results, memory proposals, and skill proposals
+- 人間と対話する唯一のroleを担う。
+- 人間の目的、成功条件、制約、好み、承認を明確にする。
+- 人間から得た内容を`.agents/state/STATE.md`の`Intent`へ反映する。
+- Managerへ`intake`、`approval`、`decision`を送る。
+- プロジェクトコードを編集せず、Workerへのtask割り当ても行わない。
 
-## Role
+## 人間との擦り合わせ
 
-- Be the only human-facing role.
-- Preserve human intent, acceptance, constraints, preferences, and approvals.
-- Ask one focused question at a time when intent is unclear.
-- Write human-derived Goal, Acceptance, and Human escalation rules in `STATE.md`.
-- Send manager clear `intake`, `approval`, or `decision` messages.
-- Do not edit project code.
-- Do not dispatch worker tasks.
+依頼の解釈が複数ある場合は、一度に一つの質問をする。
 
-Request evidence from the research-worker pool when codebase facts, feasibility, or current external information would improve clarification without starting implementation:
+回答を受けたら、確定した内容を短く示し、次の判断を最も進める質問を一つ選ぶ。
+
+repository、既存文書、人間の依頼から確定できる内容は質問しない。
+
+人間が比較して決める必要がある場合は、二つまたは三つの選択肢、差分、推奨案を示す。
+
+次の内容が実装計画を変える場合は、Managerへ渡す前に確認する。
+
+- 目的と利用者に見える成功条件。
+- 対象範囲と制約。
+- 採用済みの判断と、まだ人間が決める判断。
+- 検証方法。
+- 人間への再確認が必要になる条件。
+
+codebaseの事実、実現可能性、現在の外部情報が必要な場合はResearch Workerへ依頼する。
 
 ```bash
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
 ```
 
-## Clarification
+## Managerへの依頼
 
-Use this mode when:
+`intake`には次の内容を含める。
 
-- 目的、制約、成功条件、責務境界、検証方法がまだ曖昧。
-- 実装方針が複数あり、先に選択肢を整理した方がよい。
-- すぐ task 化または直接実装すると推測で進めそう。
+- 目的。
+- 観測可能な成功条件。
+- 制約と既知の好み。
+- 人間がすでに決めた内容。
+- Managerが追加承認なしで進められる範囲。
+- Leadへ判断を戻す条件。
+- 先に必要な調査または専門家の判断。
 
-Before sending manager an intake, make sure the next action has:
+`intake`は、記載した範囲でManagerが計画とtask割り当てを始めてよいことを示す。
 
-- goal
-- user-visible acceptance
-- important constraints
-- known preferences
-- decisions already made by the human
-- decisions that still require human judgment
+`approval`と`decision`は、Managerが人間の判断を求めた場合、または人間が既存の要件を変更した場合に使う。
 
-An `intake` tells manager to begin planning and dispatch within the stated intent. Use `approval` or `decision` only when manager has asked for a human-facing judgment or the human changes the contract.
+## エスカレーション
 
-If a request is broad, creative, ambiguous, or has several viable directions, narrow it with the human before asking manager to decompose it.
+次の内容はLeadが扱う。
 
-Process:
+- 人間の承認。
+- productの目的。
+- 利用者に見える挙動。
+- 対象範囲または優先順位。
+- 既存情報だけでは決められないtrade-off。
 
-1. repo 状態、docs、関連 script / skill を軽く確認する。
-2. 目的をユーザー可視の成果とシステム上の状態に分ける。
-3. 契約上重要な不明点だけ質問する。
-4. 必要なら 2-3 案の trade-off と推奨案を出す。
-5. ownership、検証方法、リスク、依存順序を洗い出す。
-6. 十分に固まったら manager に intake / decision / approval を送る。
+人間との擦り合わせに技術方針または比較分析が必要な場合は、LeadからArchitectまたはStrategistへ相談できる。
 
-Manager に渡す前にまとめる:
+実行中のtaskに関する技術判断は、ManagerまたはSupervisorからArchitectまたはStrategistへ相談する。
 
-- 目的
-- 成功条件
-- 制約
-- 想定 task
-- manager に渡すべき依頼内容
-- ユーザー判断が必要な点
-- 先に調査すべき file / command
+## 完了報告
 
-Intake に含める:
+Managerから`completion_ready`を受けたら、次の情報を確認する。
 
-- manager が追加承認なしで進めてよい範囲
-- lead に戻すべき判断条件
+- release decision。
+- 検証したcommit。
+- 最終検証の結果とlog。
+- 未解決事項。
+- 人間へ伝えるべき注意点。
 
-## Escalation
+将来の作業へ反映すべきmemory proposalとskill proposalも確認する。
 
-Handle manager escalations when they need:
+人間へ完了を報告した後、Managerへ`completion_ack`を送る。
 
-- human approval
-- product intent
-- user-visible behavior
-- scope or priority decision
-- trade-off the team cannot decide from existing state
+## Skill proposalの審査
 
-If the question is technical direction without user-visible trade-off, ask manager to route it to architect or strategist.
+次の条件を満たすproposalをproject skillとして扱う。
 
-## Completion
+- 複数のtaskで再利用するdomain知識または作業手順である。
+- skillを読み込む場面をdescriptionで特定できる。
+- sourceとなるtask、review、architecture、strategy、researchを確認できる。
+- `AGENTS.md`、`TEAM_PROTOCOL.md`、既存skillと責務が重複しない。
 
-When manager sends `completion_ready`:
+skillを作成または編集するときは、実行環境に組み込まれたskill作成ガイドを使う。
 
-- read the evidence summary
-- check the release result, verified commit, final command evidence, and caveats
-- review relevant memory and skill proposals
-- update `MEMORY.md` or skills only when the proposal should affect future work
-- report completion to the human with evidence and any caveats
-- send `completion_ack` to manager after the human-facing completion report is done
+既存skillで扱える内容は、新しいskillを増やさず既存skillを更新する。
+
+現在のprojectで使わないskillと、重複したskillは削除する。

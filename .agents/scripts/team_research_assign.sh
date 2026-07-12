@@ -49,7 +49,7 @@ while true; do
   team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "assigning"
   team_update_markdown_field "$TEAM_ROOT/$artifact" "Worker" "$idle_worker"
 
-  body="Research request $request_id を調査してください。project code は編集せず、結果を $artifact の Result に書いて caller へ返してください。"
+  body="Research request ${request_id}を調査してください。プロジェクトコードは編集せず、結果を${artifact}のResultへ書いて依頼元へ返してください。"
   if send_output="$("$SCRIPT_DIR/team_send.sh" --from "$caller" --type research_request --task "$task_id" --research "$request_id" "$idle_worker" "$body")"; then
     message_id="$(printf '%s\n' "$send_output" | sed -n 's/^message_id=//p' | tail -n 1)"
     if [[ -z "$message_id" ]]; then

@@ -1,46 +1,54 @@
 ---
 name: team-hard-task-worker
-description: Guides difficult implementation and debugging with deep codebase investigation, hypothesis testing, fixed general-reviewer coordination, verification, commits, reports, and supervision requests. Use when a hard-task-worker receives task_assigned, supervision_feedback, or manager_fix for a Manager-designated hard task.
+description: Hard Task Workerがtask_assigned、supervision_feedback、supervision_result、manager_fixを受け、難しいdebug、複数境界にまたがる実装、仮説検証、固定General Reviewerとの相談、検証、task commit、reportを扱うときに使う。
 ---
 
 # team-hard-task-worker
 
-## Role
+## 責務
 
-- Own difficult implementation that requires sustained reasoning across code paths, boundaries, or competing hypotheses.
-- Treat the fixed general-reviewer as the first contact for blockers, uncertainty, low confidence, technical direction, and scope pressure.
-- Keep changes inside `Allowed paths` and outside `Do not modify`.
-- Do not contact Architect or Strategist directly; ask the supervisor to involve them.
-- Do not edit `STATE.md` or `MEMORY.md`.
+- 複数のcode path、system境界、競合する仮説を継続して調べる必要があるtaskを担当する。
+- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。
+- blocker、不確実な判断、低い自信、技術方針、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
+- ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
+- `STATE.md`と`MEMORY.md`を編集しない。
 
-## Investigate
+## 調査
 
-1. Trace the relevant behavior through its actual entrypoints, boundaries, state, tests, and failure paths.
-2. Separate observed facts from assumptions and identify the smallest decisive checks for competing explanations.
-3. Reproduce failures or validate feasibility before committing to a design.
-4. Bring the supervisor in when architecture direction, task boundaries, or acceptance could change.
+- 実際のentrypointから、関連する状態、境界、test、失敗経路まで挙動を追う。
+- 確認した事実と仮定を分ける。
+- 競合する説明がある場合は、それぞれを判別できる観測を選ぶ。
+- 設計を決める前に、失敗を再現するか実現可能性を確認する。
+- architecture、taskの対象範囲、成功条件が変わり得る場合はGeneral Reviewerへ相談する。
 
-Keep the investigation proportional to the task. Once evidence identifies a coherent solution, implement it instead of continuing open-ended exploration.
+必要な事実が揃ったら、調査を広げ続けず実装へ進む。
 
-## Implement
+## 実装
 
-- Prefer existing architecture and abstractions unless evidence shows they are the source of the problem.
-- Use `team-tdd` when the expected contract can be expressed before implementation.
-- Address the root behavior across all affected paths; do not narrow the goal to the first passing case.
-- Check integration points and regression surfaces that a local fix could disturb.
-- Send `supervision_checkpoint` when Reviewer input could still materially change the investigation or implementation.
+- 既存architectureと抽象化を基準にし、変更する場合は根拠を示す。
+- 期待する挙動を先にtestで表せる場合は`team-tdd`を使う。
+- 最初に通ったcaseだけに対象を狭めず、同じ原因から影響を受ける経路を直す。
+- 他moduleとの接続箇所とregressionの可能性を確認する。
+
+General Reviewerの入力によって調査または実装を変えられる段階では、`supervision_checkpoint`で相談できる。
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/checkpoint.md
 ```
 
-## Report
+## 調査と実装のreport
 
-Use `team-verify`, run task-specific checks, `make post-change`, and `make smoke`, then commit the task-owned changes and create the report:
+`team-verify`に従い、task固有の検証、`make post-change`、`make smoke`を実行する。
+
+taskが所有する変更をcommitし、reportを作る。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 
-Fill every placeholder with concrete evidence, including the investigated hypotheses, decisive findings, affected boundaries, verification, supervision history, and specialist artifacts. Send `ready_for_supervision` to the fixed reviewer. For `FIX` or `manager_fix`, iterate with the same reviewer and refresh all affected evidence.
+reportには、調べた仮説、判断を分けた証拠、影響する境界、検証結果、Supervisorとの相談、専門家の成果物を記録する。
+
+reportを完成させた後、固定General Reviewerへ`ready_for_supervision`を送る。
+
+`FIX`または`manager_fix`を受けた場合は、同じGeneral Reviewerと再検討し、影響する証拠を更新する。

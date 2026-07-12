@@ -1,33 +1,24 @@
 ---
 name: team-verify
-description: Guides fresh verification evidence collection before completion claims. Use before saying work is done, fixed, passing, ready for supervision, ready to report, OK, SHIP, or complete.
+description: Workerのreport、SupervisorのOK、Managerのdone、Release CaptainのSHIP、Leadの完了報告など、完了を表す判断の前に、roleごとに必要な現在の検証結果と対応するcommitまたは状態を確認するために使う。
 ---
 
 # team-verify
 
-完了判断は、その判断を担当する role に必要な、現在の evidence に基づける。
+## Roleごとの証拠
 
-## Evidence Ownership
+- Implementation Workerは、task固有の検証、`make post-change`、`make smoke`を実行し、commandと結果をreportへ記録する。
+- Supervisorは、task、task commit、report、関連コードを調べ、変更の不確実さと影響に応じて追加確認を選ぶ。
+- Managerは、task state、成果物の必須項目、Supervisorの判断、release bundleの整合性を確認する。
+- Release Captainは、現在のcommitで実行した`make post-change`と`make smoke`、および複数taskを統合した状態の証拠を確認する。
+- Leadは、release decision、検証したcommit、最終検証、注意点を確認して人間へ報告する。
 
-- Implementation Worker は task-specific checks、`make post-change`、`make smoke` を実行し、command と結果を report に残す。
-- Supervisor は task contract、task commits、report、関連コードを調査し、uncertainty と impact に応じて追加の command や inspection を選ぶ。
-- Manager は task state、artifact の完全性、Supervisor の判断、bundle の整合性を確認する。
-- Release Captain は current commit に対する fresh な `make post-change` と `make smoke`、および whole-system evidence で release を判断する。
-- Lead は release decision、verified commit、verification evidence、caveat を確認して人間へ報告する。
+検証後に対象commitまたは状態が変わった場合は、その検証を担当するroleが結果を更新する。
 
-Evidence の対象 commit や状態が変わった場合は、その evidence を担当する role が更新する。
+## 確認事項
 
-## Not Enough
-
-- lint だけで build 成功を主張する。
-- unit test だけで end-to-end contract を満たしたことにする。
-- command 名だけを記録し、exit status や結果を確認しない。
-- 古い結果を現在の evidence として扱う。
-
-## Use Before
-
-- implementation report
-- Supervisor `OK` 判断
-- manager の `done` 判断
-- release-captain の `SHIP` 判断
-- lead のユーザー向け完了報告
+- command名だけでなく、exit statusと結果を確認する。
+- lintだけを根拠にbuild成功を判断しない。
+- unit testだけを根拠にend-to-endの成功を判断しない。
+- 過去の結果を、現在の状態に対する結果として扱わない。
+- 実行していない検証と、未確認の範囲を成果物へ明記する。

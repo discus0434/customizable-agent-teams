@@ -109,45 +109,10 @@ send_boot_nudge() {
   fi
 
   sleep "${TEAM_BOOT_NUDGE_DELAY:-1}"
-  case "$role" in
-    lead)
-      team_tmux_wait_for_ready "$pane" "$cli" 30
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=lead agent_id=$id として待機してください。人間の指示はこの pane に直接来ます。実装や dispatch はせず、必要な擦り合わせをしてから manager に依頼します。agent 間通知は inbox $id です。"
-      ;;
-    manager)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=manager agent_id=$id として待機してください。STATE の主編集者として task 分解、dispatch、進捗、supervision result 受領を担当します。通知は inbox $id です。"
-      ;;
-    strategist)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=strategist agent_id=$id として待機してください。strategy_request を受けたら .agents/queue/strategy/ に成果物を書きます。通知は inbox $id です。"
-      ;;
-    architect)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=architect agent_id=$id として待機してください。architecture_request を受けたら .agents/queue/architecture/ に技術判断を書きます。通知は inbox $id です。"
-      ;;
-    release-captain)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=release-captain agent_id=$id として待機してください。release_request を受けたら release bundle を確認し、SHIP/FIX/BLOCKED を返します。通知は inbox $id です。"
-      ;;
-    general-reviewer)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-reviewer agent_id=$id として待機してください。supervision_assigned を受けたら固定ペアの implementation worker と直接やりとりし、task-local supervision と final review を行います。通知は inbox $id です。"
-      ;;
-    general-worker)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-worker agent_id=$id として待機してください。task_assigned を受けたら固定 supervisor と連携して実装、検証、commit、report を行います。通知は inbox $id です。"
-      ;;
-    hard-task-worker)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=hard-task-worker agent_id=$id として待機してください。task_assigned を受けたら固定 supervisor と連携し、難しい実装やデバッグを深く調査して、検証、commit、report まで行います。通知は inbox $id です。"
-      ;;
-    research-worker)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=research-worker agent_id=$id として待機してください。research_request を受けたら事実と根拠を中心に調査し、指定 artifact に結果を書いて caller へ返します。project code は編集しません。通知は inbox $id です。"
-      ;;
-    frontend-worker)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=frontend-worker agent_id=$id として待機してください。task_assigned を受けたら frontend-critic と view direction を固め、実画面を確認しながら実装、検証、commit、report を行います。通知は inbox $id です。"
-      ;;
-    frontend-critic)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=frontend-critic agent_id=$id として待機してください。supervision_assigned を受けたら view direction と実画面品質を厳しく確認し、task 全体の final critique を行います。project code は編集しません。通知は inbox $id です。"
-      ;;
-    *)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=$role agent_id=$id として待機してください。通知は inbox $id です。"
-      ;;
-  esac
+  if [[ "$role" == "lead" ]]; then
+    team_tmux_wait_for_ready "$pane" "$cli" 30
+  fi
+  team_tmux_send_text "$pane" "AGENTS.mdを読み、role=${role}、agent_id=${id}としてinbox ${id}で待機してください。"
 }
 
 agent_launch_command() {

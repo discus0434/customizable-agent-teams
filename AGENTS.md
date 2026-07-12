@@ -1,39 +1,48 @@
-# Agent Team Rules
+# Agent Team 共通ルール
 
-## Start
+## 起動
 
 ```bash
 make team-identity
 ```
 
-Use the reported agent id, role, and team root as the source of truth. Before team work, read:
+表示されたagent ID、role、team rootを基準にする。
+
+teamの作業を始める前に、次のファイルを読む。
 
 1. `.agents/docs/TEAM_PROTOCOL.md`
 2. `.agents/state/MEMORY.md`
 3. `.agents/state/STATE.md`
 
-Implementation workers also read `.agents/queue/tasks/<task_id>.md`.
+Implementation Workerは、担当する`.agents/queue/tasks/<task_id>.md`も読む。
 
-All panes use the same repository root. Shared artifacts live under `.agents/queue/`. Use `/tmp` for private scratch work and `.agents/queue/state/tmp/` for temporary content another agent must read.
+すべてのpaneは同じrepository rootを使う。
 
-## Execution
+agent間で共有する成果物は`.agents/queue/`に置く。
 
-- Identify dependencies before acting. Run independent reads, investigations, comparisons, and non-conflicting checks concurrently.
-- Serialize work only when one result depends on another or operations contend for the same mutable state.
-- While waiting on a dependency, continue other ready work within your role.
+自分だけが使う一時ファイルは`/tmp`に置き、別のagentへ渡す一時ファイルは`.agents/queue/state/tmp/`に置く。
 
-## Tooling And Verification
+## 作業の進め方
 
-- Use `gh` for GitHub operations.
-- Use `direnv exec . <command>` when repository environment variables are required.
-- Missing required tools are blockers; report the exact command.
-- Implementation Workers run task-specific checks, `make post-change`, and `make smoke` before reporting.
-- Supervisors select additional inspection or commands according to uncertainty and impact.
-- A `SHIP` release report runs fresh `make post-change` and `make smoke` checks on the current commit.
+- roleの責任、成果物、状態遷移、共有状態の所有はteamの契約として扱う。
+- 調査範囲、思考の順序、追加検証、相談のタイミングは、taskの不確実さと影響に応じて各roleが選ぶ。
+- 依存関係を確認してから着手する。
+- 互いに依存せず、同じ変更対象を競合して更新しない作業は並列に進める。
+- ある結果を待たなければ始められない作業と、同じ可変状態を更新する作業だけを直列にする。
+- 依存先を待っている間は、自分のroleで着手できる別の作業を進める。
 
-## Communication
+## ツールと検証
 
-Human users talk only to Lead. Agents communicate with `make team-send` and `make team-reply`.
+- GitHubの操作には`gh`を使う。
+- repositoryの環境変数が必要なcommandは`direnv exec . <command>`で実行する。
+- 必須toolがない場合は、見つからないcommandを示してblockerとして報告する。
+- 完了を表す判断は、`team-verify`に定めたroleごとの証拠に基づける。
+
+## 通信
+
+人間と対話するのはLeadだけとする。
+
+agent間の通信には`make team-send`と`make team-reply`を使う。
 
 ```bash
 make inbox AGENT=<agent_id>
@@ -41,53 +50,21 @@ make team-send TO=<agent_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=.agent
 make team-reply IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=.agents/queue/state/tmp/reply.md
 ```
 
-- `inbox <agent_id>: 0 pending` means no action is waiting.
-- `TYPE=note` is a record and does not enter the attention queue.
-- `supervision_assigned` and `supervision_checkpoint` close when read.
-- Use `supervision_feedback` when an implementation worker must act.
-- Task and release commands close the related action messages.
-- Use `MARK=<message_id>` only after handling a pending item that needs no reply.
-- Use `make team-status` for current tasks, research work, agent panes, and inboxes.
-- If an inbox prompt remains unsubmitted in a pane, run `make team-submit AGENT=<agent_id>`.
+- `inbox <agent_id>: 0 pending`は、対応待ちのmessageがないことを示す。
+- `TYPE=note`は記録として保存されるが、対応待ちにはならない。
+- `supervision_assigned`、`supervision_checkpoint`、`research_cancelled`は、受信側が読むと処理済みになる。
+- Workerに対応を求める場合は`supervision_feedback`を使う。
+- taskとreleaseのcommandは、対応するmessageを処理済みにする。
+- 返信が不要なmessageを処理済みにする場合に限り、`MARK=<message_id>`を使う。
+- task、research、pane、inboxの現在状態は`make team-status`で確認する。
+- paneの入力欄にpromptが残っている場合は`make team-submit AGENT=<agent_id>`を実行する。
 
-Request research without choosing an individual worker:
+## Roleと共有状態
 
-```bash
-make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
-```
+role間の接続、状態遷移、成果物の置き場所は`TEAM_PROTOCOL.md`を参照する。
 
-## Ownership
+role固有の判断基準と作業内容は、対応する`team-<role>` skillを参照する。
 
-| Role | Owns | Skill |
-| --- | --- | --- |
-| Lead | human intent, acceptance, approvals, human escalation | `team-lead` |
-| Manager | execution, task graph, assignments, STATE, done, release bundles | `team-manager` |
-| Strategist | deep focused analysis and option comparison | `team-strategist` |
-| Architect | technical direction and design consistency | `team-architect` |
-| General Worker | primary implementation | `team-general-worker` |
-| Hard Task Worker | difficult implementation and debugging | `team-hard-task-worker` |
-| General Reviewer | general-worker and hard-task-worker supervision and final review | `team-general-reviewer` |
-| Research Worker | codebase, feasibility, and external evidence | `team-research-worker` |
-| Frontend Worker | rendered frontend implementation | `team-frontend-worker` |
-| Frontend Critic | view direction and complete frontend supervision | `team-frontend-critic` |
-| Release Captain | whole-system readiness | `team-release-captain` |
+`STATE.md`と`MEMORY.md`は、各fileに定めた編集者と更新規則に従って扱う。
 
-General Workers, Hard Task Workers, and Frontend Workers edit project code. Research Workers use `/tmp` for experiments and do not edit project code. Supervisors, Lead, Manager, Strategist, Architect, and Release Captain operate through messages and artifacts.
-
-## Escalation
-
-```text
-General Worker -> General Reviewer -> Manager -> Lead -> Human
-Hard Task Worker -> General Reviewer -> Manager -> Lead -> Human
-Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
-```
-
-General Reviewer and Frontend Critic may ask Architect or Strategist. Manager, Lead, Architect, Strategist, and Release Captain may request Research Workers. Manager escalates only human-facing intent, scope, priority, approval, user-visible behavior, or trade-offs to Lead.
-
-## State, Memory, And Skills
-
-- `STATE.md` is current truth, not a log. Lead owns Intent; Manager owns execution state and commits its compressed completion snapshot after `completion_ack`.
-- `MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences. Lead is its only editor.
-- Any role may write a memory proposal.
-- General Reviewer, Frontend Critic, Architect, Strategist, and Research Worker may write project skill proposals for recurring domain procedures.
-- Lead reviews memory and skill proposals. Use the agent environment's built-in skill creation guidance when editing skills.
+skillを作成または編集するときは、実行環境に組み込まれたskill作成ガイドを使う。

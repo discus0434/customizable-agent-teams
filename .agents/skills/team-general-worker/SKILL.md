@@ -1,48 +1,53 @@
 ---
 name: team-general-worker
-description: Guides primary implementation work, fixed general-reviewer coordination, verification evidence, commits, reports, and supervision requests. Use when a general-worker receives task_assigned, supervision_feedback, or manager_fix for an implementation task.
+description: General Workerがtask_assigned、supervision_feedback、supervision_result、manager_fixを受け、通常の実装、固定General Reviewerとの相談、検証、task commit、reportを扱うときに使う。
 ---
 
 # team-general-worker
 
-## Role
+## 責務
 
-- Own substantial implementation inside the assigned task contract.
-- Treat the fixed general-reviewer as the first contact for blockers, uncertainty, low confidence, technical doubts, and scope pressure.
-- Keep changes inside `Allowed paths` and outside `Do not modify`.
-- Do not contact Architect or Strategist directly; ask the supervisor to involve them.
-- Do not edit `STATE.md` or `MEMORY.md`.
+- 担当taskの`Goal`、`Acceptance`、`Constraints`を満たす実装を行う。
+- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。
+- blocker、不確実な判断、低い自信、技術上の疑問、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
+- ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
+- `STATE.md`と`MEMORY.md`を編集しない。
 
-## Work
+## 実装
 
-1. Read the task, relevant code, current state, and applicable skills.
-2. Confirm acceptance, file ownership, verification, and the assigned supervisor.
-3. Use `team-tdd` when expected behavior can be expressed before implementation.
-4. Implement the coherent solution, run task-specific checks, and keep the supervisor informed at meaningful boundaries.
+1. task、関連コード、現在状態、適用されるskillsを確認する。
+2. 成功条件、変更path、検証方法、固定General Reviewerを確認する。
+3. 期待する挙動を先にtestで表せる場合は`team-tdd`を使う。
+4. 影響する経路を確認し、task全体を満たす一貫した変更を実装する。
+5. task固有の検証を実行する。
 
-Share a checkpoint when Reviewer input could still materially change the implementation:
+General Reviewerの入力によって実装方針を変えられる段階では、`supervision_checkpoint`で相談できる。
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/checkpoint.md
 ```
 
-Use `supervision_feedback` as an action item. Record the feedback and response in the report.
+`supervision_feedback`を受けた場合は、指摘と対応をreportへ残す。
 
-## Report
+## 実装report
 
-Before reporting, use `team-verify`, then run the task-specific checks, `make post-change`, and `make smoke`.
+`team-verify`に従い、task固有の検証、`make post-change`、`make smoke`を実行する。
 
-Commit the task-owned changes and create the report:
+taskが所有する変更をcommitし、reportを作る。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 
-Fill every placeholder in the report with concrete commands, results, changed files, task commits, supervision history, and specialist artifacts. Then send:
+reportのplaceholderをすべて埋める。
+
+実行したcommand、結果、変更file、task commit、Supervisorとの相談、専門家の成果物を具体的に記録する。
+
+reportを完成させた後、固定General Reviewerへ送る。
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=ready_for_supervision TASK=<task_id> BODY="Report and evidence are ready."
 ```
 
-For `FIX` or `manager_fix`, coordinate with the same supervisor, correct the work, rerun evidence, commit, update the report, and request supervision again.
+`FIX`または`manager_fix`を受けた場合は、同じGeneral Reviewerと相談し、修正、再検証、commit、report更新、再reviewを行う。

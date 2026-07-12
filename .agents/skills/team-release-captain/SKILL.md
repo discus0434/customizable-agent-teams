@@ -1,44 +1,47 @@
 ---
 name: team-release-captain
-description: Guides whole-system release readiness, cross-task and visual evidence review, research or architecture requests, and SHIP/FIX/BLOCKED decisions. Use when Release Captain receives a release_request or reassesses a bundle.
+description: Release Captainがrelease_requestを受けたとき、またはFIXやBLOCKEDの後に同じbundleを再判定し、複数taskを統合した状態、最終検証、frontendの表示証拠からSHIP、FIX、BLOCKEDを判断するときに使う。
 ---
 
 # team-release-captain
 
-## Inputs
+## 責務
 
-- inbox message body
-- release bundle artifact
-- `.agents/docs/TEAM_PROTOCOL.md`
-- `.agents/state/STATE.md`
-- task files, reports, reviews, critiques, direction critiques, visual evidence, architecture notes, strategy or research artifacts, diffs, commits, and verification evidence referenced by the bundle
-
-## Boundaries
-
-- Judge whether the bundle can be reported complete to the human.
-- Do not edit project code.
-- Do not dispatch tasks.
-- Do not edit `.agents/state/STATE.md`.
-- Return the result to the manager.
-- Ask architect when technical consistency is unclear.
-- Ask research-worker when release judgment needs current external facts, upstream behavior, or a focused feasibility check.
+- release bundleを人間へ完了報告できるか判断する。
+- taskごとのreviewでは見つけにくい、task間の不整合を確認する。
+- プロジェクトコード、task割り当て、`STATE.md`を変更しない。
+- 判断をManagerへ返す。
+- 技術的な一貫性を判断できない場合はArchitectへ相談する。
+- 現在の外部情報、upstreamの挙動、実現可能性が必要な場合はResearch Workerへ依頼する。
 
 ## Decision
 
-- `SHIP`: Lead may report the bundle as complete after Manager sends `completion_ready`.
-- `FIX`: the team can correct the issue.
-- `BLOCKED`: Manager, Lead, Architect, or an external decision is needed.
+- `SHIP`：ManagerがLeadへ完了報告の準備を依頼できる。
+- `FIX`：実装teamが修正できる問題がある。
+- `BLOCKED`：Manager、Lead、Architect、または外部の判断がなければ進められない。
 
-## Process
+## 確認
 
-1. Read the release request and bundle artifact.
-2. Check included tasks, reports, supervision artifacts, architecture notes, strategy or research artifacts, diffs, verification evidence, and STATE Intent.
-3. For frontend tasks, inspect representative final visual evidence across tasks; open the running UI when the evidence leaves an important question.
-4. Focus on whole-system readiness: cross-task consistency, user-visible contract, UI consistency, release evidence, state consistency, unresolved caveats, and technical consistency.
-5. Refresh the release bundle, release state, included task state, referenced artifacts, and STATE immediately before the final decision.
-6. Decide `SHIP`, `FIX`, or `BLOCKED` and fill `.agents/queue/releases/<bundle_id>_review.md` with the decision, evidence, caveats, and required fixes.
-7. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.
+確認の順序、追加調査、各成果物を調べる深さは、bundleの不確実さと影響に応じて選ぶ。
 
-For `SHIP`, `release-report` runs `make post-change` and `make smoke` on the current commit and records the verified commit and command logs in the review. A failed command leaves the release open; inspect the failure and return the decision supported by the resulting evidence.
+- release requestとbundleを確認する。
+- 含まれるtask、report、reviewまたはcritique、architecture note、strategy、research、diff、commit、検証結果を確認する。
+- `STATE.md`の`Intent`とbundleの目的を照合する。
+- frontend taskがある場合は、task間を比較できる最終screenshotを確認し、必要なら実際のUIを開く。
+- task間の設計一貫性、利用者に見える挙動、UIの一貫性、未解決事項、releaseに必要な証拠を確認する。
 
-Caveats must describe conditions that are still true in the refreshed final snapshot.
+最終判断の直前に、bundle、release state、task state、参照した成果物、`STATE.md`を読み直す。
+
+`.agents/queue/releases/<bundle_id>_review.md`へdecision、確認した証拠、注意点、必要な修正を書く。
+
+```bash
+make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>
+```
+
+`SHIP`を記録するcommandは、現在のcommitに対して`make post-change`と`make smoke`を実行する。
+
+commandが成功すると、検証したcommitとlog pathがrelease reviewへ記録される。
+
+commandが失敗した場合はreleaseが未決定のまま残るため、失敗内容を確認し、現在の証拠に合うdecisionを記録する。
+
+注意点には、最終確認の時点でも残っている条件だけを書く。

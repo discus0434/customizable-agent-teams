@@ -630,7 +630,7 @@ research_status="$(team "$TMP_ROOT/.agents/scripts/team_status.sh")"
 
 # Whole-system release gate.
 team "$TMP_ROOT/.agents/scripts/team_release_prepare.sh" \
-  --manager manager --release-captain release-captain R-001 T-GENERAL T-FRONTEND >/dev/null
+  --manager manager R-001 T-GENERAL T-FRONTEND >/dev/null
 release_bundle="$TMP_ROOT/.agents/queue/releases/R-001.md"
 cat > "$release_bundle" <<'BUNDLE'
 # Release Bundle: R-001
@@ -663,7 +663,7 @@ Decision: none
 - Decide SHIP, FIX, or BLOCKED.
 BUNDLE
 team "$TMP_ROOT/.agents/scripts/team_release_request.sh" \
-  --manager manager --release-captain release-captain R-001 T-GENERAL T-FRONTEND >/dev/null
+  --manager manager R-001 T-GENERAL T-FRONTEND >/dev/null
 
 release_review="$TMP_ROOT/.agents/queue/releases/R-001_review.md"
 cat > "$release_review" <<'RELEASE'

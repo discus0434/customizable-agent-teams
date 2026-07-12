@@ -1,38 +1,48 @@
 ---
 name: team-research-worker
-description: Guides evidence-first codebase investigation, feasibility experiments, and external research without editing project code. Use when a research-worker receives research_request, research_answer, or research_cancelled from the shared research pool.
+description: Research Workerが共有poolからresearch_requestを受けたとき、依頼元からresearch_answerまたはresearch_cancelledを受け、codebase調査、実現可能性の確認、外部調査を行うときに使う。
 ---
 
 # team-research-worker
 
-## Role
+## 責務
 
-- Gather facts and evidence for the request caller.
-- Read project code, run non-mutating checks, inspect upstream sources, and use Web search when it improves the answer.
-- Use `/tmp` for experiments and temporary data.
-- Do not edit or commit project code, dispatch tasks, or update `STATE.md`.
-- Separate confirmed facts, inference, recommendation, and unresolved uncertainty.
-- Offer a recommendation when evidence supports one; leave architecture, strategy, execution, release, and product decisions to their owning roles.
+- 依頼元が判断するために必要な事実と証拠を集める。
+- プロジェクトコードを読み、状態を変えないcommandを実行し、必要に応じてupstream資料とWebを調べる。
+- 実験と一時データには`/tmp`を使う。
+- プロジェクトコードの編集とcommit、task割り当て、`STATE.md`の更新は行わない。
+- 確認した事実、推論、推奨、未解決の不確実さを区別する。
+- architecture、strategy、実行、release、productの最終判断は、それぞれの担当roleへ残す。
 
-## Work
+## 調査
 
-1. Read the `research_request` and its artifact path.
-2. Narrow the question only when necessary to produce a useful result.
-3. Prefer primary sources, reproducible commands, and direct code evidence.
-4. Write the result under `## Result` in the assigned artifact. Use the structure that best fits the question; make the conclusion, evidence, sources, and important unknowns easy to find.
+調査範囲、情報源、実験方法は、依頼された問いに応じて選ぶ。
 
-When clarification is required, reply to the assignment and wait:
+- `research_request`と指定された成果物pathを確認する。
+- 有用な結果を出すために必要な場合は、問いを絞る。
+- 一次資料、再現できるcommand、codebaseから直接得た証拠を優先する。
+- 指定された成果物の`## Result`へ結果を書く。
+
+結果の構成は問いに合わせて選ぶ。
+
+結論、証拠、参照元、重要な未確認事項を見つけやすくする。
+
+依頼元の回答がなければ進められない場合は、assignment messageへ質問を返す。
 
 ```bash
 make team-reply IN_REPLY_TO=<assignment_message_id> TYPE=question BODY_FILE=.agents/queue/state/tmp/question.md
 ```
 
-After the caller answers, continue the same request. When the result is complete, reply to the original assignment without specifying a type:
+回答を受けたら同じrequestを続ける。
+
+結果を完成させたら、typeを指定せずに元のassignment messageへ返信する。
 
 ```bash
 make team-reply IN_REPLY_TO=<assignment_message_id>
 ```
 
-This returns the artifact to the caller and releases the worker for the next queued request.
+この返信によって成果物が依頼元へ返り、Research Workerは次の依頼を受けられる。
 
-If the request is cancelled, stop it and inspect the next pending inbox item. Propose a project skill when the investigation reveals a reusable domain procedure that future agents should load on demand.
+requestが中止された場合は作業を止め、次のpending messageを確認する。
+
+繰り返し使えるproject固有の調査手順を見つけた場合は、skill proposalを作る。

@@ -6,9 +6,9 @@ Architecture required: false
 
 ## Context
 
-- 背景:
-- 現在確認済みの事実:
-- 関連 docs / artifacts:
+- 背景：
+- 確認済みの事実：
+- 関連する文書と成果物：
 
 ## Allowed paths
 
@@ -19,20 +19,25 @@ Architecture required: false
 - `.agents/state/STATE.md`
 - `.agents/state/MEMORY.md`
 
-Path bullets may be plain paths, path patterns, or backtick-wrapped paths, with optional text after the path.
-`Allowed paths` is the task commit whitelist. Add specific sensitive or externally owned paths under `Do not modify`; keep the two sections non-overlapping.
+pathの箇条書きには、通常のpath、path pattern、backtickで囲んだpathを使える。
+
+pathの後ろには説明を加えられる。
+
+`Allowed paths`には、このtaskがcommitできるpathだけを書く。
+
+`Do not modify`には、個別に保護する必要があるpathだけを書き、`Allowed paths`と重複させない。
 
 ## Goal
 
-<この task で成立させる状態>
+<このtaskで成立させる状態>
 
 ## Acceptance
 
-- <観測可能な成功条件>
+- <外部から観測できる成功条件>
 
 ## Constraints
 
-- <守るべき境界や既存 contract>
+- <守るべき境界と既存要件>
 
 ## Verification
 
@@ -42,20 +47,13 @@ Path bullets may be plain paths, path patterns, or backtick-wrapped paths, with 
 
 ## Report Evidence
 
-- summary、changed files、task commits、task-specific verification、post-change、smoke を具体的に記録する。
-- supervisor との相談、feedback、strategy / architecture artifact の扱いを記録する。
+- summary、変更file、task commit、task固有の検証、post-change、smokeを具体的に記録する。
+- Supervisorとの相談、feedback、strategyまたはarchitectureの成果物を記録する。
 
 ## Supervision
 
-- blocker、不確実さ、低い自信、scope 変更の誘惑があれば固定 supervisor に相談する。
-- reviewer の入力が実装を有意に変え得る時は `supervision_checkpoint` で相談する。
-- 実装、検証、task commit、report 更新後に `ready_for_supervision` を送る。
+- <早い段階でSupervisorへ確認する判断>
 
 ## Escalation
 
-- task-local な判断は supervisor に相談する。
-- task boundary、acceptance、cross-task impact、解消できない blocker は supervisor から Manager に上げる。
-
-## Memory
-
-中長期的に残すべき rules、tips、pitfalls、user preferences がある場合は、気づいた role が `.agents/queue/memory_proposals/` に proposal を作る。
+- <ManagerまたはLeadの判断が必要になる条件>

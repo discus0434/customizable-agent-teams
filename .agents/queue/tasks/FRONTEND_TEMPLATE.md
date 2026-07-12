@@ -6,10 +6,10 @@ Architecture required: false
 
 ## Context
 
-- 背景:
-- 現在確認済みの事実:
-- 関連 docs / artifacts:
-- 既存 UI / design system:
+- 背景：
+- 確認済みの事実：
+- 関連する文書と成果物：
+- 既存のUIとdesign system：
 
 ## Allowed paths
 
@@ -20,35 +20,40 @@ Architecture required: false
 - `.agents/state/STATE.md`
 - `.agents/state/MEMORY.md`
 
-Path bullets may be plain paths, path patterns, or backtick-wrapped paths, with optional text after the path.
-`Allowed paths` is the task commit whitelist. Add specific sensitive or externally owned paths under `Do not modify`; keep the two sections non-overlapping.
+pathの箇条書きには、通常のpath、path pattern、backtickで囲んだpathを使える。
+
+pathの後ろには説明を加えられる。
+
+`Allowed paths`には、このtaskがcommitできるpathだけを書く。
+
+`Do not modify`には、個別に保護する必要があるpathだけを書き、`Allowed paths`と重複させない。
 
 ## Goal
 
-<この task で成立させる user-visible state>
+<このtaskで成立させる利用者に見える状態>
 
 ## Acceptance
 
-- <画面・操作・状態として観測できる成功条件>
+- <画面、操作、状態として観測できる成功条件>
 
 ## Constraints
 
-- <design、platform、interaction、accessibility、既存 contract>
+- <design、platform、操作、accessibility、既存要件>
 
 ## View Direction
 
-- 対象 surface:
-- 伝えるべき優先順位:
-- interaction / navigation:
-- responsive / platform adaptation:
-- critic が direction critique を不要と判断できる既存方針:
+- 対象となる画面：
+- 情報の優先順位：
+- 操作とnavigation：
+- responsiveまたはplatform対応：
+- 既存方針だけで判断できる内容：
 
 ## Visual Verification
 
-- Project guidance: `AGENTS.md` の Visual Verification を参照する。
-- 確認する画面・状態:
-- device / viewport:
-- screenshot evidence: `.agents/queue/visuals/T-XXX/`
+- Project guidance：`AGENTS.md`のvisual verificationを参照する。
+- 確認する画面と状態：
+- deviceとviewport：
+- Screenshot evidence：`.agents/queue/visuals/T-XXX/`
 
 ## Verification
 
@@ -58,22 +63,13 @@ Path bullets may be plain paths, path patterns, or backtick-wrapped paths, with 
 
 ## Report Evidence
 
-- summary、changed files、task commits、task-specific verification、post-change、smoke を具体的に記録する。
-- direction result、visual iterations、screenshot paths、critic feedback と対応を記録する。
+- summary、変更file、task commit、task固有の検証、post-change、smokeを具体的に記録する。
+- 画面方針のdecision、表示確認、screenshot path、Frontend Criticの指摘と対応を記録する。
 
 ## Supervision
 
-- frontend-critic の direction response を受けてから主要 UI 実装へ進む。
-- 実装中は実画面と screenshot を確認し、critic と visual iteration を行う。
-- critic の入力が実装を有意に変え得る時は `supervision_checkpoint` で相談する。
-- blocker、不確実さ、低い自信、scope 変更の誘惑があれば critic に相談する。
-- 実装、検証、task commit、report 更新後に `ready_for_supervision` を送る。
+- <早い段階でFrontend Criticへ確認する判断>
 
 ## Escalation
 
-- task-local な判断は frontend-critic に相談する。
-- task boundary、acceptance、cross-task impact、解消できない blocker は critic から Manager に上げる。
-
-## Memory
-
-中長期的に残すべき rules、tips、pitfalls、user preferences がある場合は、気づいた role が `.agents/queue/memory_proposals/` に proposal を作る。
+- <ManagerまたはLeadの判断が必要になる条件>

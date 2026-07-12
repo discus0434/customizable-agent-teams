@@ -7,22 +7,16 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_release_prepare.sh [--manager <manager_id>] [--release-captain <agent_id>] <bundle_id> <task_id>..." >&2
+  echo "usage: team_release_prepare.sh [--manager <manager_id>] <bundle_id> <task_id>..." >&2
 }
 
 manager_id=""
-release_captain_id=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --manager)
       [[ $# -ge 2 ]] || die "--manager requires a value"
       manager_id="$2"
-      shift 2
-      ;;
-    --release-captain)
-      [[ $# -ge 2 ]] || die "--release-captain requires a value"
-      release_captain_id="$2"
       shift 2
       ;;
     -h|--help)
@@ -50,6 +44,7 @@ shift
 [[ "$bundle_id" != */* ]] || die "bundle_id must not contain '/': $bundle_id"
 
 ensure_team_dirs
+team_config_validate
 
 if [[ -z "$manager_id" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
@@ -59,27 +54,7 @@ if [[ -z "$manager_id" ]]; then
   manager_id="$TEAM_AGENT_ID"
 fi
 
-if [[ -z "$release_captain_id" ]]; then
-  release_captains="$(team_config_role_agent_ids release-captain)"
-  release_captain_count="$(printf '%s\n' "$release_captains" | sed '/^$/d' | wc -l | tr -d ' ')"
-  case "$release_captain_count" in
-    1)
-      release_captain_id="$(printf '%s\n' "$release_captains" | sed -n '1p')"
-      ;;
-    0)
-      die_rule \
-        "release-captain is not configured" \
-        "release-prepare needs exactly one release-captain or an explicit RELEASE_CAPTAIN" \
-        "add a release-captain to .agents/config/agent-team.yaml or pass RELEASE_CAPTAIN=<agent_id>"
-      ;;
-    *)
-      die_rule \
-        "multiple release-captains are configured" \
-        "release-prepare cannot infer which release-captain owns this bundle" \
-        "pass RELEASE_CAPTAIN=<agent_id>"
-      ;;
-  esac
-fi
+release_captain_id="$(team_config_role_agent_ids release-captain)"
 
 if ! team_config_agent_record "$manager_id" >/dev/null; then
   die "unknown manager: $manager_id"
@@ -97,7 +72,7 @@ release_captain_role="$(team_config_agent_field "$release_captain_id" role)"
 [[ "$release_captain_role" == "release-captain" ]] || die_rule \
   "release-prepare target must be a release-captain agent" \
   "$release_captain_id has role $release_captain_role in $TEAM_CONFIG_FILE" \
-  "pass RELEASE_CAPTAIN=<agent_id> for a release-captain agent"
+  "correct the release-captain entry in $TEAM_CONFIG_FILE"
 
 bundle_file="$(team_release_bundle_file "$bundle_id")"
 review_file="$(team_release_review_file "$bundle_id")"
@@ -154,7 +129,7 @@ BUNDLE
 
 ## Requested decision
 
-- SHIP / FIX / BLOCKED を判断してください。
+- `SHIP`、`FIX`、`BLOCKED`のいずれかを判断してください。
 BUNDLE
 } > "$bundle_file"
 
@@ -176,13 +151,13 @@ BUNDLE
 
 ## Bundle Checks
 
-- [ ] Bundle goal and evidence match the current STATE Intent.
-- [ ] Included tasks are done, supervisor OK, and done_recommendation=true.
-- [ ] Referenced reports, reviews or critiques, strategy artifacts, and architecture notes exist.
-- [ ] Frontend tasks include final visual evidence suitable for whole-system comparison.
-- [ ] Current HEAD contains the intended task commits.
-- [ ] Worker reports contain task-specific, `make post-change`, and `make smoke` evidence for their task commits.
-- [ ] Known issues are either release-blocking fixes or explicit non-blocking follow-up.
+- [ ] Bundleの目的と証拠が、現在の`STATE.md`にある`Intent`と一致している。
+- [ ] 含まれるtaskが`done`であり、Supervisorのdecisionが`OK`で、`done_recommendation=true`になっている。
+- [ ] 参照したreport、reviewまたはcritique、strategy、architecture noteが存在する。
+- [ ] Frontend taskには、task間の比較に使える最終screenshotがある。
+- [ ] 現在の`HEAD`に、対象taskのcommitが含まれている。
+- [ ] Worker reportに、task固有の検証、`make post-change`、`make smoke`の結果が記録されている。
+- [ ] 未解決事項が、releaseを止める修正または明示したfollow-upに分類されている。
 
 ## Evidence Reviewed
 

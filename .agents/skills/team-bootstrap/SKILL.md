@@ -1,11 +1,13 @@
 ---
 name: team-bootstrap
-description: Guides one-question-at-a-time project bootstrap from this template. Use when a lead initializes a new project, chooses product shape and stack, defines post-change and smoke contracts, and prepares manager intake for bootstrap implementation.
+description: Leadがこのtemplateから新しいprojectを初期化するために、人間へ一度に一つずつ質問し、構築物、stack、entrypoint、post-change、smoke、visual verificationを決めてManagerへ依頼するときに使う。
 ---
 
 # team-bootstrap
 
-## Inspect
+## 現在状態の確認
+
+次のファイルと、すでに存在するproject fileを確認する。
 
 - `AGENTS.md`
 - `README.md`
@@ -13,105 +15,92 @@ description: Guides one-question-at-a-time project bootstrap from this template.
 - `.agents/docs/TEAM_PROTOCOL.md`
 - `.agents/state/STATE.md`
 - `.agents/state/MEMORY.md`
-- existing project files: `pyproject.toml`, `package.json`, `pnpm-workspace.yaml`, `src/`, `tests/`
+- `pyproject.toml`、`package.json`、`pnpm-workspace.yaml`などのpackage metadata。
+- source directoryとtest directory。
 
-## Ask
+## 人間との対話
 
-Ask one question at a time.
+最初に「何を作るか」を一つだけ質問する。
 
-- 最初は「何を作るか」を1問だけ聞く。
-- 回答を受けたら、分かったことを短く反映し、次に一番 narrowing value が高い1問だけ聞く。
-- 既存 repo や user request から確定できることは採用し、聞かない。
-- 質問は user が判断しやすい粒度にする。必要なら推奨案を添える。
-- 一度に questionnaire を並べない。
-- implementation や dispatch 依頼は、bootstrap contract が固まるまで行わない。
+回答を受けたら、確定した内容を短く示し、次の判断を最も進める質問を一つ選ぶ。
 
-必要に応じて次を順番に狭める。
+repositoryと依頼から確定できる内容は質問しない。
 
-- 何を構築するか、誰が使うか。
-- deliverable: library, CLI, service, app, package, or script。
-- primary language/runtime and standard toolchain。
-- package name, public entrypoints, and first user-visible behavior。
-- `make smoke` で確認する代表的な利用者向け動作。
-- `make post-change` に追加したい必須 contract。
-- frontend を含む場合、agent が同じ画面を再現できる起動・操作・screenshot の標準的な確認方法。
+人間が選びやすくなる場合は、選択肢と推奨案を添える。
 
-十分に固まったら、project shape、stack、entrypoint、`make post-change`、`make smoke` を短くまとめてから初期化する。
+一度に複数の質問を並べない。
 
-## Contract
+初期化の要件が固まるまで、実装とtask割り当てを始めない。
 
-- `make post-change` は worker が code change 後に実行する 1 command。
-- 対象 stack の標準的な package manager、formatter、linter、test runner、必要な build/package command を入れて初期化する。
-- `make post-change` は format、lint、必要な type/package/build check、test、`git diff --check -- .` を含める。
-- 既存の repo-level checks がある場合は `post-change` に残す。
-- `make smoke` は代表的な利用者向け動作を短時間で実行する command にする。
-- 選ばなかった言語や未使用 scaffold は残さない。
-- `AGENTS.md` には選んだ stack の command だけを書く。
-- visual frontend がある場合は、`AGENTS.md` に project に必要な厚さの `Visual Verification` 節を置く。専用 schema は作らず、複雑な手順は既存 docs や project command を参照する。
-- 必要な package manager lockfile を作る。
-- 必須 tool が無い場合は blocker として扱う。
+次の内容を必要な順に決める。
 
-## Initialize Template Surfaces
+- 構築するものと利用者。
+- library、CLI、service、application、package、scriptなどの提供形態。
+- 主な言語、runtime、そのecosystemで標準的なtoolchain。
+- package名と公開entrypoint。
+- 最初に成立させる利用者向けの挙動。
+- `make post-change`で実行するformat、lint、typecheck、build、test。
+- `make smoke`で確認する代表的な利用者向けの挙動。
+- frontendがある場合の起動方法、操作方法、screenshot、確認する状態。
 
-bootstrap 実装では、template の初期記述を実プロジェクトの contract に置き換える。
+stackが決まった後、具体的な初期値が必要な場合は[stack-contracts.md](references/stack-contracts.md)を読む。
 
-- `README.md`: project name、目的、install、run command、`make post-change`、`make smoke`、主要 entrypoint。
-- `AGENTS.md`: 選んだ stack の command、package dir、test/smoke 期待値、ownership note。
-- `Makefile`: project の `post-change` と `smoke`。
-- package metadata: package name、version、description、entrypoint、build backend、lockfile。
-- `.agents/config/agent-team.yaml`: default が合わない場合の team name、tmux session、agent records、CLI、model、effort、supervisor pairing。
+## Projectの検証command
 
-project-facing docs から、古い example、toy name、未使用 stack command、template 固有の文言を消す。
+- `make post-change`は、Implementation Workerが変更後に実行する一つのcommandとする。
+- 選んだstackの標準的なpackage manager、formatter、linter、test runner、必要なbuildまたはpackage commandを設定する。
+- `make post-change`には、format、lint、必要なtypecheck、build、test、`git diff --check -- .`を含める。
+- 複数packageがある場合は、対象directoryを明示し、一つの`post-change`から各packageの検証を呼ぶ。
+- `make smoke`は、代表的な利用者向けの挙動を短時間で実行するcommandとする。
+- frontendがある場合は、同じ画面と状態を再現できるvisual verificationを`AGENTS.md`へ記載する。
+- 必要なlockfileを作る。
+- 必須toolがない場合は、見つからないcommandを示してblockerとして報告する。
 
-For stack-specific defaults and Makefile examples, read [references/stack-contracts.md](references/stack-contracts.md) after the stack is known or when manager needs concrete bootstrap commands.
+## 初期化するファイル
 
-## Multi-package
+templateの記述を、実際のprojectに合わせて更新する。
 
-- Use explicit package dir variables such as `PY_PACKAGE_DIRS` and `TS_PACKAGE_DIRS`.
-- For multiple stacks, define `post-change` once and depend on each selected subtarget.
-- If selective execution is worth it, add one explicit changed-file selector script and call it from `post-change-*`.
-- Declare package dirs explicitly.
+- `README.md`：project名、目的、install、実行方法、主要entrypoint、検証command。
+- `AGENTS.md`：team共通ルールに加え、実際のstack、source directory、test、visual verificationの情報。
+- `Makefile`：projectの`post-change`と`smoke`。
+- package metadata：package名、version、description、entrypoint、build backend、lockfile。
+- `.agents/config/agent-team.yaml`：変更が必要な場合のteam名、session名、agent、CLI、model、effort、固定Supervisor。
 
-```make
-post-change: post-change-py post-change-ts
-	@git diff --check -- .
-```
+選ばなかったstack、未使用のscaffold、templateのproject名、実際には使わないcommandを残さない。
 
-## Manager Handoff
+## Managerへの引き継ぎ
 
-When the bootstrap contract is clear, send manager an `intake` message that includes:
+初期化の要件が固まったら、Managerへ`intake`を送る。
 
-- project name, goal, and first user-visible behavior
-- selected stack and required package/tool commands
-- entrypoint and package metadata
-- `make post-change` contract
-- `make smoke` behavior
-- README and AGENTS updates required for the initialized project
-- cleanup required after bootstrap implementation
-- that manager may task, dispatch, and release-review the bootstrap work inside this contract without another human approval
-- what must return to lead before manager proceeds
+`intake`には次の内容を含める。
 
-Tell the human to detach from tmux and run:
+- project名、目的、最初の利用者向け挙動。
+- 選んだstackと必要なtool。
+- package名とentrypoint。
+- `make post-change`の内容。
+- `make smoke`で確認する挙動。
+- `README.md`、`AGENTS.md`、`Makefile`、package metadataの更新内容。
+- 初期化後に削除するscaffold。
+- Managerが追加承認なしで進められる範囲。
+- Leadへ判断を戻す条件。
+
+人間にはtmuxからdetachし、repository rootで次のcommandを実行してもらう。
 
 ```bash
 make bootstrap-team
 ```
 
-This keeps the lead pane alive and starts the remaining roles.
+このcommandはLeadのpaneを残したまま、その他のroleを起動する。
 
-## Bootstrap Implementation Done
+## 初期化の完了条件
 
-Manager owns this work after intake.
-
-Done means:
-
-- `make post-change` passes.
-- `make smoke` passes.
-- package/app build is included in `make post-change` when the deliverable needs it.
-- `README.md`, `AGENTS.md`, `Makefile`, package metadata, and `.agents/config/agent-team.yaml` describe the initialized project.
-- selected stack files, source layout, tests, and lockfiles exist.
-- unused scaffold, unused stack commands, and placeholder project names are gone.
-- `.agents/skills/team-bootstrap/` is removed.
-- bootstrap-only Make targets are removed.
-- `.agents/scripts/team_bootstrap.sh` and `.agents/scripts/team_bootstrap_team.sh` are removed.
-- no references remain to removed bootstrap scripts or bootstrap targets.
+- `make post-change`が成功する。
+- `make smoke`が成功する。
+- deliverableにbuildが必要な場合は`make post-change`に含まれている。
+- `README.md`、`AGENTS.md`、`Makefile`、package metadata、agent team設定が実際のprojectを説明している。
+- source、test、lockfile、必要な設定が存在する。
+- 未使用のscaffold、stack command、placeholderのproject名が残っていない。
+- `.agents/skills/team-bootstrap/`が削除されている。
+- bootstrap専用のMake targetが削除されている。
+- `.agents/scripts/team_bootstrap.sh`と`.agents/scripts/team_bootstrap_team.sh`が削除されている。
+- 削除したbootstrap commandへの参照が残っていない。

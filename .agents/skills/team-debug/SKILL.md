@@ -1,32 +1,31 @@
 ---
 name: team-debug
-description: Guides root-cause debugging before another fix attempt. Use when tests fail, behavior is unexpected, a build breaks, state is inconsistent, or a previous fix failed.
+description: test失敗、build失敗、予期しない挙動、状態不整合、修正後の再発が起きたときに、修正前の再現、証拠収集、仮説の判別、原因に対応するtestを行うために使う。
 ---
 
 # team-debug
 
-## Rule
+## 原則
 
-修正案より先に、再現条件と root cause を集める。
+修正案を選ぶ前に、再現条件と原因を特定する。
 
-## Process
+## 調査
 
-1. error / log / stack trace を最後まで読む。
-2. 再現 command、入力、環境、差分を特定する。
-3. 最近の変更と、似た working example を見る。
-4. 複数 component が関わる場合は、境界ごとに入力、出力、設定、状態を確認する。
-5. 仮説を1つだけ立てる。
-6. 最小の観測または変更で仮説を検証する。
-7. root cause が見えたら、再発防止できる test または検証を足してから直す。
+1. error、log、stack traceを省略せず読む。
+2. 再現command、入力、環境、関連する差分を特定する。
+3. 最近の変更と、同じ仕組みで動いている例を確認する。
+4. 複数componentが関わる場合は、境界ごとの入力、出力、設定、状態を確認する。
+5. 事実と仮定を分け、考えられる原因を列挙する。
+6. 原因を判別できる観測または実験を選ぶ。
+7. 確認した原因に対応するregression testまたは検証を追加する。
+8. 同じ原因から影響を受ける経路を含めて修正する。
 
-## Stop
+修正が同じ症状を繰り返す場合は、局所的な変更を重ねず、taskの前提、architecture、ownership、要件を再確認する。
 
-同じ問題に対して 3 回連続で修正が外れたら、4 回目を試さない。task の前提、architecture、ownership、contract を疑い、blocker または question として戻す。
+## 報告
 
-## Report
-
-- 再現 command
-- error / log の要点
-- root cause と evidence
-- 直した場所
-- 再発防止の検証
+- 再現commandと結果。
+- errorまたはlogの要点。
+- 確認した原因と証拠。
+- 変更した場所と理由。
+- 再発を検出するtestまたは検証。

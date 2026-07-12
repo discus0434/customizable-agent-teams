@@ -154,7 +154,7 @@ team_write_release_state \
   "$review_file" \
   "$tasks"
 
-message="Release Decision: $decision. $review_file を確認してください。SHIP の場合、Manager が内容を確認して Lead に completion_ready を送ってください。"
+message="Release Decision: ${decision}。${review_file}を確認してください。SHIPの場合は、検証結果を確認してLeadへcompletion_readyを送ってください。"
 team_send_with_body_file "$release_captain_id" release_result "" "$bundle_id" "$manager" "$message" >/dev/null
 
 team_mark_inbox_processed "$release_captain_id" "" "$bundle_id"
