@@ -49,4 +49,27 @@ if ! team_tmux_pane_in_session "$pane" "$session"; then
   exit 1
 fi
 
+if team_tmux_pane_is_busy "$pane"; then
+  waiter_lock="$TEAM_STATE_DIR/locks/nudge-$agent_id.lock"
+  start_waiter="false"
+  if mkdir "$waiter_lock" 2>/dev/null; then
+    start_waiter="true"
+  else
+    waiter_pid="$(cat "$waiter_lock/pid" 2>/dev/null || true)"
+    if [[ -n "$waiter_pid" ]] && ! kill -0 "$waiter_pid" 2>/dev/null; then
+      rm -f "$waiter_lock/pid"
+      rmdir "$waiter_lock" 2>/dev/null || true
+      if mkdir "$waiter_lock" 2>/dev/null; then
+        start_waiter="true"
+      fi
+    fi
+  fi
+  if [[ "$start_waiter" == "true" ]]; then
+    nohup "$SCRIPT_DIR/team_nudge_wait.sh" "$agent_id" "$waiter_lock" >/dev/null 2>&1 &
+    printf '%s\n' "$!" > "$waiter_lock/pid"
+  fi
+  echo "[team] queued nudge for $agent_id; pane is busy" >&2
+  exit 0
+fi
+
 team_tmux_send_text "$pane" "inbox $agent_id"

@@ -91,7 +91,11 @@ case "$1" in
     fi
     ;;
   capture-pane)
-    printf '%s\n' "Claude Code"
+    if [[ -n "${TEAM_FAKE_TMUX_BUSY_FILE:-}" && -f "$TEAM_FAKE_TMUX_BUSY_FILE" ]]; then
+      printf '%s\n' "Working (1s - esc to interrupt)"
+    else
+      printf '%s\n' "Claude Code"
+    fi
     ;;
   list-panes)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
@@ -110,6 +114,9 @@ chmod +x "$TMP_BASE/bin/tmux"
 
 cat > "$TMP_BASE/bin/sleep" <<'SH'
 #!/usr/bin/env bash
+if [[ "${TEAM_FAKE_REAL_SLEEP:-0}" == "1" ]]; then
+  /bin/sleep "$@"
+fi
 exit 0
 SH
 chmod +x "$TMP_BASE/bin/sleep"
@@ -156,6 +163,32 @@ grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
   || fail "boot prompt was not submitted exactly once"
 grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
   || fail "boot prompt did not use bracketed paste"
+
+# Busy panes receive one deferred nudge without interrupting current work.
+busy_file="$TMP_BASE/pane.busy"
+: > "$busy_file"
+printf '%s\n' '{"id":"msg_deferred","from":"manager","to":"lead","type":"request","requires_attention":"true","created_at":"2026-01-01T00:00:00Z","body":"deferred"}' \
+  >> "$TMP_ROOT/.agents/queue/inbox/lead.jsonl"
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_REAL_SLEEP=1 \
+  TEAM_FAKE_TMUX_BUSY_FILE="$busy_file" \
+  "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/deferred-nudge.err"
+grep -q '^\[team\] queued nudge for lead; pane is busy$' "$TMP_BASE/deferred-nudge.err"
+[[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
+  || fail "busy pane was interrupted by an immediate nudge"
+rm "$busy_file"
+for _attempt in $(seq 1 30); do
+  paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+  [[ "$paste_count_after" -gt "$paste_count_before" ]] && break
+  /bin/sleep 0.1
+done
+[[ "${paste_count_after:-0}" -gt "$paste_count_before" ]] \
+  || fail "deferred nudge was not delivered after the pane became idle"
 
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"

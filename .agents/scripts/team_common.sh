@@ -44,6 +44,12 @@ team_tmux_capture_pane() {
   tmux capture-pane -t "$pane" -p -S -80
 }
 
+team_tmux_pane_is_busy() {
+  local pane="$1"
+
+  team_tmux_capture_pane "$pane" | tail -n 20 | grep -Fq 'esc to interrupt'
+}
+
 team_tmux_cancel_mode_if_needed() {
   local pane="$1"
   local pane_in_mode
@@ -689,6 +695,22 @@ team_message_auto_process_on_read() {
       return 1
       ;;
   esac
+}
+
+team_inbox_has_pending() {
+  local agent_id="$1"
+  local inbox_file="$TEAM_QUEUE_DIR/inbox/$agent_id.jsonl"
+  local processed_dir="$TEAM_STATE_DIR/processed/$agent_id"
+  local line
+  local message_id
+
+  [[ -f "$inbox_file" ]] || return 1
+  while IFS= read -r line; do
+    message_id="$(printf '%s\n' "$line" | extract_json_field id)"
+    [[ -n "$message_id" ]] || continue
+    [[ -f "$processed_dir/$message_id" ]] || return 0
+  done < "$inbox_file"
+  return 1
 }
 
 team_mark_message_processed() {
