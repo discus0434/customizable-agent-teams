@@ -97,7 +97,7 @@ case "$1" in
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     printf '%s\n' '  %fake lead agent=lead role=lead model=claude-opus-4-8'
     ;;
-  send-keys|set-option|new-session|new-window|kill-session)
+  send-keys|set-buffer|paste-buffer|set-option|new-session|new-window|kill-session)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     ;;
   *)
@@ -152,8 +152,10 @@ PATH="$TMP_BASE/bin:$PATH" \
 grep -q '^started tmux session: agent-team$' "$TMP_BASE/team-start.out"
 grep -q '^effort=xhigh$' "$TMP_ROOT/.agents/queue/state/agents/lead.env"
 grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
-[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -ge 3 ]] \
-  || fail "boot prompt was not submitted with three Enter presses"
+[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -eq 1 ]] \
+  || fail "boot prompt was not submitted exactly once"
+grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "boot prompt did not use bracketed paste"
 
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"

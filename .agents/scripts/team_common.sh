@@ -56,13 +56,8 @@ team_tmux_cancel_mode_if_needed() {
 
 team_tmux_submit() {
   local pane="$1"
-  local count="${2:-3}"
-  local _index
 
-  for _index in $(seq 1 "$count"); do
-    tmux send-keys -t "$pane" C-m
-    sleep 0.5
-  done
+  tmux send-keys -t "$pane" C-m
 }
 
 team_tmux_prepare_input() {
@@ -105,9 +100,12 @@ team_tmux_require_pane() {
 team_tmux_send_text() {
   local pane="$1"
   local text="$2"
+  local buffer_name
 
   team_tmux_prepare_input "$pane"
-  tmux send-keys -t "$pane" -l "$text"
+  buffer_name="agent-team-$$_$RANDOM"
+  tmux set-buffer -b "$buffer_name" -- "$text"
+  tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
   team_tmux_submit "$pane"
 }
 
