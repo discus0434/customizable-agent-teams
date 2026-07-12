@@ -86,7 +86,7 @@ General Reviewer and Frontend Critic may ask Architect or Strategist. Manager, L
 
 ## State, Memory, And Skills
 
-- `STATE.md` is current truth, not a log. Lead owns Intent; Manager owns execution state.
+- `STATE.md` is current truth, not a log. Lead owns Intent; Manager owns execution state and commits its compressed completion snapshot after `completion_ack`.
 - `MEMORY.md` stores medium/long-term rules, tips, pitfalls, and user preferences. Lead is its only editor.
 - Any role may write a memory proposal.
 - General Reviewer, Frontend Critic, Architect, Strategist, and Research Worker may write project skill proposals for recurring domain procedures.

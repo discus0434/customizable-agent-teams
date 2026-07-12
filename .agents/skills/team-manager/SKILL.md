@@ -70,4 +70,4 @@ Refresh STATE after intake, dispatch, supervision result, task done, release req
 - The worker/supervisor pair becomes available when Manager marks the task done.
 - Prepare and request a release bundle from a coherent set of done tasks.
 - Send `completion_ready` only after Release Captain returns `SHIP`.
-- Compress STATE after completion handoff.
+- After `completion_ack`, compress STATE and run `make state-commit BUNDLE=<bundle_id>` as the final completion action.

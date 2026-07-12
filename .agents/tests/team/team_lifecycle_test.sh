@@ -695,4 +695,46 @@ RELEASE
 team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP >/dev/null
 [[ "$(state_field release R-001 status)" == "ship" ]] || fail "release did not reach ship"
 
+if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001 \
+  > /dev/null 2> "$TMP_BASE/state-no-ack.err"; then
+  fail "completion state commit accepted a release without completion_ack"
+fi
+grep -q '^error: completion acknowledgment is not pending: R-001$' "$TMP_BASE/state-no-ack.err"
+
+team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from manager --type completion_ready --bundle R-001 \
+  lead "R-001 is ready for the human completion report." >/dev/null
+ack_output="$(
+  team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+    --from lead --type completion_ack --bundle R-001 \
+    manager "R-001 was reported complete."
+)"
+ack_id="$(printf '%s\n' "$ack_output" | sed -n 's/^message_id=//p')"
+[[ -n "$ack_id" ]] || fail "completion_ack returned no message id"
+
+printf '\n- R-001 is complete and the team is waiting for the next intake.\n' \
+  >> "$TMP_ROOT/.agents/state/STATE.md"
+printf '%s\n' "unfinished change" > "$TMP_ROOT/unfinished.txt"
+if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001 \
+  > /dev/null 2> "$TMP_BASE/state-dirty.err"; then
+  fail "completion state commit accepted unrelated repository changes"
+fi
+grep -q '^error: completion state commit requires a clean repository outside .agents/state/STATE.md$' \
+  "$TMP_BASE/state-dirty.err"
+grep -q 'unfinished.txt' "$TMP_BASE/state-dirty.err"
+[[ ! -f "$TMP_ROOT/.agents/queue/state/processed/manager/$ack_id" ]] \
+  || fail "failed completion state commit consumed completion_ack"
+rm "$TMP_ROOT/unfinished.txt"
+
+state_commit_output="$(as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001)"
+state_commit="$(printf '%s\n' "$state_commit_output" | sed -n 's/^commit=//p')"
+[[ -n "$state_commit" ]] || fail "completion state commit returned no commit hash"
+[[ "$(git -C "$TMP_ROOT" show --format= --name-only "$state_commit")" == ".agents/state/STATE.md" ]] \
+  || fail "completion state commit included paths outside STATE.md"
+git -C "$TMP_ROOT" show -s --format=%B "$state_commit" | grep -q '^Agent-State: R-001$'
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/manager/$ack_id" ]] \
+  || fail "completion state commit did not process completion_ack"
+[[ -z "$(git -C "$TMP_ROOT" status --short --untracked-files=all)" ]] \
+  || fail "completion state commit did not leave a clean repository"
+
 echo "harness lifecycle ok"

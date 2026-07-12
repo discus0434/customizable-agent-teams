@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch task-commit report direction-report supervision-report release-prepare release-request release-report state state-update memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch task-commit report direction-report supervision-report release-prepare release-request release-report state state-update state-commit memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -151,6 +151,10 @@ state-update:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
 	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
 	@./.agents/scripts/team_state_update.sh update "$(TASK)" "$(STATUS)"
+
+state-commit:
+	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
+	@./.agents/scripts/team_state_commit.sh "$(BUNDLE)"
 
 memory-list:
 	./.agents/scripts/team_memory_update.sh list
