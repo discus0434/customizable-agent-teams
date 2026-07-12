@@ -116,28 +116,28 @@ agents:
   - id: research-worker-1
     role: research-worker
     cli: codex
-    model: gpt-5.6-terra
+    model: gpt-5.6-luna
     effort: high
     window: research-worker-1
 
   - id: research-worker-2
     role: research-worker
     cli: codex
-    model: gpt-5.6-terra
+    model: gpt-5.6-luna
     effort: high
     window: research-worker-2
 
   - id: research-worker-3
     role: research-worker
     cli: codex
-    model: gpt-5.6-terra
+    model: gpt-5.6-luna
     effort: high
     window: research-worker-3
 
   - id: research-worker-4
     role: research-worker
     cli: codex
-    model: gpt-5.6-terra
+    model: gpt-5.6-luna
     effort: high
     window: research-worker-4
 
