@@ -16,6 +16,12 @@ Implementation workers also read `.agents/queue/tasks/<task_id>.md`.
 
 All panes use the same repository root. Shared artifacts live under `.agents/queue/`. Use `/tmp` for private scratch work and `.agents/queue/state/tmp/` for temporary content another agent must read.
 
+## Execution
+
+- Identify dependencies before acting. Run independent reads, investigations, comparisons, and non-conflicting checks concurrently.
+- Serialize work only when one result depends on another or operations contend for the same mutable state.
+- While waiting on a dependency, continue other ready work within your role.
+
 ## Tooling And Verification
 
 - Use `gh` for GitHub operations.
