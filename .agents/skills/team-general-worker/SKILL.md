@@ -20,7 +20,7 @@ description: Guides primary implementation work, fixed general-reviewer coordina
 3. Use `team-tdd` when expected behavior can be expressed before implementation.
 4. Implement the coherent solution, run task-specific checks, and keep the supervisor informed at meaningful boundaries.
 
-Send a progress checkpoint when a design choice, first working result, verification outcome, blocker, or scope question would help supervision:
+Share a checkpoint when Reviewer input could still materially change the implementation:
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/checkpoint.md
@@ -32,15 +32,14 @@ Use `supervision_feedback` as an action item. Record the feedback and response i
 
 Before reporting, use `team-verify`, then run the task-specific checks, `make post-change`, and `make smoke`.
 
-Commit only task-owned files and create the report:
+Commit the task-owned changes and create the report:
 
 ```bash
-git add <task-files>
-git commit -m "<task_id>: <summary>"
+make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 
-Fill every placeholder in the report with concrete commands, results, changed files, commits, supervision history, and specialist artifacts. Then send:
+Fill every placeholder in the report with concrete commands, results, changed files, task commits, supervision history, and specialist artifacts. Then send:
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=ready_for_supervision TASK=<task_id> BODY="Report and evidence are ready."

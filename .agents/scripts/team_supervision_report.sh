@@ -40,7 +40,7 @@ worker="$(team_task_state_field "$task_id" worker)"
 manager="$(team_task_state_field "$task_id" manager)"
 assigned_supervisor="$(team_task_state_field "$task_id" supervisor)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
-head_commit="$(team_task_state_field "$task_id" head_commit)"
+task_commits="$(team_task_state_field "$task_id" task_commits)"
 report_file="$(team_task_state_field "$task_id" report)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
 architecture="$(team_task_state_field "$task_id" architecture)"
@@ -53,15 +53,15 @@ direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
   "task state names $assigned_supervisor, but the command uses $supervisor_id" \
   "run the command from the fixed supervisor pane"
 [[ -n "$manager" && -n "$worker" && -n "$base_commit" ]] || die "task $task_id state is incomplete"
-[[ -n "$head_commit" ]] || die_rule \
-  "task has no reported head commit: $task_id" \
+[[ -n "$task_commits" ]] || die_rule \
+  "task has no recorded commits: $task_id" \
   "supervision starts after the implementation worker writes a report" \
   "worker must run make report and fill the report evidence"
 [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
   "task report is missing: $task_id" \
   "supervision requires the implementation report" \
   "worker must run make report before ready_for_supervision"
-team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$head_commit"
+team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$task_commits"
 team_require_no_placeholders "implementation report" "$report_file"
 
 case "$supervisor_role" in
@@ -126,7 +126,7 @@ case "$decision" in
     done_recommendation_text="no"
     next_status="supervision_fix"
     target="$worker"
-    message="Supervision Decision: FIX. Done recommendation: no. $(team_relative_path "$supervision_file") を確認し、修正、検証、commit、report 更新後に ready_for_supervision を送ってください。"
+    message="Supervision Decision: FIX. Done recommendation: no. $(team_relative_path "$supervision_file") を確認し、修正、検証、task commit、report 更新後に ready_for_supervision を送ってください。"
     ;;
   ASK_MANAGER)
     done_recommendation="false"
@@ -143,7 +143,7 @@ team_update_markdown_field "$supervision_file" "Task" ".agents/queue/tasks/$task
 team_update_markdown_field "$supervision_file" "Worker" "$worker"
 team_update_markdown_field "$supervision_file" "Report" "$(team_relative_path "$report_file")"
 team_update_markdown_field "$supervision_file" "Base commit" "$base_commit"
-team_update_markdown_field "$supervision_file" "Head commit" "$head_commit"
+team_update_markdown_field "$supervision_file" "Task commits" "$task_commits"
 
 team_update_markdown_field "$report_file" "Supervision artifact" "$(team_relative_path "$supervision_file")"
 team_update_markdown_field "$report_file" "Supervision decision" "$decision"
@@ -156,7 +156,7 @@ team_write_task_state \
   "$supervisor_id" \
   "$next_status" \
   "$base_commit" \
-  "$head_commit" \
+  "$task_commits" \
   "$report_file" \
   "$supervision_file" \
   "$decision" \

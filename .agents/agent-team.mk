@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch report direction-report supervision-report release-prepare release-request release-report state state-update memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch task-commit report direction-report supervision-report release-prepare release-request release-report state state-update memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -80,11 +80,6 @@ task-lint:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
 	@./.agents/scripts/team_task_lint.sh "$(TASK)"
 
-report:
-	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
-	./.agents/scripts/team_report.sh "$(TASK)" "$(STATUS)"
-
 dispatch:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
 	@if [ -n "$(MANAGER)" ]; then \
@@ -92,6 +87,16 @@ dispatch:
 	else \
 		./.agents/scripts/team_dispatch.sh "$(TASK)"; \
 	fi
+
+task-commit:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@test -n "$(MESSAGE)" || { echo "MESSAGE is required" >&2; exit 2; }
+	@./.agents/scripts/team_task_commit.sh "$(TASK)" "$(MESSAGE)"
+
+report:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@test -n "$(STATUS)" || { echo "STATUS is required" >&2; exit 2; }
+	./.agents/scripts/team_report.sh "$(TASK)" "$(STATUS)"
 
 direction-report:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }

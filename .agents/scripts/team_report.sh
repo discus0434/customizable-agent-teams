@@ -62,8 +62,12 @@ if [[ "$agent_role" == "frontend-worker" ]]; then
   esac
 fi
 
-head_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
-commits="$(git -C "$TEAM_ROOT" log --oneline "$base_commit..$head_commit" -- 2>/dev/null || true)"
+team_require_task_paths_clean "$task_id"
+task_commits="$(team_task_commits "$task_id" "$base_commit" | paste -sd ' ' -)"
+[[ -n "$task_commits" ]] || die_rule \
+  "task has no recorded commits: $task_id" \
+  "review requires commits created for this task after dispatch base $base_commit" \
+  "commit the implementation with make task-commit TASK=$task_id MESSAGE='<summary>'"
 
 if [[ ! -f "$report_file" ]]; then
   {
@@ -71,7 +75,7 @@ if [[ ! -f "$report_file" ]]; then
     printf 'Status: %s\n' "$status"
     printf 'Supervisor: %s\n' "$supervisor"
     printf 'Base commit: %s\n' "$base_commit"
-    printf 'Head commit: %s\n' "$head_commit"
+    printf 'Task commits: %s\n' "$task_commits"
     printf 'Supervision artifact: none\n'
     printf 'Supervision decision: none\n'
     printf 'Done recommendation: false\n'
@@ -90,14 +94,6 @@ if [[ ! -f "$report_file" ]]; then
 <!-- TEAM_PLACEHOLDER: files-changed -->
 
 ## Commits
-
-REPORT
-    if [[ -n "$commits" ]]; then
-      printf '%s\n' "$commits" | sed 's/^/- /'
-    else
-      printf '%s\n' '- none'
-    fi
-    cat <<'REPORT'
 
 ## Verification
 
@@ -142,7 +138,7 @@ else
   team_update_markdown_field "$report_file" "Status" "$status"
   team_update_markdown_field "$report_file" "Supervisor" "$supervisor"
   team_update_markdown_field "$report_file" "Base commit" "$base_commit"
-  team_update_markdown_field "$report_file" "Head commit" "$head_commit"
+  team_update_markdown_field "$report_file" "Task commits" "$task_commits"
   team_update_markdown_field "$report_file" "Supervision artifact" "none"
   team_update_markdown_field "$report_file" "Supervision decision" "none"
   team_update_markdown_field "$report_file" "Done recommendation" "false"
@@ -153,6 +149,13 @@ else
   team_update_markdown_field "$report_file" "Direction artifact" "${direction_artifact:-none}"
 fi
 
+commits_file="$(mktemp)"
+for commit in $task_commits; do
+  printf -- '- %s\n' "$(git -C "$TEAM_ROOT" show -s --format='%H %s' "$commit")" >> "$commits_file"
+done
+team_replace_markdown_section "$report_file" "Commits" "$commits_file"
+rm -f "$commits_file"
+
 team_write_task_state \
   "$task_id" \
   "$manager" \
@@ -160,7 +163,7 @@ team_write_task_state \
   "$supervisor" \
   "$status" \
   "$base_commit" \
-  "$head_commit" \
+  "$task_commits" \
   "$report_file" \
   "" \
   "" \

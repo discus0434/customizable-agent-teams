@@ -138,7 +138,7 @@ load_task_assignment() {
   task_supervisor="$(team_task_state_field "$task_id" supervisor)"
   task_status="$(team_task_state_field "$task_id" status)"
   task_base_commit="$(team_task_state_field "$task_id" base_commit)"
-  task_head_commit="$(team_task_state_field "$task_id" head_commit)"
+  task_commits="$(team_task_state_field "$task_id" task_commits)"
   task_report="$(team_task_state_field "$task_id" report)"
   task_supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
   task_supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
@@ -251,7 +251,7 @@ case "$type" in
       load_task_assignment
       team_write_task_state \
         "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "$task_status" \
-        "$task_base_commit" "$task_head_commit" "$task_report" "$task_supervision_artifact" \
+        "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
         "$task_supervision_decision" "${task_done_recommendation:-false}" "true" "$artifact_path" \
         "$task_release_bundle" "$task_direction_status" "$task_direction_artifact"
     fi
@@ -312,7 +312,7 @@ case "$type" in
     [[ "$to" == "$task_worker" || "$to" == "$task_supervisor" ]] || die_rule "manager_fix target is outside the implementation pair" "the task pair is $task_worker and $task_supervisor" "send to one of the task pair"
     team_write_task_state \
       "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "manager_fix" \
-      "$task_base_commit" "$task_head_commit" "$task_report" "$task_supervision_artifact" \
+      "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
       "FIX" "false" "$task_architecture_required" "$task_architecture" "$task_release_bundle" \
       "$task_direction_status" "$task_direction_artifact"
     ;;
@@ -330,6 +330,23 @@ case "$type" in
     require_assigned_worker_to_supervisor
     if [[ "$type" == "view_direction_ready" ]]; then
       [[ "$from_role" == "frontend-worker" && "$to_role" == "frontend-critic" ]] || die_rule "view_direction_ready requires the frontend pair" "general implementation uses supervision_checkpoint" "send from frontend-worker to frontend-critic"
+    elif [[ "$type" == "ready_for_supervision" ]]; then
+      [[ "$task_status" == "needs_supervision" ]] || die_rule \
+        "task is not ready for final supervision: $task_id" \
+        "task status is $task_status, but ready_for_supervision requires a current implementation report" \
+        "run make report TASK=$task_id STATUS=needs_supervision after committing and verifying the task"
+      [[ -n "$task_report" && -f "$task_report" && -n "$task_commits" ]] || die_rule \
+        "review entrypoint is incomplete: $task_id" \
+        "task report or task commits are missing from task state" \
+        "run make report TASK=$task_id STATUS=needs_supervision, fill the report, then resend"
+      team_require_report_matches_task_state "$task_id" "$task_report" "$task_base_commit" "$task_commits"
+      worker_message="${body:-Implementation and verification are complete.}"
+      body="Task: $task_id"$'\n'
+      body+="Task file: .agents/queue/tasks/$task_id.md"$'\n'
+      body+="Worker: $task_worker"$'\n'
+      body+="Worker report: $(team_relative_path "$task_report")"$'\n'
+      body+="Task commits: $task_commits"$'\n'
+      body+="Worker message: $worker_message"
     fi
     ;;
   supervision_feedback)

@@ -125,6 +125,7 @@ team "$TMP_ROOT/.agents/scripts/team_config.sh" validate
 research_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command research-worker-1)"
 general_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command general-worker-1)"
 hard_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command hard-task-worker-1)"
+reviewer_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command general-reviewer-1)"
 critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command frontend-critic-1)"
 [[ "$research_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "research worker lost Codex permission bypass"
 [[ "$research_command" == *"--search"* ]] || fail "research worker is not launched with Web search"
@@ -136,6 +137,8 @@ critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command fronte
 [[ "$hard_command" == *"--model gpt-5.6-sol"* ]] || fail "hard task worker model is not gpt-5.6-sol"
 [[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
 [[ "$hard_command" != *"--search"* ]] || fail "hard task worker unexpectedly enables Web search"
+[[ "$reviewer_command" == *"--model gpt-5.6-terra"* ]] || fail "general reviewer model is not gpt-5.6-terra"
+[[ "$reviewer_command" == *'model_reasoning_effort=\"high\"'* ]] || fail "general reviewer effort is not high"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
 
 export TEAM_FAKE_TMUX_LOG="$TMP_BASE/tmux.log"
@@ -207,19 +210,66 @@ strategy_result_output="$(
 )"
 grep -q '^cc_to=manager$' <<<"$strategy_result_output"
 
+printf '%s\n' "concurrent change" > "$TMP_ROOT/concurrent-output.txt"
+git -C "$TMP_ROOT" add concurrent-output.txt
+git -C "$TMP_ROOT" commit -qm "Concurrent task result"
+concurrent_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
+
 printf '%s\n' "general change" > "$TMP_ROOT/general-output.txt"
-git -C "$TMP_ROOT" add general-output.txt
-git -C "$TMP_ROOT" commit -qm "T-GENERAL: add output"
-general_head="$(git -C "$TMP_ROOT" rev-parse HEAD)"
+printf '%s\n' "staged elsewhere" > "$TMP_ROOT/staged-elsewhere.txt"
+git -C "$TMP_ROOT" add staged-elsewhere.txt
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \
+  make -s -C "$TMP_ROOT" task-commit TASK=T-GENERAL MESSAGE="add output" \
+  > /dev/null 2> "$TMP_BASE/staged-elsewhere.err"; then
+  fail "task commit accepted staged changes outside the task"
+fi
+grep -q '^error: Git index contains changes outside task T-GENERAL$' "$TMP_BASE/staged-elsewhere.err"
+git -C "$TMP_ROOT" restore --staged staged-elsewhere.txt
+rm "$TMP_ROOT/staged-elsewhere.txt"
+
+general_commit_output="$(
+  TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \
+    make -s -C "$TMP_ROOT" task-commit TASK=T-GENERAL MESSAGE="add output"
+)"
+general_commit="$(printf '%s\n' "$general_commit_output" | sed -n 's/^commit=//p')"
+[[ -n "$general_commit" ]] || fail "task commit returned no commit hash"
+git -C "$TMP_ROOT" show -s --format=%B "$general_commit" | grep -q '^Agent-Task: T-GENERAL$'
+[[ "$(git -C "$TMP_ROOT" show --format= --name-only "$general_commit")" == "general-output.txt" ]] \
+  || fail "task commit included paths outside the task"
+
+printf '%s\n' "uncommitted task change" > "$TMP_ROOT/general-output.txt"
+if as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-GENERAL needs_supervision \
+  > /dev/null 2> "$TMP_BASE/dirty-task.err"; then
+  fail "report accepted uncommitted task-owned changes"
+fi
+grep -q '^error: task-owned changes are not committed: T-GENERAL$' "$TMP_BASE/dirty-task.err"
+git -C "$TMP_ROOT" restore general-output.txt
+
 general_base="$(state_field task T-GENERAL base_commit)"
 general_report="$(as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-GENERAL needs_supervision)"
+general_commits="$(state_field task T-GENERAL task_commits)"
+[[ "$general_commits" == "$general_commit" ]] || fail "report did not isolate the task commit"
+[[ "$general_commits" != *"$concurrent_commit"* ]] || fail "report included a concurrent commit"
+
+printf '%s\n' "general change refined" > "$TMP_ROOT/general-output.txt"
+general_fix_output="$(as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-GENERAL "refine output")"
+general_fix_commit="$(printf '%s\n' "$general_fix_output" | sed -n 's/^commit=//p')"
+if team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from general-worker-1 --type ready_for_supervision --task T-GENERAL \
+  general-reviewer-1 "Report is ready." > /dev/null 2> "$TMP_BASE/stale-report.err"; then
+  fail "ready_for_supervision accepted a stale report"
+fi
+grep -q '^error: task report is stale: T-GENERAL$' "$TMP_BASE/stale-report.err"
+general_report="$(as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-GENERAL needs_supervision)"
+general_commits="$general_commit $general_fix_commit"
+[[ "$(state_field task T-GENERAL task_commits)" == "$general_commits" ]] || fail "updated report lost task commits"
 cat > "$general_report" <<REPORT
 # Report: T-GENERAL by general-worker-1
 
 Status: needs_supervision
 Supervisor: general-reviewer-1
 Base commit: $general_base
-Head commit: $general_head
+Task commits: $general_commits
 Supervision artifact: none
 Supervision decision: none
 Done recommendation: false
@@ -239,7 +289,8 @@ Direction artifact: none
 
 ## Commits
 
-- $general_head
+- $general_commit T-GENERAL: add output
+- $general_fix_commit T-GENERAL: refine output
 
 ## Verification
 
@@ -272,6 +323,9 @@ REPORT
 team "$TMP_ROOT/.agents/scripts/team_send.sh" \
   --from general-worker-1 --type ready_for_supervision --task T-GENERAL \
   general-reviewer-1 "Report is ready." >/dev/null
+general_reviewer_raw="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-1 --raw)"
+grep -q "Task commits: $general_commits" <<<"$general_reviewer_raw"
+[[ "$general_reviewer_raw" != *"Task commits: $concurrent_commit"* ]] || fail "review entrypoint included a concurrent commit"
 
 general_review="$TMP_ROOT/.agents/queue/reviews/T-GENERAL_general-reviewer-1.md"
 cat > "$general_review" <<REVIEW
@@ -283,7 +337,7 @@ Task: .agents/queue/tasks/T-GENERAL.md
 Worker: general-worker-1
 Report: .agents/queue/reports/T-GENERAL_general-worker-1.md
 Base commit: $general_base
-Head commit: $general_head
+Task commits: $general_commits
 
 ## Summary
 
@@ -364,9 +418,8 @@ as_agent frontend-critic-1 "$TMP_ROOT/.agents/scripts/team_direction_report.sh" 
 grep -q '"direction_status":"proceed"' "$frontend_state"
 
 printf '%s\n' "frontend change" > "$TMP_ROOT/frontend-output.txt"
-git -C "$TMP_ROOT" add frontend-output.txt
-git -C "$TMP_ROOT" commit -qm "T-FRONTEND: add output"
-frontend_head="$(git -C "$TMP_ROOT" rev-parse HEAD)"
+frontend_commit_output="$(as_agent frontend-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-FRONTEND "add output")"
+frontend_commit="$(printf '%s\n' "$frontend_commit_output" | sed -n 's/^commit=//p')"
 frontend_base="$(state_field task T-FRONTEND base_commit)"
 frontend_report="$(as_agent frontend-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-FRONTEND needs_supervision)"
 mkdir -p "$TMP_ROOT/.agents/queue/visuals/T-FRONTEND"
@@ -377,7 +430,7 @@ cat > "$frontend_report" <<REPORT
 Status: needs_supervision
 Supervisor: frontend-critic-1
 Base commit: $frontend_base
-Head commit: $frontend_head
+Task commits: $frontend_commit
 Supervision artifact: none
 Supervision decision: none
 Done recommendation: false
@@ -397,7 +450,7 @@ Direction artifact: .agents/queue/direction-critiques/T-FRONTEND_frontend-critic
 
 ## Commits
 
-- $frontend_head
+- $frontend_commit T-FRONTEND: add output
 
 ## Verification
 
@@ -442,7 +495,7 @@ Task: .agents/queue/tasks/T-FRONTEND.md
 Worker: frontend-worker-1
 Report: .agents/queue/reports/T-FRONTEND_frontend-worker-1.md
 Base commit: $frontend_base
-Head commit: $frontend_head
+Task commits: $frontend_commit
 
 ## Summary
 

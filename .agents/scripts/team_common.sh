@@ -537,6 +537,125 @@ team_task_markdown_section_invalid_path_bullets() {
   ' "$task_file"
 }
 
+team_path_matches_contract_path() {
+  local path="${1#./}"
+  local contract_path
+  local contract_type
+
+  contract_path="$(team_expand_path "$2")"
+  contract_path="${contract_path#./}"
+  contract_type="$(git -C "$TEAM_ROOT" cat-file -t "HEAD:$contract_path" 2>/dev/null || true)"
+
+  if [[ "$contract_path" == */ ]]; then
+    [[ "$path" == "$contract_path"* ]]
+  elif [[ -d "$TEAM_ROOT/$contract_path" || "$contract_type" == "tree" ]]; then
+    [[ "$path" == "$contract_path" || "$path" == "$contract_path/"* ]]
+  else
+    [[ "$path" == $contract_path ]]
+  fi
+}
+
+team_path_matches_task_section() {
+  local task_file="$1"
+  local section="$2"
+  local path="$3"
+  local contract_path
+
+  while IFS= read -r contract_path; do
+    if team_path_matches_contract_path "$path" "$contract_path"; then
+      return 0
+    fi
+  done < <(team_task_markdown_section_paths "$task_file" "$section")
+  return 1
+}
+
+team_git_changed_paths() {
+  {
+    git -C "$TEAM_ROOT" diff --name-only --no-renames --relative HEAD --
+    git -C "$TEAM_ROOT" ls-files --others --exclude-standard
+  } | sed '/^$/d' | LC_ALL=C sort -u
+}
+
+team_task_changed_allowed_paths() {
+  local task_id="$1"
+  local task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
+  local path
+
+  [[ -f "$task_file" ]] || die "task file not found: $task_id"
+  while IFS= read -r path; do
+    team_path_matches_task_section "$task_file" "Allowed paths" "$path" || continue
+    if team_path_matches_task_section "$task_file" "Do not modify" "$path"; then
+      die_rule \
+        "task path is both allowed and protected: $path" \
+        "$task_file assigns conflicting ownership to the same changed path" \
+        "correct Allowed paths and Do not modify before committing"
+    fi
+    printf '%s\n' "$path"
+  done < <(team_git_changed_paths)
+}
+
+team_require_task_paths_clean() {
+  local task_id="$1"
+  local dirty_paths
+
+  dirty_paths="$(team_task_changed_allowed_paths "$task_id")"
+  [[ -z "$dirty_paths" ]] || die_rule \
+    "task-owned changes are not committed: $task_id" \
+    "the following paths still differ from HEAD: $(printf '%s' "$dirty_paths" | paste -sd ',' - | sed 's/,/, /g')" \
+    "commit them with make task-commit TASK=$task_id MESSAGE='<summary>', then rerun make report"
+}
+
+team_task_commits() {
+  local task_id="$1"
+  local base_commit="$2"
+  local commit
+
+  git -C "$TEAM_ROOT" merge-base --is-ancestor "$base_commit" HEAD >/dev/null 2>&1 || die_rule \
+    "task base is not an ancestor of HEAD: $task_id" \
+    "the repository history no longer contains dispatch base $base_commit on the current line" \
+    "ask Manager to reconcile the task with the current repository history"
+
+  while IFS= read -r commit; do
+    if git -C "$TEAM_ROOT" show -s --format=%B "$commit" \
+      | git -C "$TEAM_ROOT" interpret-trailers --parse \
+      | grep -Fqx "Agent-Task: $task_id"; then
+      printf '%s\n' "$commit"
+    fi
+  done < <(git -C "$TEAM_ROOT" rev-list --reverse "$base_commit..HEAD")
+}
+
+team_replace_markdown_section() {
+  local file="$1"
+  local section="$2"
+  local content_file="$3"
+  local tmp
+
+  tmp="$(mktemp)"
+  awk -v section="$section" -v content_file="$content_file" '
+    $0 == "## " section {
+      print
+      print ""
+      while ((getline line < content_file) > 0) {
+        print line
+      }
+      close(content_file)
+      replacing = 1
+      found = 1
+      next
+    }
+    replacing && /^## / {
+      print ""
+      replacing = 0
+    }
+    !replacing { print }
+    END { exit found ? 0 : 1 }
+  ' "$file" > "$tmp" || {
+    rm -f "$tmp"
+    die "markdown section not found: $section in $file"
+  }
+  mv "$tmp" "$file"
+}
+
 team_message_body_summary() {
   awk '
     {
@@ -818,7 +937,7 @@ team_write_task_state() {
   local supervisor="$4"
   local status="$5"
   local base_commit="$6"
-  local head_commit="$7"
+  local task_commits="$7"
   local report="$8"
   local supervision_artifact="$9"
   local supervision_decision="${10}"
@@ -835,14 +954,14 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","manager":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","head_commit":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","manager":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","task_commits":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$manager")" \
     "$(json_string "$worker")" \
     "$(json_string "$supervisor")" \
     "$(json_string "$status")" \
     "$(json_string "$base_commit")" \
-    "$(json_string "$head_commit")" \
+    "$(json_string "$task_commits")" \
     "$(json_string "$report")" \
     "$(json_string "$supervision_artifact")" \
     "$(json_string "$supervision_decision")" \
@@ -930,6 +1049,8 @@ team_require_release_task_ready() {
   local supervision_artifact
   local architecture_required
   local architecture
+  local base_commit
+  local task_commits
 
   task_state_file="$(team_task_state_file "$task_id")"
   [[ -f "$task_state_file" ]] || die_rule \
@@ -944,6 +1065,8 @@ team_require_release_task_ready() {
   supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
   architecture_required="$(team_task_state_field "$task_id" architecture_required)"
   architecture="$(team_task_state_field "$task_id" architecture)"
+  base_commit="$(team_task_state_field "$task_id" base_commit)"
+  task_commits="$(team_task_state_field "$task_id" task_commits)"
 
   [[ "$task_status" == "done" ]] || die_rule \
     "release task is not done: $task_id" \
@@ -965,6 +1088,7 @@ team_require_release_task_ready() {
     "release task supervision artifact is missing: $task_id" \
     "task state points to supervision_artifact=$supervision_artifact" \
     "the assigned supervisor must write the final artifact before $task_id is included in release bundle $bundle_id"
+  team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$task_commits"
 
   if [[ "$architecture_required" == "true" ]]; then
     [[ -n "$architecture" && -f "$TEAM_ROOT/$architecture" ]] || die_rule \
@@ -1026,14 +1150,21 @@ team_require_report_matches_task_state() {
   local task_id="$1"
   local report_file="$2"
   local base_commit="$3"
-  local head_commit="$4"
+  local task_commits="$4"
+  local current_task_commits
 
   [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
     "report file not found for $task_id" \
     "task state points to a report that does not exist" \
     "the assigned worker must run make report TASK=$task_id STATUS=needs_supervision"
   team_require_report_field "$report_file" "Base commit" "$base_commit"
-  team_require_report_field "$report_file" "Head commit" "$head_commit"
+  team_require_report_field "$report_file" "Task commits" "$task_commits"
+  team_require_task_paths_clean "$task_id"
+  current_task_commits="$(team_task_commits "$task_id" "$base_commit" | paste -sd ' ' -)"
+  [[ "$current_task_commits" == "$task_commits" ]] || die_rule \
+    "task report is stale: $task_id" \
+    "task state records '${task_commits:-no commits}', but current task commits are '${current_task_commits:-no commits}'" \
+    "rerun make report TASK=$task_id STATUS=needs_supervision and refresh its evidence"
 }
 
 team_update_markdown_field() {

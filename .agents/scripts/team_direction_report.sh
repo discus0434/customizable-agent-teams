@@ -39,7 +39,7 @@ manager="$(team_task_state_field "$task_id" manager)"
 supervisor="$(team_task_state_field "$task_id" supervisor)"
 status="$(team_task_state_field "$task_id" status)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
-head_commit="$(team_task_state_field "$task_id" head_commit)"
+task_commits="$(team_task_state_field "$task_id" task_commits)"
 report_file="$(team_task_state_field "$task_id" report)"
 supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
 supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
@@ -95,7 +95,7 @@ esac
 
 team_write_task_state \
   "$task_id" "$manager" "$worker" "$supervisor" "$status" \
-  "$base_commit" "$head_commit" "$report_file" "$supervision_artifact" \
+  "$base_commit" "$task_commits" "$report_file" "$supervision_artifact" \
   "$supervision_decision" "${done_recommendation:-false}" "$architecture_required" \
   "$architecture" "$release_bundle" "$direction_status" "$direction_artifact"
 

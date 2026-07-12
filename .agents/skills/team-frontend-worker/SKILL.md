@@ -28,13 +28,14 @@ Wait for `PROCEED` or `NOT_NEEDED`. For `REVISE`, update the direction and resub
 - Inspect the rendered result throughout implementation; do not rely on code inspection alone.
 - Store shared evidence under `.agents/queue/visuals/<task_id>/`.
 - Check representative devices, viewports, windows, states, interaction, accessibility, loading, empty, and error behavior as relevant.
-- Send `supervision_checkpoint` when visual or interaction feedback would prevent rework.
+- Send `supervision_checkpoint` when critic input could still materially change the implementation.
 
 ## Report
 
-Run task-specific checks, `make post-change`, and `make smoke`, then commit task-owned files and create the report:
+Run task-specific checks, `make post-change`, and `make smoke`, then commit the task-owned changes and create the report:
 
 ```bash
+make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 

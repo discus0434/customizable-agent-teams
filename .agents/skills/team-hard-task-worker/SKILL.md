@@ -28,7 +28,7 @@ Keep the investigation proportional to the task. Once evidence identifies a cohe
 - Use `team-tdd` when the expected contract can be expressed before implementation.
 - Address the root behavior across all affected paths; do not narrow the goal to the first passing case.
 - Check integration points and regression surfaces that a local fix could disturb.
-- Send `supervision_checkpoint` when a hypothesis is confirmed, the implementation direction becomes clear, a meaningful milestone works, or specialist input may prevent rework.
+- Send `supervision_checkpoint` when Reviewer input could still materially change the investigation or implementation.
 
 ```bash
 make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/checkpoint.md
@@ -36,11 +36,10 @@ make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BOD
 
 ## Report
 
-Use `team-verify`, run task-specific checks, `make post-change`, and `make smoke`, then commit task-owned files and create the report:
+Use `team-verify`, run task-specific checks, `make post-change`, and `make smoke`, then commit the task-owned changes and create the report:
 
 ```bash
-git add <task-files>
-git commit -m "<task_id>: <summary>"
+make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 ```
 

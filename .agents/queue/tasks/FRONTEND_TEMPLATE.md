@@ -58,15 +58,16 @@ Add task-specific protected paths when another task or role owns them.
 
 ## Report Evidence
 
-- summary、changed files、commit、task-specific verification、post-change、smoke を具体的に記録する。
+- summary、changed files、task commits、task-specific verification、post-change、smoke を具体的に記録する。
 - direction result、visual iterations、screenshot paths、critic feedback と対応を記録する。
 
 ## Supervision
 
 - frontend-critic の direction response を受けてから主要 UI 実装へ進む。
 - 実装中は実画面と screenshot を確認し、critic と visual iteration を行う。
+- critic の入力が実装を有意に変え得る時は `supervision_checkpoint` で相談する。
 - blocker、不確実さ、低い自信、scope 変更の誘惑があれば critic に相談する。
-- 実装、検証、commit、report 更新後に `ready_for_supervision` を送る。
+- 実装、検証、task commit、report 更新後に `ready_for_supervision` を送る。
 
 ## Escalation
 

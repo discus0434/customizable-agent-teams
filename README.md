@@ -29,7 +29,7 @@
 | **Strategist** | tmux `strategist` pane | 深い調査、複数案比較、実行計画。 |
 | **Architect** | tmux `architect` pane | 技術方針、設計一貫性、境界、テスト期待値を判断する。 |
 | **Release Captain** | tmux `release-captain` pane | 複数 task のまとまりを確認し、`SHIP` / `FIX` / `BLOCKED` を返す。 |
-| **General Worker** | tmux `general-worker-N` pane | 主力実装、検証、commit、report。 |
+| **General Worker** | tmux `general-worker-N` pane | 主力実装、検証、task commit、report。 |
 | **Hard Task Worker** | tmux `hard-task-worker-N` pane | 難しい実装やデバッグを深く調査し、根本原因から解決する。 |
 | **General Reviewer** | tmux `general-reviewer-N` pane | 固定 General Worker または Hard Task Worker の相談、途中 feedback、final review。 |
 | **Research Worker** | tmux `research-worker-N` pane | codebase、feasibility、Web の事実調査。project code は編集しない。 |
@@ -167,6 +167,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | task dispatch | `make dispatch TASK=T-001` | Manager |
 | task contract 確認 | `make task-lint TASK=T-001` | Manager / Supervisor |
 | 検証ゲート | `make post-change` / `make smoke` | Implementation Worker |
+| task の変更を commit | `make task-commit TASK=T-001 MESSAGE="<summary>"` | Implementation Worker |
 | supervision checkpoint | `make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=T-001 BODY_FILE=.agents/queue/state/tmp/checkpoint.md` | Implementation Worker |
 | supervision feedback | `make team-send TO=<worker_id> TYPE=supervision_feedback TASK=T-001 BODY="..."` | Supervisor |
 | manager 差し戻し | `make team-send TO=<pair_agent_id> TYPE=manager_fix TASK=T-001 BODY_FILE=.agents/queue/state/tmp/manager-fix.md` | Manager |

@@ -60,6 +60,7 @@ view_direction_ready
 Common commands:
 
 ```bash
+make task-commit TASK=<task_id> MESSAGE="<summary>"
 make report TASK=<task_id> STATUS=needs_supervision
 make direction-report TASK=<task_id> DECISION=<decision>
 make supervision-report TASK=<task_id> DECISION=<OK|FIX|ASK_MANAGER>
