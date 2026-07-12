@@ -41,36 +41,36 @@ agents:
   - id: general-reviewer-1
     role: general-reviewer
     cli: codex
-    model: gpt-5.6-terra
-    effort: high
+    model: gpt-5.6-luna
+    effort: xhigh
     window: general-reviewer-1
 
   - id: general-reviewer-2
     role: general-reviewer
     cli: codex
-    model: gpt-5.6-terra
-    effort: high
+    model: gpt-5.6-luna
+    effort: xhigh
     window: general-reviewer-2
 
   - id: general-reviewer-3
     role: general-reviewer
     cli: codex
-    model: gpt-5.6-terra
-    effort: high
+    model: gpt-5.6-luna
+    effort: xhigh
     window: general-reviewer-3
 
   - id: general-reviewer-4
     role: general-reviewer
     cli: codex
-    model: gpt-5.6-terra
-    effort: high
+    model: gpt-5.6-luna
+    effort: xhigh
     window: general-reviewer-4
 
   - id: general-reviewer-5
     role: general-reviewer
     cli: codex
-    model: gpt-5.6-terra
-    effort: high
+    model: gpt-5.6-luna
+    effort: xhigh
     window: general-reviewer-5
 
   - id: general-worker-1
