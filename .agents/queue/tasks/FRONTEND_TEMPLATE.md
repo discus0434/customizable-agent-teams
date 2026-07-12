@@ -21,7 +21,7 @@ Architecture required: false
 - `.agents/state/MEMORY.md`
 
 Path bullets may be plain paths, path patterns, or backtick-wrapped paths, with optional text after the path.
-Add task-specific protected paths when another task or role owns them.
+`Allowed paths` is the task commit whitelist. Add specific sensitive or externally owned paths under `Do not modify`; keep the two sections non-overlapping.
 
 ## Goal
 

@@ -40,6 +40,7 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 - One implementation worker may have only one task until Manager marks it done.
 - The fixed Supervisor is resolved from config at dispatch.
 - Define observable acceptance, explicit paths, verification, evidence, and escalation boundaries.
+- Treat `Allowed paths` as the task commit whitelist. Use `Do not modify` for specific sensitive or externally owned boundaries, not as a broad complement that overlaps the whitelist.
 - Split substantive frontend and backend ownership when one supervisor could not confidently judge the whole change.
 
 Check and dispatch:
