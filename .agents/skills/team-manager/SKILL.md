@@ -26,8 +26,6 @@ Do not serialize unrelated work because it is uncertain. Bound uncertainty with 
 
 Preserve an explicit dependency graph from Lead intake. Combine identified parallel work only when shared ownership or verification would make separate delivery incoherent; small task size alone is not a reason to discard the graph.
 
-Dispatch a ready, linted task as soon as its dependencies are satisfied. Continue planning dependent tasks while active workers run instead of holding executable work until the entire graph is fully specified.
-
 Request research with:
 
 ```bash
