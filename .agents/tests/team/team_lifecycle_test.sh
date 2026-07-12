@@ -214,6 +214,15 @@ grep -q '"worker":"general-worker-1"' "$general_state"
 grep -q '"supervisor":"general-reviewer-1"' "$general_state"
 grep -q '^Supervisor: general-reviewer-1$' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 
+cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-CONFLICT.md"
+perl -0pi -e 's/T-XXX/T-CONFLICT/g; s#\x60path/to/file\x60#\x60conflict-output.txt\x60#; s#- \x60\.agents/state/STATE\.md\x60#- \x60*.txt\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-CONFLICT.md"
+if team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-CONFLICT \
+  > /dev/null 2> "$TMP_BASE/path-conflict.err"; then
+  fail "task lint accepted overlapping ownership patterns"
+fi
+grep -q '^error: task path ownership patterns overlap: conflict-output.txt and \*.txt$' "$TMP_BASE/path-conflict.err"
+
 cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-BUSY.md"
 perl -0pi -e 's/T-XXX/T-BUSY/g; s#\x60path/to/file\x60#\x60busy-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-BUSY.md"
@@ -251,6 +260,18 @@ git -C "$TMP_ROOT" commit -qm "Concurrent task result"
 concurrent_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 
 printf '%s\n' "general change" > "$TMP_ROOT/general-output.txt"
+perl -0pi -e 's/(## Do not modify\n\n)/$1- `*.txt`\n/' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
+head_before_conflict="$(git -C "$TMP_ROOT" rev-parse HEAD)"
+if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \
+  make -s -C "$TMP_ROOT" task-commit TASK=T-GENERAL MESSAGE="add output" \
+  > /dev/null 2> "$TMP_BASE/commit-path-conflict.err"; then
+  fail "task commit accepted overlapping ownership patterns"
+fi
+grep -q '^error: task path ownership patterns overlap: general-output.txt and \*.txt$' "$TMP_BASE/commit-path-conflict.err"
+[[ "$(git -C "$TMP_ROOT" rev-parse HEAD)" == "$head_before_conflict" ]] \
+  || fail "task commit created a partial commit after path validation failed"
+perl -0pi -e 's/- `\*\.txt`\n//' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
+
 printf '%s\n' "staged elsewhere" > "$TMP_ROOT/staged-elsewhere.txt"
 git -C "$TMP_ROOT" add staged-elsewhere.txt
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \

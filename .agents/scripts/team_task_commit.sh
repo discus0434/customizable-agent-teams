@@ -60,10 +60,16 @@ esac
 "$SCRIPT_DIR/team_task_lint.sh" "$task_id" >/dev/null
 acquire_team_lock "git-commit"
 
+task_paths_file="$(mktemp)"
+if ! team_task_changed_allowed_paths "$task_id" > "$task_paths_file"; then
+  rm -f "$task_paths_file"
+  exit 1
+fi
 task_paths=()
 while IFS= read -r path; do
   [[ -n "$path" ]] && task_paths+=("$path")
-done < <(team_task_changed_allowed_paths "$task_id")
+done < "$task_paths_file"
+rm -f "$task_paths_file"
 
 [[ "${#task_paths[@]}" -gt 0 ]] || die_rule \
   "task has no changed files to commit: $task_id" \

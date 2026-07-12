@@ -142,6 +142,16 @@ for allowed in "${allowed_paths[@]}"; do
     done
   fi
 
+  for protected in "${protected_paths[@]}"; do
+    if team_path_matches_contract_path "$allowed" "$protected" \
+      || team_path_matches_contract_path "$protected" "$allowed"; then
+      die_rule \
+        "task path ownership patterns overlap: $allowed and $protected" \
+        "Allowed paths and Do not modify both claim the same path boundary" \
+        "rewrite the task contract with non-overlapping ownership paths before dispatch"
+    fi
+  done
+
   if git -C "$TEAM_ROOT" check-ignore -q "$allowed" 2>/dev/null; then
     warn "allowed path is ignored by git: $allowed"
   fi
