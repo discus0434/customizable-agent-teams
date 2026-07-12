@@ -59,29 +59,59 @@ agents:
     effort: high
     window: general-reviewer-3
 
+  - id: general-reviewer-4
+    role: general-reviewer
+    cli: codex
+    model: gpt-5.6-sol
+    effort: high
+    window: general-reviewer-4
+
+  - id: general-reviewer-5
+    role: general-reviewer
+    cli: codex
+    model: gpt-5.6-sol
+    effort: high
+    window: general-reviewer-5
+
   - id: general-worker-1
     role: general-worker
     cli: codex
-    model: gpt-5.6-sol
-    effort: medium
+    model: gpt-5.6-luna
+    effort: high
     window: general-worker-1
     supervisor: general-reviewer-1
 
   - id: general-worker-2
     role: general-worker
     cli: codex
-    model: gpt-5.6-sol
-    effort: medium
+    model: gpt-5.6-luna
+    effort: high
     window: general-worker-2
     supervisor: general-reviewer-2
 
   - id: general-worker-3
     role: general-worker
     cli: codex
-    model: gpt-5.6-sol
-    effort: medium
+    model: gpt-5.6-luna
+    effort: high
     window: general-worker-3
     supervisor: general-reviewer-3
+
+  - id: hard-task-worker-1
+    role: hard-task-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: xhigh
+    window: hard-task-worker-1
+    supervisor: general-reviewer-4
+
+  - id: hard-task-worker-2
+    role: hard-task-worker
+    cli: codex
+    model: gpt-5.6-sol
+    effort: xhigh
+    window: hard-task-worker-2
+    supervisor: general-reviewer-5
 
   - id: research-worker-1
     role: research-worker

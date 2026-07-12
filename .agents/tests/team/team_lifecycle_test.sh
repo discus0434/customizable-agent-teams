@@ -95,7 +95,7 @@ case "$1" in
     ;;
   list-panes)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
-    printf '%s\n' '  %fake lead agent=lead role=lead model=claude-fable-5'
+    printf '%s\n' '  %fake lead agent=lead role=lead model=claude-opus-4-8'
     ;;
   send-keys|set-option|new-session|new-window|kill-session)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
@@ -124,11 +124,18 @@ git -C "$TMP_ROOT" commit -qm "Initial template"
 team "$TMP_ROOT/.agents/scripts/team_config.sh" validate
 research_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command research-worker-1)"
 general_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command general-worker-1)"
+hard_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command hard-task-worker-1)"
 critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command frontend-critic-1)"
 [[ "$research_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "research worker lost Codex permission bypass"
 [[ "$research_command" == *"--search"* ]] || fail "research worker is not launched with Web search"
 [[ "$general_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "general worker lost Codex permission bypass"
+[[ "$general_command" == *"--model gpt-5.6-luna"* ]] || fail "general worker model is not gpt-5.6-luna"
+[[ "$general_command" == *'model_reasoning_effort=\"high\"'* ]] || fail "general worker effort is not high"
 [[ "$general_command" != *"--search"* ]] || fail "general worker unexpectedly enables Web search"
+[[ "$hard_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "hard task worker lost Codex permission bypass"
+[[ "$hard_command" == *"--model gpt-5.6-sol"* ]] || fail "hard task worker model is not gpt-5.6-sol"
+[[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
+[[ "$hard_command" != *"--search"* ]] || fail "hard task worker unexpectedly enables Web search"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
 
 export TEAM_FAKE_TMUX_LOG="$TMP_BASE/tmux.log"
@@ -298,6 +305,27 @@ as_agent general-reviewer-1 "$TMP_ROOT/.agents/scripts/team_supervision_report.s
 grep -q '"status":"supervision_ok"' "$general_state"
 team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-GENERAL done >/dev/null
 grep -q '"status":"done"' "$general_state"
+
+# Hard task dispatch uses the general task contract and its fixed reviewer.
+cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-HARD.md"
+perl -0pi -e 's/T-XXX/T-HARD/g; s/Worker: general-worker-1/Worker: hard-task-worker-1/; s#\x60path/to/file\x60#\x60hard-output.txt\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-HARD.md"
+team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-HARD >/dev/null
+hard_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-HARD)"
+grep -q '"worker":"hard-task-worker-1"' "$hard_state"
+grep -q '"supervisor":"general-reviewer-4"' "$hard_state"
+grep -q '^Supervisor: general-reviewer-4$' "$TMP_ROOT/.agents/queue/tasks/T-HARD.md"
+
+hard_checkpoint_output="$(
+  team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+    --from hard-task-worker-1 --type supervision_checkpoint --task T-HARD \
+    general-reviewer-4 "The decisive hypothesis is confirmed."
+)"
+hard_checkpoint_id="$(printf '%s\n' "$hard_checkpoint_output" | sed -n 's/^message_id=//p')"
+hard_reviewer_inbox="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-4)"
+grep -q 'processed_on_read: true' <<<"$hard_reviewer_inbox"
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-4/$hard_checkpoint_id" ]] \
+  || fail "hard task checkpoint did not reach its fixed reviewer"
 
 # Frontend direction and critic lifecycle.
 cp "$TMP_ROOT/.agents/queue/tasks/FRONTEND_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-FRONTEND.md"

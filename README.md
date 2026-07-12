@@ -1,8 +1,8 @@
 # customizable-agent-teams
 
-ローカルの tmux 上で、Claude Code と Codex を役割分担させるプロジェクトテンプレートです。人間との対話、進行管理、技術判断、調査、一般実装、frontend 実装、task-local supervision、release 判断を別々の agent が担当します。
+ローカルの tmux 上で、Claude Code と Codex を役割分担させるプロジェクトテンプレートです。人間との対話、進行管理、技術判断、調査、一般実装、難度の高い実装、frontend 実装、task-local supervision、release 判断を別々の agent が担当します。
 
-人間は Lead にだけ話します。Manager は依存関係と dispatch を担い、General Worker / General Reviewer と Frontend Worker / Frontend Critic の固定ペアが実装を進めます。4体の Research Worker はコードベース調査、フィジビリティ確認、Web検索を並列処理します。
+人間は Lead にだけ話します。Manager は依存関係と dispatch を担い、General Worker または Hard Task Worker と General Reviewer、Frontend Worker と Frontend Critic の固定ペアが実装を進めます。4体の Research Worker はコードベース調査、フィジビリティ確認、Web検索を並列処理します。
 
 ![customizable-agent-teams workflow](.agents/assets/agent-team-flow.png)
 
@@ -14,6 +14,7 @@
 - **Architect が技術方針を所有** — 抽象化、境界、テスト方針、統合時の一貫性を見ます。
 - **Release Captain が全体確認** — task 単位の OK とは別に、bundle が人間へ完了報告できる状態かを判定します。
 - **General lane** — 3組の General Worker / General Reviewer が主要な実装を担当します。Manager は関連領域の継続性を見て Worker を選び、Supervisor は固定ペアから決まります。
+- **Hard Task lane** — 2組の Hard Task Worker / General Reviewer が、難しいデバッグ、複数境界にまたがる変更、アルゴリズムや設計判断を伴う実装を担当します。
 - **Research pool** — 4体の Research Worker がコードベース、feasibility、Web を調査し、根拠と結果を caller へ直接返します。
 - **Frontend lane** — Frontend Worker が実画面を見ながら実装し、Claude Opus の Frontend Critic が view direction と完成画面を別視点で厳しく確認します。
 - **shared root** — 全 agent が同じ repo root で動きます。venv / node_modules / `.env` / direnv を重複させません。
@@ -29,7 +30,8 @@
 | **Architect** | tmux `architect` pane | 技術方針、設計一貫性、境界、テスト期待値を判断する。 |
 | **Release Captain** | tmux `release-captain` pane | 複数 task のまとまりを確認し、`SHIP` / `FIX` / `BLOCKED` を返す。 |
 | **General Worker** | tmux `general-worker-N` pane | 主力実装、検証、commit、report。 |
-| **General Reviewer** | tmux `general-reviewer-N` pane | 固定 General Worker の相談、途中 feedback、final review。 |
+| **Hard Task Worker** | tmux `hard-task-worker-N` pane | 難しい実装やデバッグを深く調査し、根本原因から解決する。 |
+| **General Reviewer** | tmux `general-reviewer-N` pane | 固定 General Worker または Hard Task Worker の相談、途中 feedback、final review。 |
 | **Research Worker** | tmux `research-worker-N` pane | codebase、feasibility、Web の事実調査。project code は編集しない。 |
 | **Frontend Worker** | tmux `frontend-worker-N` pane | view direction を固め、実画面を反復確認しながら frontend を実装する。 |
 | **Frontend Critic** | tmux `frontend-critic-N` pane | view direction、visual、interaction、accessibility、frontend code と tests を supervision する。 |
@@ -39,6 +41,7 @@ Human
   -> Lead
   -> Manager
   -> General Worker + General Reviewer
+     or Hard Task Worker + General Reviewer
      or Frontend Worker + Frontend Critic
   -> Research Worker pool when evidence is needed
   -> Strategist / Architect when deeper thinking is needed
@@ -52,6 +55,7 @@ Escalation は狭い範囲で決められる role から順に上がります。
 
 ```text
 General Worker -> General Reviewer -> Manager -> Lead -> Human
+Hard Task Worker -> General Reviewer -> Manager -> Lead -> Human
 Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
 General Reviewer / Frontend Critic / Manager / Lead -> Architect
 General Reviewer / Frontend Critic / Manager / Architect / Lead -> Strategist
@@ -142,7 +146,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 
 ## チームの設定
 
-`.agents/config/agent-team.yaml` の `agents:` list で役割、CLI、model、effort、window、agent 数を変更できます。General Worker と Frontend Worker は `supervisor:` で固定ペアを指定します。
+`.agents/config/agent-team.yaml` の `agents:` list で役割、CLI、model、effort、window、agent 数を変更できます。General Worker、Hard Task Worker、Frontend Worker は `supervisor:` で固定ペアを指定します。
 
 起動 command は `cli / model / effort` から生成されます。Claude Code には `--dangerously-skip-permissions`、Codex には `--dangerously-bypass-approvals-and-sandbox` が常に付きます。Codex の Research Worker には Web検索も有効になります。
 

@@ -91,7 +91,7 @@ if busy_task="$(team_task_supervisor_is_busy "$supervisor_id")"; then
 fi
 
 case "$worker_role:$supervisor_role" in
-  general-worker:general-reviewer)
+  general-worker:general-reviewer|hard-task-worker:general-reviewer)
     direction_status="not_applicable"
     supervision_path=".agents/queue/reviews/${task_id}_${supervisor_id}.md"
     ;;

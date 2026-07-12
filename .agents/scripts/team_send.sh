@@ -187,7 +187,7 @@ case "$type" in
         subtype="${from_role}-supervision"
         cc_to="$task_manager"
         ;;
-      general-worker|frontend-worker)
+      general-worker|hard-task-worker|frontend-worker)
         load_task_assignment
         die_rule "implementation worker cannot request strategist directly" "task-local uncertainty goes through the fixed supervisor" "ask $task_supervisor"
         ;;
@@ -240,7 +240,7 @@ case "$type" in
         subtype="release_readiness"
         cc_to="$(team_release_state_field "$bundle_id" manager)"
         ;;
-      general-worker|frontend-worker)
+      general-worker|hard-task-worker|frontend-worker)
         load_task_assignment
         die_rule "implementation worker cannot request architect directly" "task-local technical direction goes through the fixed supervisor" "ask $task_supervisor"
         ;;

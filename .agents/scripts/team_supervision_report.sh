@@ -68,7 +68,10 @@ case "$supervisor_role" in
   general-reviewer)
     supervision_file="$TEAM_QUEUE_DIR/reviews/${task_id}_${supervisor_id}.md"
     worker_role="$(team_config_agent_field "$worker" role)"
-    [[ "$worker_role" == "general-worker" ]] || die "general-reviewer cannot supervise $worker_role"
+    case "$worker_role" in
+      general-worker|hard-task-worker) ;;
+      *) die "general-reviewer cannot supervise $worker_role" ;;
+    esac
     ;;
   frontend-critic)
     supervision_file="$TEAM_QUEUE_DIR/critiques/${task_id}_${supervisor_id}.md"

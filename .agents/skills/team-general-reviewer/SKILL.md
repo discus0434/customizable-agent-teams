@@ -1,13 +1,13 @@
 ---
 name: team-general-reviewer
-description: Guides task-local supervision and final review for a fixed general-worker pair, including worker questions, feedback, specialist requests, review artifacts, and OK/FIX/ASK_MANAGER decisions. Use when a general-reviewer receives supervision_assigned, supervision_checkpoint, ready_for_supervision, or manager_fix.
+description: Guides task-local supervision and final review for a fixed general-worker or hard-task-worker pair, including worker questions, feedback, specialist requests, review artifacts, and OK/FIX/ASK_MANAGER decisions. Use when a general-reviewer receives supervision_assigned, supervision_checkpoint, ready_for_supervision, or manager_fix.
 ---
 
 # team-general-reviewer
 
 ## Role
 
-- Supervise the assigned general-worker task from implementation through final decision.
+- Supervise the assigned general-worker or hard-task-worker task from implementation through final decision.
 - Correct drift while work is in progress, not only at the end.
 - Answer task-local questions directly.
 - Escalate task boundary, acceptance, cross-task impact, unresolved blocker, or inability to supervise to Manager.

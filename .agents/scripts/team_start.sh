@@ -127,10 +127,13 @@ send_boot_nudge() {
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=release-captain agent_id=$id として待機してください。release_request を受けたら release bundle を確認し、SHIP/FIX/BLOCKED を返します。通知は inbox $id です。"
       ;;
     general-reviewer)
-      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-reviewer agent_id=$id として待機してください。supervision_assigned を受けたら固定ペアの general-worker と直接やりとりし、task-local supervision と final review を行います。通知は inbox $id です。"
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-reviewer agent_id=$id として待機してください。supervision_assigned を受けたら固定ペアの implementation worker と直接やりとりし、task-local supervision と final review を行います。通知は inbox $id です。"
       ;;
     general-worker)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=general-worker agent_id=$id として待機してください。task_assigned を受けたら固定 supervisor と連携して実装、検証、commit、report を行います。通知は inbox $id です。"
+      ;;
+    hard-task-worker)
+      team_tmux_send_text "$pane" "AGENTS.md を読み、role=hard-task-worker agent_id=$id として待機してください。task_assigned を受けたら固定 supervisor と連携し、難しい実装やデバッグを深く調査して、検証、commit、report まで行います。通知は inbox $id です。"
       ;;
     research-worker)
       team_tmux_send_text "$pane" "AGENTS.md を読み、role=research-worker agent_id=$id として待機してください。research_request を受けたら事実と根拠を中心に調査し、指定 artifact に結果を書いて caller へ返します。project code は編集しません。通知は inbox $id です。"

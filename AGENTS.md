@@ -59,18 +59,20 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 | Strategist | deep focused analysis and option comparison | `team-strategist` |
 | Architect | technical direction and design consistency | `team-architect` |
 | General Worker | primary implementation | `team-general-worker` |
-| General Reviewer | general-worker supervision and final review | `team-general-reviewer` |
+| Hard Task Worker | difficult implementation and debugging | `team-hard-task-worker` |
+| General Reviewer | general-worker and hard-task-worker supervision and final review | `team-general-reviewer` |
 | Research Worker | codebase, feasibility, and external evidence | `team-research-worker` |
 | Frontend Worker | rendered frontend implementation | `team-frontend-worker` |
 | Frontend Critic | view direction and complete frontend supervision | `team-frontend-critic` |
 | Release Captain | whole-system readiness | `team-release-captain` |
 
-General Workers and Frontend Workers edit project code. Research Workers use `/tmp` for experiments and do not edit project code. Supervisors, Lead, Manager, Strategist, Architect, and Release Captain operate through messages and artifacts.
+General Workers, Hard Task Workers, and Frontend Workers edit project code. Research Workers use `/tmp` for experiments and do not edit project code. Supervisors, Lead, Manager, Strategist, Architect, and Release Captain operate through messages and artifacts.
 
 ## Escalation
 
 ```text
 General Worker -> General Reviewer -> Manager -> Lead -> Human
+Hard Task Worker -> General Reviewer -> Manager -> Lead -> Human
 Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
 ```
 

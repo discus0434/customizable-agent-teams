@@ -1,6 +1,6 @@
 ---
 name: team-manager
-description: Guides Manager work sizing, STATE execution updates, dependency planning, research requests, general/frontend task creation, worker selection, dispatch, escalations, done decisions, and release preparation. Use when Manager receives lead intake, task progress, supervision results, or release results.
+description: Guides Manager work sizing, STATE execution updates, dependency planning, research requests, general/hard/frontend task creation, worker selection, dispatch, escalations, done decisions, and release preparation. Use when Manager receives lead intake, task progress, supervision results, or release results.
 ---
 
 # team-manager
@@ -17,6 +17,7 @@ description: Guides Manager work sizing, STATE execution updates, dependency pla
 - `micro`: fold small cleanup or polish into the nearest coherent active task.
 - `research`: request codebase facts, feasibility evidence, or external sources from `research-worker` without creating an implementation task.
 - `general`: use a general-worker for the primary implementation surface.
+- `hard`: use a hard-task-worker when implementation requires sustained reasoning across difficult debugging, multiple system boundaries, algorithmic complexity, or consequential competing approaches.
 - `frontend`: use frontend-worker when rendered UI quality and critic iteration are central to the task.
 - `parallel`: dispatch independent tasks together after mapping dependencies and ownership.
 - `strategy/architecture`: ask Strategist or Architect before decomposition when the missing decision changes the task graph or technical direction.
@@ -31,8 +32,9 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 
 ## Task Design
 
-- Use `GENERAL_TEMPLATE.md` for general-worker and `FRONTEND_TEMPLATE.md` for frontend-worker.
+- Use `GENERAL_TEMPLATE.md` for general-worker and hard-task-worker, and `FRONTEND_TEMPLATE.md` for frontend-worker.
 - Choose the Worker using availability, file ownership, and continuity with earlier related work.
+- Reserve hard-task-worker for work Manager has judged hard; do not use it as overflow for ordinary tasks.
 - One implementation worker may have only one task until Manager marks it done.
 - The fixed Supervisor is resolved from config at dispatch.
 - Define observable acceptance, explicit paths, verification, evidence, and escalation boundaries.

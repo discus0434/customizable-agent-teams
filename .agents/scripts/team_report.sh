@@ -28,7 +28,7 @@ esac
 team_config_agent_record "$agent_id" >/dev/null || die "unknown agent: $agent_id"
 agent_role="$(team_config_agent_field "$agent_id" role)"
 case "$agent_role" in
-  general-worker|frontend-worker) ;;
+  general-worker|hard-task-worker|frontend-worker) ;;
   *) die "$agent_id is not an implementation worker" ;;
 esac
 

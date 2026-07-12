@@ -16,6 +16,7 @@ Use the reported identity and `TEAM_ROOT`. `make team-status` shows current impl
 ```text
 Human -> Lead -> Manager
                    |-> General Worker + General Reviewer
+                   |-> Hard Task Worker + General Reviewer
                    |-> Frontend Worker + Frontend Critic
                    `-> Release Captain
 
@@ -23,7 +24,7 @@ Lead / Manager / Strategist / Architect / Release Captain -> Research Worker poo
 General Reviewer / Frontend Critic / Manager / Lead -> Architect or Strategist
 ```
 
-- General Worker and General Reviewer are fixed one-to-one pairs.
+- General Worker or Hard Task Worker and General Reviewer are fixed one-to-one pairs.
 - Frontend Worker and Frontend Critic are a fixed pair.
 - An implementation worker holds one task until Manager marks it done.
 - Research Workers have no Supervisor and do not edit project code.

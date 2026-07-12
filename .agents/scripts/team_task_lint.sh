@@ -29,7 +29,7 @@ architecture_required="$(team_task_markdown_field "$task_file" "Architecture req
 [[ -n "$worker" ]] || die_rule \
   "task Worker is missing: $task_file" \
   "dispatch needs an explicit implementation worker" \
-  "add 'Worker: <general-worker-id|frontend-worker-id>'"
+  "add 'Worker: <general-worker-id|hard-task-worker-id|frontend-worker-id>'"
 grep -q '^Supervisor:' "$task_file" || die_rule \
   "task Supervisor field is missing: $task_file" \
   "dispatch records the fixed supervisor in the task contract" \
@@ -51,16 +51,16 @@ if ! team_config_agent_record "$worker" >/dev/null; then
   die_rule \
     "task Worker is not configured: $worker" \
     "Worker must name an agent id from $TEAM_CONFIG_FILE" \
-    "choose a configured general-worker or frontend-worker id"
+    "choose a configured general-worker, hard-task-worker, or frontend-worker id"
 fi
 
 worker_role="$(team_config_agent_field "$worker" role)"
 case "$worker_role" in
-  general-worker|frontend-worker) ;;
+  general-worker|hard-task-worker|frontend-worker) ;;
   *) die_rule \
     "task Worker is not an implementation worker: $worker" \
     "$worker has role $worker_role in $TEAM_CONFIG_FILE" \
-    "choose an agent with role general-worker or frontend-worker" ;;
+    "choose an agent with role general-worker, hard-task-worker, or frontend-worker" ;;
 esac
 
 expected_supervisor="$(team_config_agent_field "$worker" supervisor)"

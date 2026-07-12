@@ -178,7 +178,7 @@ team_config_validate() {
     [[ -n "$id" ]] || continue
     [[ -n "$role" ]] || die_rule "agent role is missing: $id" "routing uses role as the source of truth" "add '    role: <role>'"
     case "$role" in
-      lead|manager|strategist|architect|release-captain|general-reviewer|general-worker|research-worker|frontend-worker|frontend-critic) ;;
+      lead|manager|strategist|architect|release-captain|general-reviewer|general-worker|hard-task-worker|research-worker|frontend-worker|frontend-critic) ;;
       *) die_rule "unknown agent role: $role" "$id uses a role outside the team protocol" "use a role defined by .agents/docs/TEAM_PROTOCOL.md" ;;
     esac
     case "$cli" in
@@ -194,7 +194,7 @@ team_config_validate() {
 
     expected_supervisor_role=""
     case "$role" in
-      general-worker) expected_supervisor_role="general-reviewer" ;;
+      general-worker|hard-task-worker) expected_supervisor_role="general-reviewer" ;;
       frontend-worker) expected_supervisor_role="frontend-critic" ;;
     esac
     if [[ -n "$expected_supervisor_role" ]]; then
@@ -214,7 +214,7 @@ team_config_validate() {
     elif [[ -n "$supervisor" ]]; then
       die_rule \
         "agent cannot declare a supervisor: $id" \
-        "only general-worker and frontend-worker use fixed task supervision" \
+        "only general-worker, hard-task-worker, and frontend-worker use fixed task supervision" \
         "remove the supervisor field from $id"
     fi
   done <<< "$agents"
@@ -227,7 +227,7 @@ team_config_validate() {
       "define exactly one $singleton_role agent"
   done
 
-  for pool_role in general-worker general-reviewer research-worker frontend-worker frontend-critic; do
+  for pool_role in general-worker hard-task-worker general-reviewer research-worker frontend-worker frontend-critic; do
     role_count="$(printf '%s\n' "$agents" | awk -F'|' -v role="$pool_role" '$2 == role { count++ } END { print count + 0 }')"
     [[ "$role_count" -gt 0 ]] || die_rule \
       "role has no configured agents: $pool_role" \
