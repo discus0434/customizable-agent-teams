@@ -24,6 +24,8 @@ description: Guides Manager work sizing, STATE execution updates, dependency pla
 
 Do not serialize unrelated work because it is uncertain. Bound uncertainty with supervision or specialist input, then dispatch independent tasks in the same batch.
 
+Preserve an explicit dependency graph from Lead intake. Combine identified parallel work only when shared ownership or verification would make separate delivery incoherent; small task size alone is not a reason to discard the graph.
+
 Request research with:
 
 ```bash
