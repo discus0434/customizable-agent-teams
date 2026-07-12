@@ -19,6 +19,8 @@ Review with the judgment of a senior engineer. Understand the task intent and in
 
 The task, worker report, and task commits are entrypoints rather than limits. Inspect surrounding code, run additional commands, challenge the approach, consult the worker, or request specialist input when they improve the decision. Report findings that matter and return `OK` when the implementation is sound.
 
+Confirm that the worker's task-specific checks, `make post-change`, and `make smoke` evidence apply to the reported task commits. Choose additional commands and inspection from the actual uncertainty and impact of the change. Repeat the complete worker verification when that judgment calls for it.
+
 Checkpoints are opportunities for early input. Reply with `supervision_feedback` only when the worker needs to act:
 
 ```bash

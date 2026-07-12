@@ -99,7 +99,7 @@ make release-prepare BUNDLE=<bundle_id> TASKS="T-001 T-002"
 make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
 ```
 
-Release Captain checks whole-system consistency, including representative visual evidence for frontend tasks, and records `SHIP`, `FIX`, or `BLOCKED`. After `SHIP`, Manager sends `completion_ready`; Lead reports to the human and sends `completion_ack`. Manager then compresses STATE and runs:
+Release Captain checks whole-system consistency, including representative visual evidence for frontend tasks, and records `SHIP`, `FIX`, or `BLOCKED`. Recording `SHIP` runs fresh `make post-change` and `make smoke` checks on the current commit and stores their evidence with the release review. After `SHIP`, Manager sends `completion_ready`; Lead reports to the human and sends `completion_ack`. Manager then compresses STATE and runs:
 
 ```bash
 make state-commit BUNDLE=<bundle_id>

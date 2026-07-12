@@ -27,9 +27,9 @@ All panes use the same repository root. Shared artifacts live under `.agents/que
 - Use `gh` for GitHub operations.
 - Use `direnv exec . <command>` when repository environment variables are required.
 - Missing required tools are blockers; report the exact command.
-- `make post-change` is the required change gate.
-- `make smoke` checks representative project behavior.
-- Implementation reports include task-specific checks, `make post-change`, and `make smoke` evidence.
+- Implementation Workers run task-specific checks, `make post-change`, and `make smoke` before reporting.
+- Supervisors select additional inspection or commands according to uncertainty and impact.
+- A `SHIP` release report runs fresh `make post-change` and `make smoke` checks on the current commit.
 
 ## Communication
 

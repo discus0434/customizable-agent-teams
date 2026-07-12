@@ -163,7 +163,12 @@ BUNDLE
   printf 'Decision: none\n'
   printf 'Bundle: %s\n' "$bundle_rel"
   printf 'Manager: %s\n' "$manager_id"
-  printf 'Release captain: %s\n\n' "$release_captain_id"
+  printf 'Release captain: %s\n' "$release_captain_id"
+  printf 'Verified commit: pending\n'
+  printf 'Post-change: pending\n'
+  printf 'Post-change evidence: .agents/queue/releases/%s_post-change.log\n' "$bundle_id"
+  printf 'Smoke: pending\n'
+  printf 'Smoke evidence: .agents/queue/releases/%s_smoke.log\n\n' "$bundle_id"
   cat <<'REVIEW'
 ## Decision Summary
 
@@ -176,8 +181,7 @@ BUNDLE
 - [ ] Referenced reports, reviews or critiques, strategy artifacts, and architecture notes exist.
 - [ ] Frontend tasks include final visual evidence suitable for whole-system comparison.
 - [ ] Current HEAD contains the intended task commits.
-- [ ] `make post-change` evidence is current enough for release judgment.
-- [ ] `make smoke` evidence is current enough for release judgment.
+- [ ] Worker reports contain task-specific, `make post-change`, and `make smoke` evidence for their task commits.
 - [ ] Known issues are either release-blocking fixes or explicit non-blocking follow-up.
 
 ## Evidence Reviewed

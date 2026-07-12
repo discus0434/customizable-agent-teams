@@ -66,6 +66,7 @@ Refresh STATE after intake, dispatch, supervision result, task done, release req
 ## Done And Release
 
 - Mark done only after Supervisor `OK`, `done_recommendation=true`, complete report evidence, and required architecture notes.
+- Base the done decision on task state, artifact completeness, Supervisor judgment, and required specialist evidence. Project command evidence is produced by the Worker and assessed by the Supervisor.
 - If a global issue appears after Supervisor `OK`, send `manager_fix` to the same implementation pair.
 - The worker/supervisor pair becomes available when Manager marks the task done.
 - Prepare and request a release bundle from a coherent set of done tasks.

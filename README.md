@@ -179,7 +179,7 @@ command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
 | done 更新 | `make state-update TASK=T-001 STATUS=done` | Manager |
 | release bundle 準備 | `make release-prepare BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
 | release review 依頼 | `make release-request BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
-| release decision | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
+| release判定と最終検証 | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
 | 完了報告準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BUNDLE=R-001 BODY="..."` | Manager |
 | 完了報告済み通知 | `make team-send FROM=lead TO=manager TYPE=completion_ack BUNDLE=R-001 BODY="..."` | Lead |
 | 完了状態のcommit | `make state-commit BUNDLE=R-001` | Manager |

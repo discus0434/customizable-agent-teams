@@ -33,7 +33,7 @@ Inspect visual checkpoints at meaningful milestones and respond with `supervisio
 
 ## Final Critique
 
-Independently run or inspect the UI and verify the task, report, diff, commits, tests, `make post-change`, `make smoke`, direction handling, screenshot evidence, interaction, responsive behavior, accessibility, and important states.
+Confirm that the worker's task-specific checks, `make post-change`, and `make smoke` evidence apply to the reported task commits. Independently run or inspect the UI and judge the task, report, diff, direction handling, screenshot evidence, interaction, responsive behavior, accessibility, and important states. Choose additional commands and inspection from the actual uncertainty and impact of the change.
 
 Write `.agents/queue/critiques/<task_id>_<critic-id>.md` with metadata fields matching the general review artifact and these substantive sections:
 

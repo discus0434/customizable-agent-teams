@@ -67,8 +67,10 @@ cat > "$TMP_ROOT/Makefile" <<'MAKE'
 
 post-change:
 	@git diff --check -- .
+	@echo "temp post-change ok"
 
 smoke:
+	@if [ -f .agents/queue/state/fail-release-smoke ]; then echo "forced release smoke failure" >&2; exit 1; fi
 	@echo "temp smoke ok"
 
 include .agents/agent-team.mk
@@ -671,6 +673,11 @@ Decision: none
 Bundle: .agents/queue/releases/R-001.md
 Manager: manager
 Release captain: release-captain
+Verified commit: pending
+Post-change: pending
+Post-change evidence: .agents/queue/releases/R-001_post-change.log
+Smoke: pending
+Smoke evidence: .agents/queue/releases/R-001_smoke.log
 
 ## Decision Summary
 
@@ -692,8 +699,34 @@ Release captain: release-captain
 
 - None.
 RELEASE
+printf '%s\n' "uncommitted release change" > "$TMP_ROOT/unreleased.txt"
+if team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP \
+  > /dev/null 2> "$TMP_BASE/release-dirty.err"; then
+  fail "SHIP accepted uncommitted project changes"
+fi
+grep -q '^error: release verification requires committed project changes$' \
+  "$TMP_BASE/release-dirty.err"
+grep -q 'unreleased.txt' "$TMP_BASE/release-dirty.err"
+[[ "$(state_field release R-001 status)" == "requested" ]] \
+  || fail "dirty release verification changed the release status"
+rm "$TMP_ROOT/unreleased.txt"
+touch "$TMP_ROOT/.agents/queue/state/fail-release-smoke"
+if team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP \
+  > /dev/null 2> "$TMP_BASE/release-smoke.err"; then
+  fail "SHIP accepted a failing release smoke check"
+fi
+grep -q '^error: release verification failed: make smoke$' "$TMP_BASE/release-smoke.err"
+[[ "$(state_field release R-001 status)" == "requested" ]] \
+  || fail "failed release verification changed the release status"
+rm "$TMP_ROOT/.agents/queue/state/fail-release-smoke"
 team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP >/dev/null
 [[ "$(state_field release R-001 status)" == "ship" ]] || fail "release did not reach ship"
+verified_release_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
+grep -q "^Verified commit: $verified_release_commit$" "$release_review"
+grep -q '^Post-change: passed$' "$release_review"
+grep -q '^Smoke: passed$' "$release_review"
+grep -q '^temp post-change ok$' "$TMP_ROOT/.agents/queue/releases/R-001_post-change.log"
+grep -q '^temp smoke ok$' "$TMP_ROOT/.agents/queue/releases/R-001_smoke.log"
 
 if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001 \
   > /dev/null 2> "$TMP_BASE/state-no-ack.err"; then

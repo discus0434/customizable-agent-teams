@@ -71,6 +71,33 @@ release_status="$(team_release_state_field "$bundle_id" status)"
   "write $review_file with decision, evidence, caveats, and required fixes, then rerun release-report"
 team_require_no_placeholders "release review artifact" "$review_file"
 
+run_release_check() {
+  local target="$1"
+  local log_file="$2"
+
+  if ! make --no-print-directory -C "$TEAM_ROOT" "$target" 2>&1 | tee "$log_file"; then
+    die_rule \
+      "release verification failed: make $target" \
+      "the command output is recorded in $(team_relative_path "$log_file")" \
+      "fix the failure, refresh the release review, and report the decision supported by the current result"
+  fi
+}
+
+require_release_tree_committed() {
+  local state_rel="$1"
+  local dirty_paths=()
+  local path
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] && dirty_paths+=("$path")
+  done < <(team_git_changed_paths_except "$state_rel")
+
+  [[ "${#dirty_paths[@]}" -eq 0 ]] || die_rule \
+    "release verification requires committed project changes" \
+    "these paths differ from the current commit: $(printf '%s\n' "${dirty_paths[@]}" | paste -sd ',' - | sed 's/,/, /g')" \
+    "finish and commit the owning task changes, refresh the release bundle, and rerun release-report"
+}
+
 case "$decision" in
   SHIP) status="ship" ;;
   FIX) status="fix" ;;
@@ -87,6 +114,26 @@ if [[ "$decision" == "SHIP" ]]; then
   for task_id in $tasks; do
     team_require_release_task_ready "$bundle_id" "$task_id"
   done
+
+  state_rel="$(team_relative_path "$(team_state_file)")"
+  require_release_tree_committed "$state_rel"
+  verified_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
+  post_change_log="$TEAM_QUEUE_DIR/releases/${bundle_id}_post-change.log"
+  smoke_log="$TEAM_QUEUE_DIR/releases/${bundle_id}_smoke.log"
+  run_release_check post-change "$post_change_log"
+  run_release_check smoke "$smoke_log"
+  require_release_tree_committed "$state_rel"
+  current_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
+  [[ "$current_commit" == "$verified_commit" ]] || die_rule \
+    "repository commit changed during release verification" \
+    "verification started at $verified_commit and ended at $current_commit" \
+    "refresh the release bundle and rerun release-report against one current commit"
+
+  team_update_markdown_field "$review_file" "Verified commit" "$verified_commit"
+  team_update_markdown_field "$review_file" "Post-change" "passed"
+  team_update_markdown_field "$review_file" "Post-change evidence" "$(team_relative_path "$post_change_log")"
+  team_update_markdown_field "$review_file" "Smoke" "passed"
+  team_update_markdown_field "$review_file" "Smoke evidence" "$(team_relative_path "$smoke_log")"
 fi
 
 team_update_markdown_field "$review_file" "Decision" "$decision"

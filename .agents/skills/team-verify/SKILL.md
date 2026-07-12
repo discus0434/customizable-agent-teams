@@ -5,21 +5,23 @@ description: Guides fresh verification evidence collection before completion cla
 
 # team-verify
 
-完了主張は、直近の検証 evidence の後にだけ行う。
+完了判断は、その判断を担当する role に必要な、現在の evidence に基づける。
 
-## Gate
+## Evidence Ownership
 
-1. 主張を証明する command / inspection を特定する。
-2. 直近で実行する。
-3. exit code と output を読む。
-4. acceptance と照合する。
-5. 成功、失敗、未実行、未検証範囲を report に書く。
+- Implementation Worker は task-specific checks、`make post-change`、`make smoke` を実行し、command と結果を report に残す。
+- Supervisor は task contract、task commits、report、関連コードを調査し、uncertainty と impact に応じて追加の command や inspection を選ぶ。
+- Manager は task state、artifact の完全性、Supervisor の判断、bundle の整合性を確認する。
+- Release Captain は current commit に対する fresh な `make post-change` と `make smoke`、および whole-system evidence で release を判断する。
+- Lead は release decision、verified commit、verification evidence、caveat を確認して人間へ報告する。
+
+Evidence の対象 commit や状態が変わった場合は、その evidence を担当する role が更新する。
 
 ## Not Enough
 
 - lint だけで build 成功を主張する。
 - unit test だけで end-to-end contract を満たしたことにする。
-- worker の報告だけで done と判断する。
+- command 名だけを記録し、exit status や結果を確認しない。
 - 古い結果を現在の evidence として扱う。
 
 ## Use Before

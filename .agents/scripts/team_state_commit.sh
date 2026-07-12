@@ -93,21 +93,10 @@ git -C "$TEAM_ROOT" ls-files --error-unmatch -- "$state_rel" >/dev/null 2>&1 || 
 
 acquire_team_lock "git-commit"
 
-changed_paths=()
-while IFS= read -r path; do
-  [[ -n "$path" ]] && changed_paths+=("$path")
-done < <(
-  {
-    git -C "$TEAM_ROOT" diff --name-only --
-    git -C "$TEAM_ROOT" diff --cached --name-only --
-    git -C "$TEAM_ROOT" ls-files --others --exclude-standard --
-  } | sed '/^$/d' | sort -u
-)
-
 other_paths=()
-for path in "${changed_paths[@]}"; do
-  [[ "$path" == "$state_rel" ]] || other_paths+=("$path")
-done
+while IFS= read -r path; do
+  [[ -n "$path" ]] && other_paths+=("$path")
+done < <(team_git_changed_paths_except "$state_rel")
 [[ "${#other_paths[@]}" -eq 0 ]] || die_rule \
   "completion state commit requires a clean repository outside $state_rel" \
   "these paths still differ from HEAD: $(printf '%s\n' "${other_paths[@]}" | paste -sd ',' - | sed 's/,/, /g')" \

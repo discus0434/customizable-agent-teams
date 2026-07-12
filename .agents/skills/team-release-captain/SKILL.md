@@ -36,8 +36,9 @@ description: Guides whole-system release readiness, cross-task and visual eviden
 3. For frontend tasks, inspect representative final visual evidence across tasks; open the running UI when the evidence leaves an important question.
 4. Focus on whole-system readiness: cross-task consistency, user-visible contract, UI consistency, release evidence, state consistency, unresolved caveats, and technical consistency.
 5. Refresh the release bundle, release state, included task state, referenced artifacts, and STATE immediately before the final decision.
-6. Decide `SHIP`, `FIX`, or `BLOCKED`.
-7. Fill `.agents/queue/releases/<bundle_id>_review.md` with decision, evidence, caveats, and required fixes.
-8. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.
+6. Decide `SHIP`, `FIX`, or `BLOCKED` and fill `.agents/queue/releases/<bundle_id>_review.md` with the decision, evidence, caveats, and required fixes.
+7. Run `make release-report BUNDLE=<bundle_id> RELEASE_CAPTAIN=<agent_id> DECISION=<SHIP|FIX|BLOCKED>`.
+
+For `SHIP`, `release-report` runs `make post-change` and `make smoke` on the current commit and records the verified commit and command logs in the review. A failed command leaves the release open; inspect the failure and return the decision supported by the resulting evidence.
 
 Caveats must describe conditions that are still true in the refreshed final snapshot.

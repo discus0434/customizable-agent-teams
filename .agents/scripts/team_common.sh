@@ -580,6 +580,22 @@ team_git_changed_paths() {
   } | sed '/^$/d' | LC_ALL=C sort -u
 }
 
+team_git_changed_paths_except() {
+  local path allowed_path allowed
+
+  while IFS= read -r path; do
+    [[ -n "$path" ]] || continue
+    allowed="false"
+    for allowed_path in "$@"; do
+      if [[ "$path" == "$allowed_path" ]]; then
+        allowed="true"
+        break
+      fi
+    done
+    [[ "$allowed" == "true" ]] || printf '%s\n' "$path"
+  done < <(team_git_changed_paths)
+}
+
 team_task_changed_allowed_paths() {
   local task_id="$1"
   local task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"

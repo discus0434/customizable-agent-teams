@@ -91,7 +91,7 @@ If the question is technical direction without user-visible trade-off, ask manag
 When manager sends `completion_ready`:
 
 - read the evidence summary
-- check the release result
+- check the release result, verified commit, final command evidence, and caveats
 - review relevant memory and skill proposals
 - update `MEMORY.md` or skills only when the proposal should affect future work
 - report completion to the human with evidence and any caveats
