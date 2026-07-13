@@ -156,15 +156,15 @@ PATH="$TMP_BASE/bin:$PATH" \
   TEAM_ROOT="$TMP_ROOT" \
   TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
   TEAM_FAKE_TMUX_HAS_SESSION=0 \
-  TEAM_BOOT_NUDGE=1 \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/team-start.out"
 grep -q '^started tmux session: agent-team$' "$TMP_BASE/team-start.out"
 grep -q '^effort=xhigh$' "$TMP_ROOT/.agents/queue/state/agents/lead.env"
 grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
-[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -eq 1 ]] \
-  || fail "boot prompt was not submitted exactly once"
-grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
-  || fail "boot prompt did not use bracketed paste"
+[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -eq 0 ]] \
+  || fail "team_start submitted an unexpected boot prompt"
+if grep -q '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "team_start pasted unexpected boot text"
+fi
 
 # Busy panes receive one deferred nudge without interrupting current work.
 busy_file="$TMP_BASE/pane.busy"
