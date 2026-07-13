@@ -14,7 +14,8 @@ fail() {
 }
 
 team() {
-  TEAM_ROOT="$TMP_ROOT" \
+  PATH="$TMP_BASE/bin:$PATH" \
+    TEAM_ROOT="$TMP_ROOT" \
     TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
     TEAM_DISABLE_NUDGE=1 \
     "$@"
@@ -23,7 +24,8 @@ team() {
 as_agent() {
   local agent_id="$1"
   shift
-  TEAM_AGENT_ID="$agent_id" \
+  PATH="$TMP_BASE/bin:$PATH" \
+    TEAM_AGENT_ID="$agent_id" \
     TEAM_ROOT="$TMP_ROOT" \
     TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
     TEAM_DISABLE_NUDGE=1 \
@@ -57,6 +59,7 @@ cp "$ROOT/.gitignore" "$TMP_ROOT/.gitignore"
 cp "$ROOT/AGENTS.md" "$TMP_ROOT/AGENTS.md"
 cp "$ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md"
 cp "$ROOT/.agents/queue/tasks/FRONTEND_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/FRONTEND_TEMPLATE.md"
+cp "$ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md"
 ln -s AGENTS.md "$TMP_ROOT/CLAUDE.md"
 mkdir -p "$TMP_ROOT/.codex" "$TMP_ROOT/.claude"
 ln -s ../.agents/skills "$TMP_ROOT/.codex/skills"
@@ -123,6 +126,17 @@ exit 0
 SH
 chmod +x "$TMP_BASE/bin/sleep"
 
+cat > "$TMP_BASE/bin/codex" <<'SH'
+#!/usr/bin/env bash
+if [[ -n "${TEAM_FAKE_CODEX_LOG:-}" ]]; then
+  printf 'codex %s\n' "$*" >> "$TEAM_FAKE_CODEX_LOG"
+fi
+exit 0
+SH
+chmod +x "$TMP_BASE/bin/codex"
+export TEAM_FAKE_CODEX_LOG="$TMP_BASE/codex.log"
+: > "$TEAM_FAKE_CODEX_LOG"
+
 git -C "$TMP_ROOT" init -q
 git -C "$TMP_ROOT" config user.email "agent-team-test@example.local"
 git -C "$TMP_ROOT" config user.name "Agent Team Test"
@@ -149,6 +163,12 @@ critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command fronte
 [[ "$reviewer_command" == *"--model gpt-5.6-sol"* ]] || fail "general reviewer model is not gpt-5.6-sol"
 [[ "$reviewer_command" == *'model_reasoning_effort=\"low\"'* ]] || fail "general reviewer effort is not low"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
+[[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field research-worker-1 mode)" == "exec" ]] \
+  || fail "research worker is not configured as exec mode"
+[[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field express-worker-1 mode)" == "exec" ]] \
+  || fail "express worker is not configured as exec mode"
+[[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field express-worker-1 model)" == "gpt-5.6-luna" ]] \
+  || fail "express worker model does not match the research worker tier"
 
 export TEAM_FAKE_TMUX_LOG="$TMP_BASE/tmux.log"
 : > "$TEAM_FAKE_TMUX_LOG"
@@ -579,7 +599,138 @@ as_agent frontend-critic-1 "$TMP_ROOT/.agents/scripts/team_supervision_report.sh
 team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-FRONTEND done >/dev/null
 grep -q '"status":"done"' "$frontend_state"
 
-# Research pool FIFO, clarification, completion, and cancellation.
+# Express lane: lint guards, lead-only dispatch, exec launch, fix loop, lead done.
+cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-001.md"
+perl -0pi -e 's/T-E-XXX/T-E-001/g; s#\x60path/to/file\x60#\x60express-output.txt\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-E-001.md"
+team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-001 >/dev/null
+
+cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-BAD.md"
+perl -0pi -e 's/T-E-XXX/T-E-BAD/g; s#\x60path/to/file\x60#\x60.agents/scripts/team_send.sh\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-E-BAD.md"
+if team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-BAD \
+  > /dev/null 2> "$TMP_BASE/express-governance.err"; then
+  fail "express lint accepted a governance path"
+fi
+grep -q 'express task cannot own a governance path' "$TMP_BASE/express-governance.err"
+
+if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-E-001 \
+  > /dev/null 2> "$TMP_BASE/express-manager.err"; then
+  fail "express dispatch accepted the manager as dispatcher"
+fi
+grep -q 'express dispatch sender is not lead' "$TMP_BASE/express-manager.err"
+
+express_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager lead T-E-001)"
+grep -q '"worker":"express-worker-1"' "$express_state"
+grep -q '"supervisor":""' "$express_state"
+grep -q '"manager":"lead"' "$express_state"
+for _attempt in $(seq 1 50); do
+  grep -q 'T-E-001' "$TEAM_FAKE_CODEX_LOG" 2>/dev/null && break
+  /bin/sleep 0.1
+done
+grep -q 'T-E-001' "$TEAM_FAKE_CODEX_LOG" || fail "express exec run did not receive the task id"
+
+cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-002.md"
+perl -0pi -e 's/T-E-XXX/T-E-002/g; s#\x60path/to/file\x60#\x60second-express-output.txt\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-E-002.md"
+if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager lead T-E-002 \
+  > /dev/null 2> "$TMP_BASE/express-flight.err"; then
+  fail "express dispatch accepted a second in-flight task"
+fi
+grep -q 'another express task is in flight' "$TMP_BASE/express-flight.err"
+
+printf '%s\n' "express change" > "$TMP_ROOT/express-output.txt"
+express_commit_output="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-E-001 "add express output")"
+express_commit="$(printf '%s\n' "$express_commit_output" | sed -n 's/^commit=//p')"
+[[ -n "$express_commit" ]] || fail "express task commit returned no commit hash"
+express_base="$(state_field task T-E-001 base_commit)"
+express_report="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-E-001 ready_for_lead)"
+grep -q '"status":"ready_for_lead"' "$express_state"
+if grep -q '^## Supervision$' "$express_report"; then
+  fail "express report skeleton included a supervision section"
+fi
+
+write_express_report() {
+  local commits="$1"
+  local commit_lines="$2"
+  cat > "$express_report" <<REPORT
+# Report: T-E-001 by express-worker-1
+
+Status: ready_for_lead
+Supervisor: none
+Base commit: $express_base
+Task commits: $commits
+Supervision artifact: none
+Supervision decision: none
+Done recommendation: false
+Architecture required: false
+Architecture: none
+Release bundle: none
+Direction status: not_applicable
+Direction artifact: none
+
+## Summary
+
+- Added the express output.
+
+## Files changed
+
+- express-output.txt
+
+## Commits
+
+$commit_lines
+
+## Verification
+
+- Content assertion passed.
+
+## Post-change
+
+- make post-change passed.
+
+## Smoke
+
+- make smoke passed.
+
+## Blockers And Questions
+
+- None.
+
+## Memory Proposals
+
+- None.
+REPORT
+}
+
+write_express_report "$express_commit" "- $express_commit T-E-001: add express output"
+team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from express-worker-1 --type express_ready --task T-E-001 \
+  lead "Express task is ready." >/dev/null
+lead_inbox_raw="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" lead --raw)"
+grep -q "Task commits: $express_commit" <<<"$lead_inbox_raw"
+
+as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." >/dev/null
+[[ "$(state_field task T-E-001 status)" == "dispatched" ]] || fail "express fix did not return the task to dispatched"
+printf '%s\n' "express change refined" > "$TMP_ROOT/express-output.txt"
+express_fix_output="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-E-001 "refine express output")"
+express_fix_commit="$(printf '%s\n' "$express_fix_output" | sed -n 's/^commit=//p')"
+express_report="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-E-001 ready_for_lead)"
+write_express_report "$express_commit $express_fix_commit" "- $express_commit T-E-001: add express output
+- $express_fix_commit T-E-001: refine express output"
+team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from express-worker-1 --type express_ready --task T-E-001 \
+  lead "Fix feedback is applied." >/dev/null
+team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done >/dev/null
+grep -q '"status":"done"' "$express_state"
+
+if team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-GENERAL ready_for_lead \
+  > /dev/null 2> "$TMP_BASE/express-status.err"; then
+  fail "normal task accepted the express status"
+fi
+grep -q 'normal task cannot use express status' "$TMP_BASE/express-status.err"
+
+# Research pool FIFO, exec launch, completion, and cancellation.
 research_ids=()
 for index in 1 2 3 4 5; do
   research_ids+=("$(request_research lead "Research question $index")")
@@ -590,16 +741,14 @@ done
 
 first_request="${research_ids[0]}"
 first_assignment="$(state_field research "$first_request" request_message_id)"
-question_output="$(
-  as_agent research-worker-1 "$TMP_ROOT/.agents/scripts/team_reply.sh" \
-    --in-reply-to "$first_assignment" --type question "Which source is authoritative?"
-)"
-question_id="$(printf '%s\n' "$question_output" | sed -n 's/^message_id=//p')"
-[[ "$(state_field research "$first_request" status)" == "waiting_for_caller" ]] || fail "research question did not pause the request"
-
-as_agent lead "$TMP_ROOT/.agents/scripts/team_reply.sh" \
-  --in-reply-to "$question_id" "Use the repository contract." >/dev/null
-[[ "$(state_field research "$first_request" status)" == "active" ]] || fail "research answer did not resume the request"
+for _attempt in $(seq 1 50); do
+  grep -q "$first_request" "$TEAM_FAKE_CODEX_LOG" 2>/dev/null && break
+  /bin/sleep 0.1
+done
+grep -q "$first_request" "$TEAM_FAKE_CODEX_LOG" || fail "research exec run did not receive the request id"
+grep -q 'tools.web_search=true' "$TEAM_FAKE_CODEX_LOG" || fail "research exec run did not enable Web search"
+grep -q -- '--model gpt-5.6-luna' "$TEAM_FAKE_CODEX_LOG" || fail "research exec run did not use the configured model"
+[[ -f "$TMP_ROOT/.agents/queue/state/exec/research-worker-1.env" ]] || fail "research exec run left no state"
 
 first_artifact_rel="$(state_field research "$first_request" artifact)"
 cat >> "$TMP_ROOT/$first_artifact_rel" <<'RESULT'

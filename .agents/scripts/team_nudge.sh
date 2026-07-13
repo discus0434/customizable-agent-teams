@@ -18,6 +18,10 @@ if [[ "${TEAM_DISABLE_NUDGE:-0}" == "1" ]]; then
   exit 0
 fi
 
+if [[ "$(team_config_agent_field "$agent_id" mode 2>/dev/null || true)" == "exec" ]]; then
+  exit 0
+fi
+
 require_command tmux
 state_file="$TEAM_STATE_DIR/agents/$agent_id.env"
 configured_session="$(team_config_session)"

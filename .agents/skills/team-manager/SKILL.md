@@ -21,6 +21,10 @@ description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupe
 
 microな変更を含める進行中のtaskがない場合は、目的と検証が一つにまとまる単独taskとして扱う。
 
+小さく境界が明確な依頼は、LeadがManagerを通さずexpress task（`T-E-`）として直接dispatchする場合がある。
+
+Leadからexpress完了の`note`を受けたら、task ID、commit、結果を`STATE.md`へ記帳する。
+
 技術方針が決まらなければtaskを分けられない場合はArchitectへ相談する。
 
 原因調査や選択肢の比較が必要な場合はStrategistへ相談する。

@@ -21,10 +21,11 @@ Research Workerは、codebase、実現可能性、Webを並列に調査します
 - **Release Captain**：task単位の`OK`とは別に、複数taskを統合した状態を確認します。
 - **General Worker**：複数のWorkerが通常の実装を担当し、それぞれに固定General Reviewerが付きます。
 - **Hard Task Worker**：複数のWorkerが難しいdebugと複数境界にまたがる実装を担当し、それぞれに固定General Reviewerが付きます。
-- **Research Worker**：共有poolのWorkerが調査結果を依頼元へ直接返します。
+- **Research Worker**：常駐せず、依頼が来たときだけ`codex exec`で起動され、調査結果を依頼元へ直接返します。
+- **Express Worker**：常駐せず、Leadが直接dispatchした小さなtaskを`codex exec`で実装します。Managerとreleaseの工程を通らず、reviewはLeadが行います。
 - **Frontend Worker**：実際の画面を確認しながら実装し、固定Frontend Criticが画面方針と完成結果をreviewします。
 - **共有repository**：すべてのagentが同じrepository rootを使うため、venv、`node_modules`、`.env`、direnvを共有できます。
-- **構成変更**：`.agents/config/agent-team.yaml`でCLI、model、effort、agent数、固定Supervisorを変更できます。
+- **構成変更**：`.agents/config/agent-team.yaml`でCLI、model、effort、agent数、固定Supervisor、常駐か`mode: exec`かを変更できます。
 
 ## Roleの責務
 
@@ -39,6 +40,7 @@ Research Workerは、codebase、実現可能性、Webを並列に調査します
 | **Hard Task Worker** | 高度な調査と推論を要する実装またはdebugを担当する。 |
 | **General Reviewer** | 固定Workerの相談、途中feedback、最終reviewを担当する。 |
 | **Research Worker** | codebase、実現可能性、外部情報を調査する。 |
+| **Express Worker** | Leadが直接dispatchした小さなtaskを実装する。 |
 | **Frontend Worker** | 表示結果を確認しながらfrontendを実装する。 |
 | **Frontend Critic** | 画面方針、表示品質、操作、accessibility、frontend実装をreviewする。 |
 
@@ -52,6 +54,15 @@ Human
   -> Supervisor OK / FIX / ASK_MANAGER
   -> Manager marks done
   -> Release Captain SHIP / FIX / BLOCKED
+  -> Lead reports completion
+```
+
+小さく境界が明確なtaskは、LeadがManagerを通さずExpress Workerへ直接dispatchできます。
+
+```text
+Human -> Lead -> Express Worker (codex exec)
+  -> 実装 / commit / report / express_ready
+  -> Leadが差分と検証を確認して done
   -> Lead reports completion
 ```
 
@@ -170,6 +181,8 @@ Codexには`--dangerously-bypass-approvals-and-sandbox`が付きます。
 
 CodexのResearch WorkerではWeb検索も有効になります。
 
+`mode: exec`のagent（Research WorkerとExpress Worker）は常駐windowを持たず、依頼が割り当てられたときに`codex exec`の非対話実行として起動されます。
+
 ## 日常操作
 
 | 操作 | Command | 主なrole |
@@ -185,6 +198,8 @@ CodexのResearch WorkerではWeb検索も有効になります。
 | inboxへの返信 | `make team-reply IN_REPLY_TO=<message_id> TYPE=answer BODY_FILE=.agents/queue/state/tmp/reply.md` | 全role |
 | research依頼 | `make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research.md` | Lead、Manager、Strategist、Architect、Release Captain |
 | task割り当て | `make dispatch TASK=T-001` | Manager |
+| express taskの割り当て | `make dispatch TASK=T-E-001` | Lead |
+| express taskの修正指示 | `make express-fix TASK=T-E-001 BODY="..."` | Lead |
 | task仕様の確認 | `make task-lint TASK=T-001` | Manager、Supervisor |
 | Workerの検証 | `make post-change`と`make smoke` | Implementation Worker |
 | task変更のcommit | `make task-commit TASK=T-001 MESSAGE="<summary>"` | Implementation Worker |

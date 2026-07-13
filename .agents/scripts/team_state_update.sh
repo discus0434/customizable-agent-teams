@@ -9,7 +9,7 @@ usage() {
   cat >&2 <<'USAGE'
 usage:
   team_state_update.sh show
-  team_state_update.sh update <task_id> <dispatched|needs_supervision|supervision_fix|supervision_ask_manager|supervision_ok|manager_fix|done|blocked>
+  team_state_update.sh update <task_id> <dispatched|needs_supervision|ready_for_lead|supervision_fix|supervision_ask_manager|supervision_ok|manager_fix|done|blocked>
 USAGE
 }
 
@@ -27,8 +27,24 @@ case "$command" in
     task_id="$2"
     next_status="$3"
     case "$next_status" in
-      dispatched|needs_supervision|supervision_fix|supervision_ask_manager|supervision_ok|manager_fix|done|blocked) ;;
+      dispatched|needs_supervision|ready_for_lead|supervision_fix|supervision_ask_manager|supervision_ok|manager_fix|done|blocked) ;;
       *) die "invalid task status: $next_status" ;;
+    esac
+    case "$task_id" in
+      T-E-*)
+        case "$next_status" in
+          needs_supervision|supervision_fix|supervision_ask_manager|supervision_ok|manager_fix)
+            die_rule \
+              "express task cannot use supervision status: $next_status" \
+              "express tasks move dispatched -> ready_for_lead -> done" \
+              "use ready_for_lead, done, or blocked for $task_id" ;;
+        esac
+        ;;
+      *)
+        [[ "$next_status" != "ready_for_lead" ]] || die_rule \
+          "normal task cannot use express status: $next_status" \
+          "ready_for_lead belongs to the express lane" \
+          "use needs_supervision for supervised tasks" ;;
     esac
 
     state_file="$(team_task_state_file "$task_id")"
@@ -52,7 +68,19 @@ case "$command" in
     direction_status="$(team_task_state_field "$task_id" direction_status)"
     direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
-    if [[ "$next_status" == "done" ]]; then
+    if [[ "$next_status" == "done" && "$task_id" == T-E-* ]]; then
+      current_status="$(team_task_state_field "$task_id" status)"
+      [[ "$current_status" == "ready_for_lead" ]] || die_rule \
+        "express task $task_id cannot be marked done" \
+        "task status is $current_status, but express done requires ready_for_lead" \
+        "wait for the express worker report and express_ready message"
+      [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
+        "task $task_id cannot be marked done" \
+        "the implementation report is missing" \
+        "$worker must run make report STATUS=ready_for_lead and fill the report evidence"
+      team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$task_commits"
+      team_require_no_placeholders "implementation report" "$report_file"
+    elif [[ "$next_status" == "done" ]]; then
       [[ "$supervision_decision" == "OK" ]] || die_rule \
         "task $task_id cannot be marked done" \
         "supervision_decision is ${supervision_decision:-missing}, but done requires OK" \

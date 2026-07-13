@@ -32,8 +32,11 @@ printf 'Team: %s\nSession: %s\n\n' "$(team_config_name)" "$session"
 
 echo "Agents:"
 printf '%-22s %-20s %-18s %-7s %s\n' "id" "role" "model" "effort" "window"
-while IFS='|' read -r id role _cli model effort window _supervisor; do
+while IFS='|' read -r id role _cli model effort window _supervisor mode; do
   [[ -n "$id" ]] || continue
+  if [[ "$mode" == "exec" ]]; then
+    window="(exec)"
+  fi
   printf '%-22s %-20s %-18s %-7s %s\n' "$id" "$role" "$model" "$effort" "$window"
 done < <(team_config_agents)
 echo
@@ -48,8 +51,28 @@ fi
 echo
 
 echo "Agent pane status:"
-while IFS='|' read -r id role _cli _model _effort window _supervisor; do
+while IFS='|' read -r id role _cli _model _effort window _supervisor mode; do
   [[ -n "$id" ]] || continue
+  if [[ "$mode" == "exec" ]]; then
+    exec_state="$TEAM_STATE_DIR/exec/$id.env"
+    pane_status="exec idle"
+    if [[ -f "$exec_state" ]]; then
+      pid=""
+      kind=""
+      ref=""
+      ended_at=""
+      exit_code=""
+      # shellcheck disable=SC1090
+      source "$exec_state"
+      if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+        pane_status="exec running pid=$pid ${kind:-run}=${ref:-unknown}"
+      elif [[ -n "${ended_at:-}" ]]; then
+        pane_status="exec idle last=${kind:-run} exit=${exit_code:-unknown}"
+      fi
+    fi
+    printf '  %-22s %-20s %s\n' "$id" "$role" "$pane_status"
+    continue
+  fi
   agent_state="$TEAM_STATE_DIR/agents/$id.env"
   if [[ "$session_running" -ne 1 ]]; then
     pane_status="not-running session=$session"
@@ -82,7 +105,7 @@ echo "Tasks:"
 task_count=0
 while IFS= read -r task_file; do
   task_id="$(basename "$task_file" .md)"
-  case "$task_id" in GENERAL_TEMPLATE|FRONTEND_TEMPLATE) continue ;; esac
+  case "$task_id" in GENERAL_TEMPLATE|FRONTEND_TEMPLATE|EXPRESS_TEMPLATE) continue ;; esac
   task_count=$((task_count + 1))
   task_state="$(team_task_state_file "$task_id")"
   if [[ ! -f "$task_state" ]]; then
@@ -115,7 +138,7 @@ research_count=0
 while IFS= read -r research_state; do
   request_id="$(extract_json_field request_id < "$research_state")"
   status="$(extract_json_field status < "$research_state")"
-  case "$status" in queued|active|waiting_for_caller) ;; *) continue ;; esac
+  case "$status" in queued|active) ;; *) continue ;; esac
   research_count=$((research_count + 1))
   caller="$(extract_json_field caller < "$research_state")"
   worker="$(extract_json_field worker < "$research_state")"
@@ -127,7 +150,7 @@ done < <(find "$TEAM_STATE_DIR/research" -maxdepth 1 -type f -name '*.json' | so
 echo
 
 echo "Inbox:"
-while IFS='|' read -r id _role _cli _model _effort _window _supervisor; do
+while IFS='|' read -r id _role _cli _model _effort _window _supervisor _mode; do
   [[ -n "$id" ]] || continue
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0

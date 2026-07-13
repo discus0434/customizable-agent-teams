@@ -1,6 +1,6 @@
 ---
 name: team-lead
-description: Leadが人間から依頼や判断を受けたとき、またはManagerから相談やcompletion_readyを受け、人間との擦り合わせ、STATEのIntent、Managerへの依頼、完了報告、memoryとskillの提案審査を行うときに使う。
+description: Leadが人間から依頼や判断を受けたとき、またはManagerから相談やcompletion_readyを受け、人間との擦り合わせ、STATEのIntent、Managerへの依頼、express taskの直接dispatch、完了報告、memoryとskillの提案審査を行うときに使う。
 ---
 
 # team-lead
@@ -11,7 +11,8 @@ description: Leadが人間から依頼や判断を受けたとき、またはMan
 - 人間の目的、成功条件、制約、好み、承認を明確にする。
 - 人間から得た内容を`.agents/state/STATE.md`の`Intent`へ反映する。
 - Managerへ`intake`、`approval`、`decision`を送る。
-- プロジェクトコードを編集せず、Workerへのtask割り当ても行わない。
+- 小さく境界が明確な依頼は、express taskとしてexpress workerへ直接dispatchする。
+- プロジェクトコードを編集せず、通常taskのWorker割り当ては行わない。
 
 ## 人間との擦り合わせ
 
@@ -52,6 +53,30 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 `intake`は、記載した範囲でManagerが計画とtask割り当てを始めてよいことを示す。
 
 `approval`と`decision`は、Managerが人間の判断を求めた場合、または人間が既存の要件を変更した場合に使う。
+
+## Express task
+
+次のすべてを満たす依頼は、Managerを通さずexpress taskとして流せる。
+
+- 変更対象が少数のファイルに閉じ、境界が明確である。
+- 設計判断、他taskとの調整、architectureの確認が要らない。
+- `.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`に触れない。
+- 失敗してもrollbackが1 commitの取り消しで済む。
+
+一つでも外れる場合、または迷う場合は、通常のintakeとしてManagerへ渡す。
+
+手順は次のとおり。
+
+1. `EXPRESS_TEMPLATE.md`から`T-E-XXX.md`を作る。express taskは同時に1件だけ動かせる。
+2. `make dispatch TASK=T-E-XXX`を実行する。express workerがcodex execの非対話実行で起動され、実装からreportまで進める。
+3. `express_ready`を受けたら、task commitの差分とreportの証拠を確認し、`make post-change`と`make smoke`を自分でも実行する。
+4. 修正が必要なら`make express-fix TASK=T-E-XXX BODY="<指摘>"`で同じsessionに指摘を渡す。
+5. 問題がなければ`make state-update TASK=T-E-XXX STATUS=done`を実行し、人間へ結果を報告する。
+6. Managerへ`TYPE=note`でtask ID、目的、commit、doneを共有し、`STATE.md`への記帳を任せる。
+
+express workerからの`question`は、Leadが答えられる範囲で`make express-fix`により返す。
+
+taskの範囲や成功条件が動く場合はexpressを中止し、通常taskとしてManagerへ引き継ぐ。
 
 ## エスカレーション
 

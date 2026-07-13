@@ -64,6 +64,24 @@ while true; do
     fi
     team_write_research_state "$request_id" "$caller" "$idle_worker" "active" "$message_id" "$artifact" "$task_id" "" "$created_at"
     team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "active"
+    if [[ "$(team_config_agent_field "$idle_worker" mode)" == "exec" ]]; then
+      exec_prompt="あなたはこのteamのresearch worker、agent_id=${idle_worker}です。
+make team-identityで自分を確認し、AGENTS.mdとteam-research-worker skillに従ってください。
+make inbox AGENT=${idle_worker}を実行し、research request ${request_id}を処理してください。
+調査の結果は${artifact}のResultへ書き、./.agents/scripts/team_research_complete.sh ${request_id} ${idle_worker}を実行して依頼元へ返してください。
+依頼元への質問はできません。不明点は前提を明示して調べられる範囲を返し、必要な追加情報をResultに書いてください。
+プロジェクトコードは編集しないでください。"
+      if ! "$SCRIPT_DIR/team_exec_run.sh" --kind research --ref "$request_id" --notify "$caller" "$idle_worker" "$exec_prompt" >/dev/null; then
+        team_write_research_state "$request_id" "$caller" "" "queued" "" "$artifact" "$task_id" "" "$created_at"
+        team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "queued"
+        team_update_markdown_field "$TEAM_ROOT/$artifact" "Worker" "unassigned"
+        release_team_lock
+        die_rule \
+          "research exec launch failed: $request_id" \
+          "$idle_worker could not start a codex exec run" \
+          "inspect .agents/queue/state/exec/${idle_worker}.err, then run team_research_assign.sh again"
+      fi
+    fi
   else
     status=$?
     team_write_research_state "$request_id" "$caller" "" "queued" "" "$artifact" "$task_id" "" "$created_at"

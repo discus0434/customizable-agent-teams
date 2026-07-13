@@ -45,7 +45,6 @@ body="Research result: ${artifact}を確認してください。"
 team_write_research_state "$request_id" "$caller" "$worker_id" "completed" "$request_message_id" "$artifact" "$task_id" "$question_message_id" "$created_at"
 team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "completed"
 release_team_lock
-team_mark_research_inbox_processed "$worker_id" "$request_id" research_request research_answer research_cancelled
-team_mark_research_inbox_processed "$caller" "$request_id" research_question
+team_mark_research_inbox_processed "$worker_id" "$request_id" research_request research_cancelled
 "$SCRIPT_DIR/team_research_assign.sh"
 printf 'request_id=%s\nstatus=completed\nartifact=%s\n' "$request_id" "$artifact"

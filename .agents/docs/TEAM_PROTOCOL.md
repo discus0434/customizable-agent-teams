@@ -8,10 +8,11 @@
 
 ```text
 Human -> Lead -> Manager
-                   |-> General Worker + General Reviewer
-                   |-> Hard Task Worker + General Reviewer
-                   |-> Frontend Worker + Frontend Critic
-                   `-> Release Captain
+          |        |-> General Worker + General Reviewer
+          |        |-> Hard Task Worker + General Reviewer
+          |        |-> Frontend Worker + Frontend Critic
+          |        `-> Release Captain
+          `-> Express Worker (小さなtaskの直接dispatch)
 
 Lead / Manager / Architect / General Reviewer / Frontend Critic -> Strategist
 Lead / Manager / General Reviewer / Frontend Critic / Release Captain -> Architect
@@ -27,6 +28,8 @@ Frontend Workerには、固定されたFrontend Criticが付く。
 Implementation Workerは、Managerがtaskを`done`にするまで次のtaskを持たない。
 
 Research WorkerにはSupervisorを付けず、プロジェクトコードも編集させない。
+
+Research WorkerとExpress Workerは常駐せず、依頼が割り当てられたときにcodex execの非対話実行として起動される（`agent-team.yaml`の`mode: exec`）。
 
 ## 実装task
 
@@ -72,6 +75,40 @@ make supervision-report TASK=<task_id> DECISION=<OK|FIX|ASK_MANAGER>
 make state-update TASK=<task_id> STATUS=done
 ```
 
+## Express task
+
+小さく境界が明確なtaskは、LeadがManagerを通さずexpress laneで流せる。
+
+Leadは`EXPRESS_TEMPLATE.md`から`T-E-`で始まるtaskを作り、直接dispatchする。
+
+```bash
+make dispatch TASK=T-E-001
+```
+
+express taskは次の制約を持つ。
+
+- 同時に1件だけ動かせる。
+- Supervisorは付かず、reviewはLeadが行う。
+- `Architecture required`は`false`とする。
+- `Allowed paths`に`.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`を含められない。
+
+express taskは次の順序で進む。
+
+```text
+task_assigned (Leadがdispatch、express workerがexec起動)
+-> 実装 / task commit / report / express_ready
+-> Leadが差分と証拠を確認し、post-changeとsmokeを再実行
+-> 修正が必要なら make express-fix TASK=<task_id> BODY="<指摘>"
+-> make state-update TASK=<task_id> STATUS=done
+-> LeadがManagerへnoteでSTATE.md記帳を依頼
+```
+
+`express-fix`は同じcodex exec sessionを再開し、指摘を渡して再実装させる。
+
+express taskはrelease bundleを通らないため、Leadのdone判定が最終ゲートになる。
+
+expressに収まらないと分かった時点で、Leadは通常taskとしてManagerへ引き継ぐ。
+
 ## Research
 
 Lead、Manager、Strategist、Architect、Release Captainは、共有poolへ調査を依頼できる。
@@ -80,7 +117,7 @@ Lead、Manager、Strategist、Architect、Release Captainは、共有poolへ調�
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
 ```
 
-依頼は、空いているResearch Workerへ作成順に割り当てられる。
+依頼は、空いているResearch Workerへ作成順に割り当てられ、そのWorkerがcodex execの非対話実行として起動される。
 
 各Research Workerが同時に担当する依頼は一つとする。
 
@@ -88,9 +125,13 @@ Research Workerは結果を依頼元へ直接返す。
 
 追加調査は新しい依頼として扱い、別のResearch Workerへ割り当てられる場合がある。
 
-Research Workerは、調査を進めるために必要な質問を依頼元へ返せる。
+Research Workerは実行中に依頼元へ質問できない。
+
+不明点は前提を明示した結果として返し、依頼元は回答を添えた新しい依頼で調査を続ける。
 
 依頼元は、調査依頼を送ったときに返されたrequest IDへ、理由を添えて`TYPE=cancel`で返信し、調査を中止できる。
+
+進行中の依頼を中止すると、実行中のexec processも停止される。
 
 ```bash
 make team-reply IN_REPLY_TO=<request_id> TYPE=cancel BODY="<reason>"

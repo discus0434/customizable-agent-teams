@@ -222,6 +222,7 @@ ensure_team_dirs() {
     "$TEAM_QUEUE_DIR/memory_proposals" \
     "$TEAM_QUEUE_DIR/skill_proposals" \
     "$TEAM_STATE_DIR/agents" \
+    "$TEAM_STATE_DIR/exec" \
     "$TEAM_STATE_DIR/locks" \
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
@@ -924,7 +925,7 @@ team_research_worker_active_request() {
     [[ "$state_worker" == "$worker" ]] || continue
     state_status="$(extract_json_field status < "$state_file")"
     case "$state_status" in
-      assigning|active|waiting_for_caller)
+      assigning|active)
         basename "$state_file" .json
         return 0
         ;;

@@ -15,6 +15,11 @@ usage() {
 task_id="$1"
 task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
 
+lane="normal"
+case "$task_id" in
+  T-E-*) lane="express" ;;
+esac
+
 ensure_team_dirs
 
 [[ -f "$task_file" ]] || die_rule \
@@ -30,10 +35,12 @@ architecture_required="$(team_task_markdown_field "$task_file" "Architecture req
   "task Worker is missing: $task_file" \
   "dispatch needs an explicit implementation worker" \
   "add 'Worker: <general-worker-id|hard-task-worker-id|frontend-worker-id>'"
-grep -q '^Supervisor:' "$task_file" || die_rule \
-  "task Supervisor field is missing: $task_file" \
-  "dispatch records the fixed supervisor in the task contract" \
-  "add an empty 'Supervisor:' field; dispatch will fill it"
+if [[ "$lane" != "express" ]]; then
+  grep -q '^Supervisor:' "$task_file" || die_rule \
+    "task Supervisor field is missing: $task_file" \
+    "dispatch records the fixed supervisor in the task contract" \
+    "add an empty 'Supervisor:' field; dispatch will fill it"
+fi
 [[ -n "$architecture_required" ]] || die_rule \
   "task Architecture required is missing: $task_file" \
   "dispatch needs an exact architecture gate value" \
@@ -55,24 +62,39 @@ if ! team_config_agent_record "$worker" >/dev/null; then
 fi
 
 worker_role="$(team_config_agent_field "$worker" role)"
-case "$worker_role" in
-  general-worker|hard-task-worker|frontend-worker) ;;
-  *) die_rule \
-    "task Worker is not an implementation worker: $worker" \
+if [[ "$lane" == "express" ]]; then
+  [[ "$worker_role" == "express-worker" ]] || die_rule \
+    "express task Worker is not an express worker: $worker" \
     "$worker has role $worker_role in $TEAM_CONFIG_FILE" \
-    "choose an agent with role general-worker, hard-task-worker, or frontend-worker" ;;
-esac
+    "set Worker to a configured express-worker id"
+  [[ "$architecture_required" == "false" ]] || die_rule \
+    "express task cannot require architecture: $task_id" \
+    "architecture direction needs the normal lane with Manager and Supervisor" \
+    "set Architecture required to false or create a normal task"
+  [[ -z "$supervisor" ]] || die_rule \
+    "express task cannot declare a supervisor: $task_id" \
+    "express tasks are reviewed by Lead, not a fixed supervisor" \
+    "remove the Supervisor field from the express task"
+else
+  case "$worker_role" in
+    general-worker|hard-task-worker|frontend-worker) ;;
+    *) die_rule \
+      "task Worker is not an implementation worker: $worker" \
+      "$worker has role $worker_role in $TEAM_CONFIG_FILE" \
+      "choose an agent with role general-worker, hard-task-worker, or frontend-worker" ;;
+  esac
 
-expected_supervisor="$(team_config_agent_field "$worker" supervisor)"
-[[ -n "$expected_supervisor" ]] || die_rule \
-  "task Worker has no configured supervisor: $worker" \
-  "implementation workers require a fixed supervisor pairing" \
-  "add supervisor to the $worker record in $TEAM_CONFIG_FILE"
-if [[ -n "$supervisor" && "$supervisor" != "$expected_supervisor" ]]; then
-  die_rule \
-    "task Supervisor does not match the Worker pair" \
-    "$worker is paired with $expected_supervisor, but the task names $supervisor" \
-    "set Supervisor to $expected_supervisor or leave it empty before dispatch"
+  expected_supervisor="$(team_config_agent_field "$worker" supervisor)"
+  [[ -n "$expected_supervisor" ]] || die_rule \
+    "task Worker has no configured supervisor: $worker" \
+    "implementation workers require a fixed supervisor pairing" \
+    "add supervisor to the $worker record in $TEAM_CONFIG_FILE"
+  if [[ -n "$supervisor" && "$supervisor" != "$expected_supervisor" ]]; then
+    die_rule \
+      "task Supervisor does not match the Worker pair" \
+      "$worker is paired with $expected_supervisor, but the task names $supervisor" \
+      "set Supervisor to $expected_supervisor or leave it empty before dispatch"
+  fi
 fi
 
 if [[ "$worker_role" == "frontend-worker" ]]; then
@@ -126,6 +148,18 @@ fi
   "task Do not modify is empty: $task_file" \
   "protected ownership must be explicit before dispatch" \
   "add at least .agents/state/STATE.md and .agents/state/MEMORY.md under ## Do not modify"
+
+if [[ "$lane" == "express" ]]; then
+  for allowed in "${allowed_paths[@]}"; do
+    case "$allowed" in
+      .agents|.agents/*|AGENTS.md|CLAUDE.md|Makefile|\**)
+        die_rule \
+          "express task cannot own a governance path: $allowed" \
+          "express tasks skip Manager and Supervisor, so protocol, config, and harness paths stay out of scope" \
+          "route this change through a normal task, or narrow the allowed path" ;;
+    esac
+  done
+fi
 
 for allowed in "${allowed_paths[@]}"; do
   allowed_real="$(team_resolve_existing_path "$allowed" || true)"

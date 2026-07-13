@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_report.sh <task_id> <needs_supervision|blocked>" >&2
+  echo "usage: team_report.sh <task_id> <needs_supervision|ready_for_lead|blocked>" >&2
 }
 
 [[ $# -eq 2 ]] || { usage; exit 2; }
@@ -20,17 +20,30 @@ status="$2"
   "run make report inside the assigned worker pane"
 agent_id="$TEAM_AGENT_ID"
 
+lane="normal"
+case "$task_id" in
+  T-E-*) lane="express" ;;
+esac
+
 case "$status" in
-  needs_supervision|blocked) ;;
+  needs_supervision)
+    [[ "$lane" == "normal" ]] || die "express tasks report STATUS=ready_for_lead" ;;
+  ready_for_lead)
+    [[ "$lane" == "express" ]] || die "ready_for_lead is only for express tasks" ;;
+  blocked) ;;
   *) die "invalid report status: $status" ;;
 esac
 
 team_config_agent_record "$agent_id" >/dev/null || die "unknown agent: $agent_id"
 agent_role="$(team_config_agent_field "$agent_id" role)"
-case "$agent_role" in
-  general-worker|hard-task-worker|frontend-worker) ;;
-  *) die "$agent_id is not an implementation worker" ;;
-esac
+if [[ "$lane" == "express" ]]; then
+  [[ "$agent_role" == "express-worker" ]] || die "$agent_id is not an express worker"
+else
+  case "$agent_role" in
+    general-worker|hard-task-worker|frontend-worker) ;;
+    *) die "$agent_id is not an implementation worker" ;;
+  esac
+fi
 
 ensure_team_dirs
 report_file="$TEAM_QUEUE_DIR/reports/${task_id}_${agent_id}.md"
@@ -49,7 +62,9 @@ direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
 [[ "$worker" == "$agent_id" ]] || die "task $task_id is assigned to $worker, not $agent_id"
 [[ -n "$manager" ]] || die "task $task_id state is missing manager"
-[[ -n "$supervisor" ]] || die "task $task_id state is missing supervisor"
+if [[ "$lane" != "express" ]]; then
+  [[ -n "$supervisor" ]] || die "task $task_id state is missing supervisor"
+fi
 [[ -n "$base_commit" ]] || die "task $task_id state is missing base_commit"
 
 if [[ "$agent_role" == "frontend-worker" ]]; then
@@ -73,7 +88,7 @@ if [[ ! -f "$report_file" ]]; then
   {
     printf '# Report: %s by %s\n\n' "$task_id" "$agent_id"
     printf 'Status: %s\n' "$status"
-    printf 'Supervisor: %s\n' "$supervisor"
+    printf 'Supervisor: %s\n' "${supervisor:-none}"
     printf 'Base commit: %s\n' "$base_commit"
     printf 'Task commits: %s\n' "$task_commits"
     printf 'Supervision artifact: none\n'
@@ -106,6 +121,9 @@ if [[ ! -f "$report_file" ]]; then
 ## Smoke
 
 <!-- TEAM_PLACEHOLDER: smoke -->
+REPORT
+    if [[ "$lane" != "express" ]]; then
+      cat <<'REPORT'
 
 ## Supervision
 
@@ -115,6 +133,7 @@ if [[ ! -f "$report_file" ]]; then
 
 <!-- TEAM_PLACEHOLDER: specialist-artifacts -->
 REPORT
+    fi
     if [[ "$agent_role" == "frontend-worker" ]]; then
       cat <<'REPORT'
 
@@ -136,7 +155,7 @@ REPORT
   } > "$report_file"
 else
   team_update_markdown_field "$report_file" "Status" "$status"
-  team_update_markdown_field "$report_file" "Supervisor" "$supervisor"
+  team_update_markdown_field "$report_file" "Supervisor" "${supervisor:-none}"
   team_update_markdown_field "$report_file" "Base commit" "$base_commit"
   team_update_markdown_field "$report_file" "Task commits" "$task_commits"
   team_update_markdown_field "$report_file" "Supervision artifact" "none"

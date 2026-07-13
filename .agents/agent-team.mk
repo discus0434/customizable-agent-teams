@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch task-commit report direction-report supervision-report release-prepare release-request release-report state state-update state-commit memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report release-prepare release-request release-report state state-update state-commit memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -87,6 +87,11 @@ dispatch:
 	else \
 		./.agents/scripts/team_dispatch.sh "$(TASK)"; \
 	fi
+
+express-fix:
+	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
+	@test -n "$(BODY)" || { echo "BODY is required" >&2; exit 2; }
+	@./.agents/scripts/team_express_fix.sh "$(TASK)" "$(BODY)"
 
 task-commit:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }

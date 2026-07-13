@@ -101,21 +101,12 @@ case "$source_type" in
       result)
         exec "$SCRIPT_DIR/team_research_complete.sh" "$research_id" "$from"
         ;;
-      question)
-        [[ -n "$body" ]] || die "research question body is required"
-        exec "$SCRIPT_DIR/team_research_question.sh" "$research_id" "$from" "$body"
-        ;;
       cancel)
         [[ -n "$body" ]] || die "research cancellation reason is required"
         exec "$SCRIPT_DIR/team_research_cancel.sh" "$research_id" "$from" "$body"
         ;;
-      *) die "research request reply type must be question, result, or cancel" ;;
+      *) die "research request reply type must be result or cancel" ;;
     esac
-    ;;
-  research_question)
-    [[ -z "$type" || "$type" == "answer" ]] || die "research question reply type must be answer"
-    [[ -n "$body" ]] || die "research answer body is required"
-    exec "$SCRIPT_DIR/team_research_answer.sh" "$research_id" "$from" "$body"
     ;;
 esac
 

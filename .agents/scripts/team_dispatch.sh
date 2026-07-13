@@ -37,26 +37,38 @@ done
 task_id="$1"
 [[ "$task_id" != */* ]] || die "task_id must not contain '/': $task_id"
 
+lane="normal"
+case "$task_id" in
+  T-E-*) lane="express" ;;
+esac
+
 ensure_team_dirs
 team_config_validate
 
 if [[ -z "$manager_id" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
-    "manager is required for dispatch" \
-    "dispatch records the task manager, but this shell has no TEAM_AGENT_ID" \
-    "run dispatch inside a manager pane or pass MANAGER=<manager_id>"
+    "dispatcher is required for dispatch" \
+    "dispatch records the task owner, but this shell has no TEAM_AGENT_ID" \
+    "run dispatch inside the manager or lead pane, or pass MANAGER=<agent_id>"
   manager_id="$TEAM_AGENT_ID"
 fi
 
 team_config_agent_record "$manager_id" >/dev/null || die_rule \
-  "unknown manager: $manager_id" \
+  "unknown dispatcher: $manager_id" \
   "the dispatch sender must be present in $TEAM_CONFIG_FILE" \
-  "run from the configured manager pane or pass MANAGER=<manager_id>"
+  "run from the configured manager pane or pass MANAGER=<agent_id>"
 manager_role="$(team_config_agent_field "$manager_id" role)"
-[[ "$manager_role" == "manager" ]] || die_rule \
-  "dispatch sender is not manager: $manager_id" \
-  "$manager_id has role $manager_role" \
-  "run dispatch from the manager pane"
+if [[ "$lane" == "express" ]]; then
+  [[ "$manager_role" == "lead" ]] || die_rule \
+    "express dispatch sender is not lead: $manager_id" \
+    "$manager_id has role $manager_role, but express tasks belong to Lead" \
+    "run express dispatch from the lead pane"
+else
+  [[ "$manager_role" == "manager" ]] || die_rule \
+    "dispatch sender is not manager: $manager_id" \
+    "$manager_id has role $manager_role" \
+    "run dispatch from the manager pane"
+fi
 
 task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
 state_file="$(team_task_state_file "$task_id")"
@@ -73,39 +85,61 @@ state_file="$(team_task_state_file "$task_id")"
 
 worker_id="$(team_task_markdown_field "$task_file" Worker)"
 worker_role="$(team_config_agent_field "$worker_id" role)"
-supervisor_id="$(team_config_agent_field "$worker_id" supervisor)"
-supervisor_role="$(team_config_agent_field "$supervisor_id" role)"
 architecture_required="$(team_task_markdown_field "$task_file" "Architecture required")"
+
+if [[ "$lane" == "express" ]]; then
+  while IFS= read -r express_state; do
+    express_task="$(basename "$express_state" .json)"
+    case "$express_task" in T-E-*) ;; *) continue ;; esac
+    express_status="$(extract_json_field status < "$express_state")"
+    if [[ "$express_status" != "done" ]]; then
+      die_rule \
+        "another express task is in flight: $express_task" \
+        "express runs one task at a time to stay reviewable by Lead" \
+        "finish $express_task or dispatch this work as a normal task"
+    fi
+  done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name 'T-E-*.json' | sort)
+fi
 
 if busy_task="$(team_task_worker_is_busy "$worker_id")"; then
   die_rule \
     "implementation worker is busy: $worker_id" \
     "$worker_id is still assigned to $busy_task" \
-    "wait for Manager to mark $busy_task done or choose another implementation worker"
-fi
-if busy_task="$(team_task_supervisor_is_busy "$supervisor_id")"; then
-  die_rule \
-    "implementation supervisor is busy: $supervisor_id" \
-    "$supervisor_id is still assigned to $busy_task" \
-    "wait for Manager to mark $busy_task done or choose another fixed worker pair"
+    "wait for the current task to finish or choose another implementation worker"
 fi
 
-case "$worker_role:$supervisor_role" in
-  general-worker:general-reviewer|hard-task-worker:general-reviewer)
-    direction_status="not_applicable"
-    supervision_path=".agents/queue/reviews/${task_id}_${supervisor_id}.md"
-    ;;
-  frontend-worker:frontend-critic)
-    direction_status="pending"
-    supervision_path=".agents/queue/critiques/${task_id}_${supervisor_id}.md"
-    ;;
-  *)
+if [[ "$lane" == "express" ]]; then
+  supervisor_id=""
+  supervisor_role=""
+  direction_status="not_applicable"
+  supervision_path=""
+else
+  supervisor_id="$(team_config_agent_field "$worker_id" supervisor)"
+  supervisor_role="$(team_config_agent_field "$supervisor_id" role)"
+  if busy_task="$(team_task_supervisor_is_busy "$supervisor_id")"; then
     die_rule \
-      "invalid implementation pair: $worker_id and $supervisor_id" \
-      "$worker_role cannot be supervised by $supervisor_role" \
-      "fix the supervisor pairing in $TEAM_CONFIG_FILE"
-    ;;
-esac
+      "implementation supervisor is busy: $supervisor_id" \
+      "$supervisor_id is still assigned to $busy_task" \
+      "wait for Manager to mark $busy_task done or choose another fixed worker pair"
+  fi
+
+  case "$worker_role:$supervisor_role" in
+    general-worker:general-reviewer|hard-task-worker:general-reviewer)
+      direction_status="not_applicable"
+      supervision_path=".agents/queue/reviews/${task_id}_${supervisor_id}.md"
+      ;;
+    frontend-worker:frontend-critic)
+      direction_status="pending"
+      supervision_path=".agents/queue/critiques/${task_id}_${supervisor_id}.md"
+      ;;
+    *)
+      die_rule \
+        "invalid implementation pair: $worker_id and $supervisor_id" \
+        "$worker_role cannot be supervised by $supervisor_role" \
+        "fix the supervisor pairing in $TEAM_CONFIG_FILE"
+      ;;
+  esac
+fi
 
 git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die_rule \
   "git HEAD does not exist" \
@@ -113,7 +147,9 @@ git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die_rule \
   "commit the initialized repository before dispatching tasks"
 base_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
 
-team_update_markdown_field "$task_file" "Supervisor" "$supervisor_id"
+if [[ "$lane" != "express" ]]; then
+  team_update_markdown_field "$task_file" "Supervisor" "$supervisor_id"
+fi
 
 acquire_team_lock "dispatch-$task_id"
 team_write_task_state \
@@ -135,10 +171,30 @@ team_write_task_state \
   ""
 release_team_lock
 
-worker_body="${task_file}を読み、固定Supervisor ${supervisor_id}と連携してtaskを進めてください。"
-supervisor_body="${task_file}を読み、固定Worker ${worker_id}の相談と最終判断を担当してください。最終成果物は${supervision_path}へ書いてください。"
+if [[ "$lane" == "express" ]]; then
+  worker_body="${task_file}を読み、express taskとして実装からreportまで進めてください。Supervisorはいません。完了報告はexpress_readyで${manager_id}へ送ってください。"
+  team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
 
-team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
-team_send_with_body_file "$manager_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
+  exec_prompt="あなたはこのteamのexpress worker、agent_id=${worker_id}です。
+make team-identityで自分を確認し、AGENTS.mdとteam-express-worker skillに従ってください。
+express task ${task_id}が割り当てられています。.agents/queue/tasks/${task_id}.mdを読み、Allowed pathsの中で実装してください。
+検証はtask固有の検証に加えて、make post-changeとmake smokeを実行してください。
+変更のcommitはmake task-commit TASK=${task_id} MESSAGE=\"<summary>\"で行ってください。
+その後、make report TASK=${task_id} STATUS=ready_for_leadを実行し、reportのplaceholderをすべて実測の証拠で埋めてください。
+最後にmake team-send TO=${manager_id} TYPE=express_ready TASK=${task_id} BODY=\"<要点>\"でLeadへ報告してください。
+Supervisorはいません。解消できないblockerがあれば、make team-send TO=${manager_id} TYPE=question TASK=${task_id} BODY=\"<質問>\"を送って終了してください。"
+  if ! "$SCRIPT_DIR/team_exec_run.sh" --kind task --ref "$task_id" --notify "$manager_id" "$worker_id" "$exec_prompt" >/dev/null; then
+    die_rule \
+      "express exec launch failed: $task_id" \
+      "$worker_id could not start a codex exec run" \
+      "inspect .agents/queue/state/exec/${worker_id}.err, then dispatch again"
+  fi
+else
+  worker_body="${task_file}を読み、固定Supervisor ${supervisor_id}と連携してtaskを進めてください。"
+  supervisor_body="${task_file}を読み、固定Worker ${worker_id}の相談と最終判断を担当してください。最終成果物は${supervision_path}へ書いてください。"
+
+  team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
+  team_send_with_body_file "$manager_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
+fi
 
 printf '%s\n' "$state_file"

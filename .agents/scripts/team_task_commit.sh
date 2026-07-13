@@ -28,7 +28,7 @@ agent_id="$TEAM_AGENT_ID"
 team_config_agent_record "$agent_id" >/dev/null || die "unknown agent: $agent_id"
 agent_role="$(team_config_agent_field "$agent_id" role)"
 case "$agent_role" in
-  general-worker|hard-task-worker|frontend-worker) ;;
+  general-worker|hard-task-worker|frontend-worker|express-worker) ;;
   *) die_rule \
     "agent cannot create implementation task commits: $agent_id" \
     "$agent_id has role $agent_role" \
@@ -50,7 +50,7 @@ status="$(team_task_state_field "$task_id" status)"
   "task state assigns $worker, but this pane is $agent_id" \
   "commit from the $worker pane"
 case "$status" in
-  dispatched|needs_supervision|supervision_fix|manager_fix) ;;
+  dispatched|needs_supervision|ready_for_lead|supervision_fix|manager_fix) ;;
   *) die_rule \
     "task does not accept implementation commits: $task_id" \
     "task status is $status" \

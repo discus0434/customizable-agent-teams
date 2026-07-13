@@ -28,10 +28,11 @@ team_config_agents() {
       effort = ""
       window = ""
       supervisor = ""
+      mode = ""
     }
     function emit() {
       if (id != "") {
-        print id "|" role "|" cli "|" model "|" effort "|" window "|" supervisor
+        print id "|" role "|" cli "|" model "|" effort "|" window "|" supervisor "|" mode
       }
     }
     function field_value(line) {
@@ -59,6 +60,7 @@ team_config_agents() {
     in_agents && /^    effort:/ { effort = field_value($0); next }
     in_agents && /^    window:/ { window = field_value($0); next }
     in_agents && /^    supervisor:/ { supervisor = field_value($0); next }
+    in_agents && /^    mode:/ { mode = field_value($0); next }
     END { emit() }
   ' "$TEAM_CONFIG_FILE"
 }
@@ -81,6 +83,7 @@ team_config_agent_field() {
     effort) index=5 ;;
     window) index=6 ;;
     supervisor) index=7 ;;
+    mode) index=8 ;;
     *) die "unknown agent field: $field" ;;
   esac
 
@@ -174,11 +177,11 @@ team_config_validate() {
     "implementation supervision uses fixed one-to-one pairs" \
     "pair each implementation worker with a different supervisor"
 
-  while IFS='|' read -r id role cli model effort window supervisor; do
+  while IFS='|' read -r id role cli model effort window supervisor mode; do
     [[ -n "$id" ]] || continue
     [[ -n "$role" ]] || die_rule "agent role is missing: $id" "routing uses role as the source of truth" "add '    role: <role>'"
     case "$role" in
-      lead|manager|strategist|architect|release-captain|general-reviewer|general-worker|hard-task-worker|research-worker|frontend-worker|frontend-critic) ;;
+      lead|manager|strategist|architect|release-captain|general-reviewer|general-worker|hard-task-worker|research-worker|express-worker|frontend-worker|frontend-critic) ;;
       *) die_rule "unknown agent role: $role" "$id uses a role outside the team protocol" "use a role defined by .agents/docs/TEAM_PROTOCOL.md" ;;
     esac
     case "$cli" in
@@ -190,7 +193,26 @@ team_config_validate() {
       low|medium|high|xhigh|max) ;;
       *) die_rule "invalid agent effort: ${effort:-missing}" "$id effort must be explicit" "set effort to low, medium, high, xhigh, or max" ;;
     esac
-    [[ -n "$window" ]] || die_rule "agent window is missing: $id" "each agent runs in a named tmux window" "add '    window: <window-name>'"
+    case "$mode" in
+      "") ;;
+      exec)
+        case "$role" in
+          research-worker|express-worker) ;;
+          *) die_rule \
+            "agent cannot run in exec mode: $id" \
+            "mode: exec is for on-demand roles, but $id has role $role" \
+            "use exec mode only for research-worker and express-worker" ;;
+        esac
+        [[ "$cli" == "codex" ]] || die_rule \
+          "exec mode requires the codex CLI: $id" \
+          "on-demand agents run via codex exec" \
+          "set cli to codex or remove mode: exec"
+        ;;
+      *) die_rule "invalid agent mode: $mode" "$id mode must be empty or exec" "remove the mode field or set it to exec" ;;
+    esac
+    if [[ "$mode" != "exec" ]]; then
+      [[ -n "$window" ]] || die_rule "agent window is missing: $id" "each resident agent runs in a named tmux window" "add '    window: <window-name>'"
+    fi
 
     expected_supervisor_role=""
     case "$role" in
@@ -227,7 +249,7 @@ team_config_validate() {
       "define exactly one $singleton_role agent"
   done
 
-  for pool_role in general-worker hard-task-worker general-reviewer research-worker frontend-worker frontend-critic; do
+  for pool_role in general-worker hard-task-worker general-reviewer research-worker express-worker frontend-worker frontend-critic; do
     role_count="$(printf '%s\n' "$agents" | awk -F'|' -v role="$pool_role" '$2 == role { count++ } END { print count + 0 }')"
     [[ "$role_count" -gt 0 ]] || die_rule \
       "role has no configured agents: $pool_role" \

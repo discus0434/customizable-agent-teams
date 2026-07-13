@@ -318,8 +318,12 @@ case "$type" in
       "$task_direction_status" "$task_direction_artifact"
     ;;
   task_assigned)
-    [[ "$from_role" == "manager" ]] || die "task_assigned sender must be manager"
     load_task_assignment
+    if [[ "$task_id" == T-E-* ]]; then
+      [[ "$from_role" == "lead" ]] || die "express task_assigned sender must be lead"
+    else
+      [[ "$from_role" == "manager" ]] || die "task_assigned sender must be manager"
+    fi
     [[ "$from" == "$task_manager" && "$to" == "$task_worker" ]] || die "task_assigned route does not match task state"
     ;;
   supervision_assigned)
@@ -353,6 +357,28 @@ case "$type" in
   supervision_feedback)
     require_assigned_supervisor_to_worker
     ;;
+  express_ready)
+    load_task_assignment
+    [[ "$task_id" == T-E-* ]] || die "express_ready requires an express task id"
+    [[ "$from" == "$task_worker" ]] || die "express_ready sender must be the assigned express worker"
+    [[ "$to" == "$task_manager" ]] || die "express_ready target must be the dispatching lead"
+    [[ "$task_status" == "ready_for_lead" ]] || die_rule \
+      "task is not ready for lead review: $task_id" \
+      "task status is $task_status, but express_ready requires a current implementation report" \
+      "run make report TASK=$task_id STATUS=ready_for_lead after committing and verifying the task"
+    [[ -n "$task_report" && -f "$task_report" && -n "$task_commits" ]] || die_rule \
+      "express review entrypoint is incomplete: $task_id" \
+      "task report or task commits are missing from task state" \
+      "run make report TASK=$task_id STATUS=ready_for_lead, fill the report, then resend"
+    team_require_report_matches_task_state "$task_id" "$task_report" "$task_base_commit" "$task_commits"
+    worker_message="${body:-実装と検証が完了しました。}"
+    body="Task: $task_id"$'\n'
+    body+="Task file: .agents/queue/tasks/$task_id.md"$'\n'
+    body+="Worker: $task_worker"$'\n'
+    body+="Worker report: $(team_relative_path "$task_report")"$'\n'
+    body+="Task commits: $task_commits"$'\n'
+    body+="Worker message: $worker_message"
+    ;;
   view_direction_result)
     load_task_assignment
     [[ "$from" == "$task_supervisor" && "$from_role" == "frontend-critic" ]] || die "view_direction_result sender must be the assigned frontend-critic"
@@ -370,17 +396,6 @@ case "$type" in
     [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research caller mismatch: $research_id"
     [[ "$(team_research_state_field "$research_id" worker)" == "$to" ]] || die "research worker mismatch: $research_id"
     artifact_path=".agents/queue/research/${research_id}.md"
-    ;;
-  research_question)
-    [[ "$from_role" == "research-worker" ]] || die "research_question sender must be research-worker"
-    [[ -n "$research_id" ]] || die "research_question requires research id"
-    [[ "$(team_research_state_field "$research_id" worker)" == "$from" ]] || die "research question sender is not assigned: $research_id"
-    [[ "$(team_research_state_field "$research_id" caller)" == "$to" ]] || die "research question target is not caller: $research_id"
-    ;;
-  research_answer)
-    [[ -n "$research_id" ]] || die "research_answer requires research id"
-    [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research answer sender is not caller: $research_id"
-    [[ "$(team_research_state_field "$research_id" worker)" == "$to" ]] || die "research answer target is not assigned worker: $research_id"
     ;;
   research_cancelled)
     [[ -n "$research_id" ]] || die "research_cancelled requires research id"
@@ -467,6 +482,6 @@ if [[ -n "$cc_to" ]]; then
 fi
 
 case "$type" in
-  research_request|research_question|research_answer|research_cancelled|research_result) ;;
+  research_request|research_cancelled|research_result) ;;
   *) team_mark_inbox_processed "$from" "$task_id" "$bundle_id" ;;
 esac

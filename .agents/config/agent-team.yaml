@@ -118,28 +118,35 @@ agents:
     cli: codex
     model: gpt-5.6-luna
     effort: high
-    window: research-worker-1
+    mode: exec
 
   - id: research-worker-2
     role: research-worker
     cli: codex
     model: gpt-5.6-luna
     effort: high
-    window: research-worker-2
+    mode: exec
 
   - id: research-worker-3
     role: research-worker
     cli: codex
     model: gpt-5.6-luna
     effort: high
-    window: research-worker-3
+    mode: exec
 
   - id: research-worker-4
     role: research-worker
     cli: codex
     model: gpt-5.6-luna
     effort: high
-    window: research-worker-4
+    mode: exec
+
+  - id: express-worker-1
+    role: express-worker
+    cli: codex
+    model: gpt-5.6-luna
+    effort: high
+    mode: exec
 
   - id: frontend-critic-1
     role: frontend-critic
