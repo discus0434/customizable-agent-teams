@@ -51,7 +51,7 @@ stackが決まった後、具体的な初期値が必要な場合は[stack-contr
 - 選んだstackの標準的なpackage manager、formatter、linter、test runner、必要なbuildまたはpackage commandを設定する。
 - `make post-change`には、format、lint、必要なtypecheck、build、test、`git diff --check -- .`を含める。
 - 複数packageがある場合は、対象directoryを明示し、一つの`post-change`から各packageの検証を呼ぶ。
-- `make smoke`は、代表的な利用者向けの挙動を短時間で実行するcommandとする。
+- `make smoke`は、代表的な利用者向けの挙動を短時間で実行するcommandとする。所定の`harness-test`は削除して置き換える。
 - frontendがある場合は、同じ画面と状態を再現できるvisual verificationを`AGENTS.md`へ記載する。
 - 必要なlockfileを作る。
 - 必須toolがない場合は、見つからないcommandを示してblockerとして報告する。
