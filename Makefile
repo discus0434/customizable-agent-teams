@@ -3,7 +3,8 @@
 post-change:
 	@git diff --check -- .
 
-smoke: harness-test
+smoke:
+	@echo "Define project smoke during bootstrap." >&2
+	@exit 1
 
 include .agents/agent-team.mk
-include .agents/harness.mk
