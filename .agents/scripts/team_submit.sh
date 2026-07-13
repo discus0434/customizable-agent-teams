@@ -32,4 +32,5 @@ if ! tmux has-session -t "$session" 2>/dev/null; then
 fi
 
 team_tmux_require_pane "$agent_id" "$pane" "$session" "${window:-$agent_id}"
-team_tmux_send_text "$pane" "inbox $agent_id"
+team_tmux_cancel_mode_if_needed "$pane"
+team_tmux_submit "$pane"
