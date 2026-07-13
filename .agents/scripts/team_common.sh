@@ -50,6 +50,21 @@ team_tmux_pane_is_busy() {
   team_tmux_capture_pane "$pane" | tail -n 20 | grep -Fq 'esc to interrupt'
 }
 
+team_tmux_input_is_pending() {
+  local pane="$1"
+  local input_line
+  local content
+
+  input_line="$(team_tmux_capture_pane "$pane" | grep -E '^[❯›] ' | tail -n 1)"
+  content="${input_line#[❯›] }"
+  content="${content#"${content%%[![:space:]]*}"}"
+  [[ -n "$content" ]] || return 1
+  case "$content" in
+    'Try "'*) return 1 ;;
+  esac
+  return 0
+}
+
 team_tmux_cancel_mode_if_needed() {
   local pane="$1"
   local pane_in_mode

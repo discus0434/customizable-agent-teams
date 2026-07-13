@@ -98,6 +98,9 @@ case "$1" in
   capture-pane)
     if [[ -n "${TEAM_FAKE_TMUX_BUSY_FILE:-}" && -f "$TEAM_FAKE_TMUX_BUSY_FILE" ]]; then
       printf '%s\n' "Working (1s - esc to interrupt)"
+    elif [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
+      printf '%s\n' "Claude Code"
+      printf '❯ %s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
     else
       printf '%s\n' "Claude Code"
     fi
@@ -201,7 +204,7 @@ PATH="$TMP_BASE/bin:$PATH" \
   TEAM_FAKE_REAL_SLEEP=1 \
   TEAM_FAKE_TMUX_BUSY_FILE="$busy_file" \
   "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/deferred-nudge.err"
-grep -q '^\[team\] queued nudge for lead; pane is busy$' "$TMP_BASE/deferred-nudge.err"
+grep -q '^\[team\] queued nudge for lead; pane is busy or holds unsent input$' "$TMP_BASE/deferred-nudge.err"
 [[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
   || fail "busy pane was interrupted by an immediate nudge"
 rm "$busy_file"
@@ -212,6 +215,33 @@ for _attempt in $(seq 1 30); do
 done
 [[ "${paste_count_after:-0}" -gt "$paste_count_before" ]] \
   || fail "deferred nudge was not delivered after the pane became idle"
+
+# Panes holding unsent human input defer the nudge until the input is sent.
+input_file="$TMP_BASE/pane.input"
+printf '%s\n' '書きかけの依頼文' > "$input_file"
+printf '%s\n' '{"id":"msg_input_pending","from":"manager","to":"lead","type":"request","requires_attention":"true","created_at":"2026-01-01T00:00:01Z","body":"pending input"}' \
+  >> "$TMP_ROOT/.agents/queue/inbox/lead.jsonl"
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_REAL_SLEEP=1 \
+  TEAM_FAKE_TMUX_INPUT_FILE="$input_file" \
+  "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/input-nudge.err"
+grep -q '^\[team\] queued nudge for lead; pane is busy or holds unsent input$' "$TMP_BASE/input-nudge.err"
+[[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
+  || fail "unsent human input was clobbered by an immediate nudge"
+printf '%s\n' 'Try "fix lint errors"' > "$input_file"
+for _attempt in $(seq 1 30); do
+  paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+  [[ "$paste_count_after" -gt "$paste_count_before" ]] && break
+  /bin/sleep 0.1
+done
+[[ "${paste_count_after:-0}" -gt "$paste_count_before" ]] \
+  || fail "deferred nudge was not delivered after the input became a placeholder"
+rm "$input_file"
 
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"

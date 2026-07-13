@@ -193,6 +193,19 @@ main() {
   tmux set-option -t "$session" pane-border-status top >/dev/null
   tmux set-option -t "$session" pane-border-format '#{@agent_id} #{@role} #{@model}' >/dev/null
 
+  while IFS='|' read -r id role _cli _model _effort _window _supervisor; do
+    [[ -n "$id" ]] || continue
+    if team_config_role_is_exec "$role"; then
+      continue
+    fi
+    if [[ "$lead_only" -eq 1 && "$role" != "lead" ]]; then
+      continue
+    fi
+    if team_inbox_has_pending "$id"; then
+      "$SCRIPT_DIR/team_nudge.sh" "$id" >/dev/null || warn "startup nudge failed for $id; pending inbox messages remain"
+    fi
+  done < <(team_config_agents)
+
   echo "started tmux session: $session"
   echo "attach with: make team-attach"
 }
