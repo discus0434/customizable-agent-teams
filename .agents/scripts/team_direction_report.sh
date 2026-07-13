@@ -35,7 +35,7 @@ state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 worker="$(team_task_state_field "$task_id" worker)"
-manager="$(team_task_state_field "$task_id" manager)"
+owner="$(team_task_state_field "$task_id" owner)"
 supervisor="$(team_task_state_field "$task_id" supervisor)"
 status="$(team_task_state_field "$task_id" status)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
@@ -88,13 +88,13 @@ case "$decision" in
     case "$decision" in
       PROCEED) direction_status="proceed"; target="$worker" ;;
       REVISE) direction_status="revise"; target="$worker" ;;
-      ASK_MANAGER) direction_status="ask_manager"; target="$manager" ;;
+      ASK_MANAGER) direction_status="ask_manager"; target="$owner" ;;
     esac
     ;;
 esac
 
 team_write_task_state \
-  "$task_id" "$manager" "$worker" "$supervisor" "$status" \
+  "$task_id" "$owner" "$worker" "$supervisor" "$status" \
   "$base_commit" "$task_commits" "$report_file" "$supervision_artifact" \
   "$supervision_decision" "${done_recommendation:-false}" "$architecture_required" \
   "$architecture" "$release_bundle" "$direction_status" "$direction_artifact"

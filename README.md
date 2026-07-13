@@ -25,7 +25,7 @@ Research Workerは、codebase、実現可能性、Webを並列に調査します
 - **Express Worker**：常駐せず、Leadが直接dispatchした小さなtaskを`codex exec`で実装します。Managerとreleaseの工程を通らず、reviewはLeadが行います。
 - **Frontend Worker**：実際の画面を確認しながら実装し、固定Frontend Criticが画面方針と完成結果をreviewします。
 - **共有repository**：すべてのagentが同じrepository rootを使うため、venv、`node_modules`、`.env`、direnvを共有できます。
-- **構成変更**：`.agents/config/agent-team.yaml`でCLI、model、effort、agent数、固定Supervisor、常駐か`mode: exec`かを変更できます。
+- **構成変更**：`.agents/config/agent-team.yaml`でCLI、model、effort、agent数、固定Supervisorを変更できます。
 
 ## Roleの責務
 
@@ -181,7 +181,7 @@ Codexには`--dangerously-bypass-approvals-and-sandbox`が付きます。
 
 CodexのResearch WorkerではWeb検索も有効になります。
 
-`mode: exec`のagent（Research WorkerとExpress Worker）は常駐windowを持たず、依頼が割り当てられたときに`codex exec`の非対話実行として起動されます。
+Research WorkerとExpress Workerは常駐windowを持たず、依頼が割り当てられたときに`codex exec`の非対話実行として起動されます。この2つのroleには`window`を書きません。
 
 ## 日常操作
 
@@ -225,7 +225,7 @@ team paneでは`TEAM_AGENT_ID`が送信元になります。
 
 repository shellから送信する場合は`FROM=<agent_id>`を指定します。
 
-repository shellからtaskを割り当てる場合は`MANAGER=<manager_id>`も指定します。
+repository shellからtaskを割り当てる場合は`OWNER=<agent_id>`も指定します（通常taskはmanager、express taskはlead）。
 
 ## Repository構成
 

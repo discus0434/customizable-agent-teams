@@ -18,7 +18,6 @@ status="$(team_research_state_field "$request_id" status)"
 request_message_id="$(team_research_state_field "$request_id" request_message_id)"
 artifact="$(team_research_state_field "$request_id" artifact)"
 task_id="$(team_research_state_field "$request_id" task_id)"
-question_message_id="$(team_research_state_field "$request_id" question_message_id)"
 created_at="$(team_research_state_field "$request_id" created_at)"
 
 [[ "$assigned_worker" == "$worker_id" && "$status" == "active" ]] || {
@@ -42,7 +41,7 @@ team_markdown_section_has_content "$TEAM_ROOT/$artifact" Result || {
 
 body="Research result: ${artifact}を確認してください。"
 "$SCRIPT_DIR/team_send.sh" --from "$worker_id" --type research_result --task "$task_id" --research "$request_id" "$caller" "$body" >/dev/null
-team_write_research_state "$request_id" "$caller" "$worker_id" "completed" "$request_message_id" "$artifact" "$task_id" "$question_message_id" "$created_at"
+team_write_research_state "$request_id" "$caller" "$worker_id" "completed" "$request_message_id" "$artifact" "$task_id" "$created_at"
 team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "completed"
 release_team_lock
 team_mark_research_inbox_processed "$worker_id" "$request_id" research_request research_cancelled

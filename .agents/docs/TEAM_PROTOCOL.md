@@ -29,7 +29,7 @@ Implementation Workerは、Managerがtaskを`done`にするまで次のtaskを�
 
 Research WorkerにはSupervisorを付けず、プロジェクトコードも編集させない。
 
-Research WorkerとExpress Workerは常駐せず、依頼が割り当てられたときにcodex execの非対話実行として起動される（`agent-team.yaml`の`mode: exec`）。
+Research WorkerとExpress Workerは常駐せず、依頼が割り当てられたときにcodex execの非対話実行として起動される。
 
 ## 実装task
 

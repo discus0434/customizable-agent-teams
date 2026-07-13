@@ -28,11 +28,10 @@ team_config_agents() {
       effort = ""
       window = ""
       supervisor = ""
-      mode = ""
     }
     function emit() {
       if (id != "") {
-        print id "|" role "|" cli "|" model "|" effort "|" window "|" supervisor "|" mode
+        print id "|" role "|" cli "|" model "|" effort "|" window "|" supervisor
       }
     }
     function field_value(line) {
@@ -60,7 +59,6 @@ team_config_agents() {
     in_agents && /^    effort:/ { effort = field_value($0); next }
     in_agents && /^    window:/ { window = field_value($0); next }
     in_agents && /^    supervisor:/ { supervisor = field_value($0); next }
-    in_agents && /^    mode:/ { mode = field_value($0); next }
     END { emit() }
   ' "$TEAM_CONFIG_FILE"
 }
@@ -83,7 +81,6 @@ team_config_agent_field() {
     effort) index=5 ;;
     window) index=6 ;;
     supervisor) index=7 ;;
-    mode) index=8 ;;
     *) die "unknown agent field: $field" ;;
   esac
 
@@ -93,6 +90,13 @@ team_config_agent_field() {
 team_config_role_agent_ids() {
   local role="$1"
   team_config_agents | awk -F'|' -v role="$role" '$2 == role { print $1 }'
+}
+
+team_config_role_is_exec() {
+  case "$1" in
+    research-worker|express-worker) return 0 ;;
+    *) return 1 ;;
+  esac
 }
 
 team_config_agent_command() {
@@ -107,6 +111,13 @@ team_config_agent_command() {
   model="$(team_config_agent_field "$agent_id" model)"
   effort="$(team_config_agent_field "$agent_id" effort)"
 
+  if team_config_role_is_exec "$role"; then
+    die_rule \
+      "on-demand role has no resident launcher: $agent_id" \
+      "$role agents run via team_exec_run.sh when work is assigned" \
+      "do not launch $role agents as tmux windows"
+  fi
+
   case "$cli" in
     claude)
       printf 'claude --dangerously-skip-permissions --model %s --effort %s' \
@@ -117,9 +128,6 @@ team_config_agent_command() {
       printf 'codex --dangerously-bypass-approvals-and-sandbox --model %s -c %s' \
         "$(shell_quote "$model")" \
         "$(shell_quote "model_reasoning_effort=\"$effort\"")"
-      if [[ "$role" == "research-worker" ]]; then
-        printf ' --search'
-      fi
       ;;
     *)
       die_rule \
@@ -177,7 +185,7 @@ team_config_validate() {
     "implementation supervision uses fixed one-to-one pairs" \
     "pair each implementation worker with a different supervisor"
 
-  while IFS='|' read -r id role cli model effort window supervisor mode; do
+  while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
     [[ -n "$role" ]] || die_rule "agent role is missing: $id" "routing uses role as the source of truth" "add '    role: <role>'"
     case "$role" in
@@ -193,24 +201,16 @@ team_config_validate() {
       low|medium|high|xhigh|max) ;;
       *) die_rule "invalid agent effort: ${effort:-missing}" "$id effort must be explicit" "set effort to low, medium, high, xhigh, or max" ;;
     esac
-    case "$mode" in
-      "") ;;
-      exec)
-        case "$role" in
-          research-worker|express-worker) ;;
-          *) die_rule \
-            "agent cannot run in exec mode: $id" \
-            "mode: exec is for on-demand roles, but $id has role $role" \
-            "use exec mode only for research-worker and express-worker" ;;
-        esac
-        [[ "$cli" == "codex" ]] || die_rule \
-          "exec mode requires the codex CLI: $id" \
-          "on-demand agents run via codex exec" \
-          "set cli to codex or remove mode: exec"
-        ;;
-      *) die_rule "invalid agent mode: $mode" "$id mode must be empty or exec" "remove the mode field or set it to exec" ;;
-    esac
-    if [[ "$mode" != "exec" ]]; then
+    if team_config_role_is_exec "$role"; then
+      [[ "$cli" == "codex" ]] || die_rule \
+        "on-demand role requires the codex CLI: $id" \
+        "$role agents run via codex exec" \
+        "set cli to codex"
+      [[ -z "$window" ]] || die_rule \
+        "on-demand role cannot declare a window: $id" \
+        "$role agents do not run as tmux windows" \
+        "remove the window field from $id"
+    else
       [[ -n "$window" ]] || die_rule "agent window is missing: $id" "each resident agent runs in a named tmux window" "add '    window: <window-name>'"
     fi
 

@@ -7,11 +7,11 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_exec_run.sh [--resume <session_id>] [--kind <research|task>] [--ref <id>] [--notify <agent_id>] <agent_id> <prompt>" >&2
+  echo "usage: team_exec_run.sh [--resume <session_id>] --kind <research|task> --ref <id> --notify <agent_id> <agent_id> <prompt>" >&2
 }
 
 resume_session=""
-kind="run"
+kind=""
 ref=""
 notify=""
 
@@ -31,19 +31,24 @@ done
 agent_id="$1"
 prompt="$2"
 [[ -n "$prompt" ]] || die "exec prompt is empty"
+case "$kind" in
+  research|task) ;;
+  *) die "exec kind must be research or task: ${kind:-missing}" ;;
+esac
+[[ -n "$ref" ]] || die "exec ref is required"
+[[ -n "$notify" ]] || die "exec notify target is required"
+team_config_agent_record "$notify" >/dev/null || die "unknown exec notify target: $notify"
 
 ensure_team_dirs
 team_config_agent_record "$agent_id" >/dev/null || die "unknown exec agent: $agent_id"
-mode="$(team_config_agent_field "$agent_id" mode)"
-[[ "$mode" == "exec" ]] || die_rule \
-  "agent does not run in exec mode: $agent_id" \
-  "team_exec_run.sh launches on-demand agents only" \
-  "set 'mode: exec' for $agent_id in $TEAM_CONFIG_FILE or use tmux nudges"
-cli="$(team_config_agent_field "$agent_id" cli)"
-[[ "$cli" == "codex" ]] || die "exec mode requires the codex CLI: $agent_id"
+role="$(team_config_agent_field "$agent_id" role)"
+team_config_role_is_exec "$role" || die_rule \
+  "agent does not run on demand: $agent_id" \
+  "team_exec_run.sh launches research-worker and express-worker agents only" \
+  "route work to resident agents through their tmux panes"
 require_command codex
 
-role="$(team_config_agent_field "$agent_id" role)"
+cli="$(team_config_agent_field "$agent_id" cli)"
 model="$(team_config_agent_field "$agent_id" model)"
 effort="$(team_config_agent_field "$agent_id" effort)"
 
@@ -53,13 +58,11 @@ err_file="$TEAM_STATE_DIR/exec/$agent_id.err"
 last_message_file="$TEAM_STATE_DIR/exec/$agent_id-last-message.txt"
 
 if [[ -f "$state_file" ]]; then
-  pid=""
-  # shellcheck disable=SC1090
-  source "$state_file"
-  if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
+  running_pid="$(sed -n "s/^pid='\{0,1\}\([0-9]*\)'\{0,1\}$/\1/p" "$state_file" | head -n 1)"
+  if [[ -n "$running_pid" ]] && kill -0 "$running_pid" 2>/dev/null; then
     die_rule \
       "exec agent is already running: $agent_id" \
-      "pid $pid has not finished its current run" \
+      "pid $running_pid has not finished its current run" \
       "wait for the run to end or cancel it first"
   fi
 fi
@@ -70,14 +73,11 @@ if [[ -n "$resume_session" ]]; then
 fi
 command_args+=(
   --dangerously-bypass-approvals-and-sandbox
-  -C "$TEAM_ROOT"
   --json
   --output-last-message "$last_message_file"
+  --model "$model"
   -c "model_reasoning_effort=\"$effort\""
 )
-if [[ -z "$resume_session" ]]; then
-  command_args+=(--model "$model")
-fi
 if [[ "$role" == "research-worker" ]]; then
   command_args+=(-c "tools.web_search=true")
 fi

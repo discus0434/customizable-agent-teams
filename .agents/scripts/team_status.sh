@@ -32,9 +32,9 @@ printf 'Team: %s\nSession: %s\n\n' "$(team_config_name)" "$session"
 
 echo "Agents:"
 printf '%-22s %-20s %-18s %-7s %s\n' "id" "role" "model" "effort" "window"
-while IFS='|' read -r id role _cli model effort window _supervisor mode; do
+while IFS='|' read -r id role _cli model effort window _supervisor; do
   [[ -n "$id" ]] || continue
-  if [[ "$mode" == "exec" ]]; then
+  if team_config_role_is_exec "$role"; then
     window="(exec)"
   fi
   printf '%-22s %-20s %-18s %-7s %s\n' "$id" "$role" "$model" "$effort" "$window"
@@ -51,9 +51,9 @@ fi
 echo
 
 echo "Agent pane status:"
-while IFS='|' read -r id role _cli _model _effort window _supervisor mode; do
+while IFS='|' read -r id role _cli _model _effort window _supervisor; do
   [[ -n "$id" ]] || continue
-  if [[ "$mode" == "exec" ]]; then
+  if team_config_role_is_exec "$role"; then
     exec_state="$TEAM_STATE_DIR/exec/$id.env"
     pane_status="exec idle"
     if [[ -f "$exec_state" ]]; then
@@ -65,9 +65,9 @@ while IFS='|' read -r id role _cli _model _effort window _supervisor mode; do
       # shellcheck disable=SC1090
       source "$exec_state"
       if [[ -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
-        pane_status="exec running pid=$pid ${kind:-run}=${ref:-unknown}"
+        pane_status="exec running pid=$pid $kind=$ref"
       elif [[ -n "${ended_at:-}" ]]; then
-        pane_status="exec idle last=${kind:-run} exit=${exit_code:-unknown}"
+        pane_status="exec idle last=$kind exit=$exit_code"
       fi
     fi
     printf '  %-22s %-20s %s\n' "$id" "$role" "$pane_status"
@@ -112,7 +112,7 @@ while IFS= read -r task_file; do
     printf '  %s status=not-dispatched\n' "$task_id"
     continue
   fi
-  manager="$(team_task_state_field "$task_id" manager)"
+  owner="$(team_task_state_field "$task_id" owner)"
   worker="$(team_task_state_field "$task_id" worker)"
   supervisor="$(team_task_state_field "$task_id" supervisor)"
   status="$(team_task_state_field "$task_id" status)"
@@ -123,7 +123,7 @@ while IFS= read -r task_file; do
   release_bundle="$(team_task_state_field "$task_id" release_bundle)"
   latest_commit="${task_commits##* }"
   [[ ${#latest_commit} -gt 12 ]] && latest_commit="${latest_commit:0:12}"
-  line="  $task_id manager=$manager worker=$worker supervisor=$supervisor status=$status latest_commit=${latest_commit:-none} supervision=${supervision_decision:-none} done_recommendation=${done_recommendation:-false}"
+  line="  $task_id owner=$owner worker=$worker supervisor=$supervisor status=$status latest_commit=${latest_commit:-none} supervision=${supervision_decision:-none} done_recommendation=${done_recommendation:-false}"
   [[ "$direction_status" != "not_applicable" && -n "$direction_status" ]] && line+=" direction=$direction_status"
   progress="$(latest_task_progress_summary "$task_id")"
   [[ -n "$progress" ]] && line+=" progress=\"$progress\""
@@ -150,7 +150,7 @@ done < <(find "$TEAM_STATE_DIR/research" -maxdepth 1 -type f -name '*.json' | so
 echo
 
 echo "Inbox:"
-while IFS='|' read -r id _role _cli _model _effort _window _supervisor _mode; do
+while IFS='|' read -r id _role _cli _model _effort _window _supervisor; do
   [[ -n "$id" ]] || continue
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0

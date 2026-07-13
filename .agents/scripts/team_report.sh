@@ -51,7 +51,7 @@ state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 worker="$(team_task_state_field "$task_id" worker)"
-manager="$(team_task_state_field "$task_id" manager)"
+owner="$(team_task_state_field "$task_id" owner)"
 supervisor="$(team_task_state_field "$task_id" supervisor)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
@@ -61,7 +61,7 @@ direction_status="$(team_task_state_field "$task_id" direction_status)"
 direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
 [[ "$worker" == "$agent_id" ]] || die "task $task_id is assigned to $worker, not $agent_id"
-[[ -n "$manager" ]] || die "task $task_id state is missing manager"
+[[ -n "$owner" ]] || die "task $task_id state is missing owner"
 if [[ "$lane" != "express" ]]; then
   [[ -n "$supervisor" ]] || die "task $task_id state is missing supervisor"
 fi
@@ -88,17 +88,22 @@ if [[ ! -f "$report_file" ]]; then
   {
     printf '# Report: %s by %s\n\n' "$task_id" "$agent_id"
     printf 'Status: %s\n' "$status"
-    printf 'Supervisor: %s\n' "${supervisor:-none}"
-    printf 'Base commit: %s\n' "$base_commit"
-    printf 'Task commits: %s\n' "$task_commits"
-    printf 'Supervision artifact: none\n'
-    printf 'Supervision decision: none\n'
-    printf 'Done recommendation: false\n'
-    printf 'Architecture required: %s\n' "${architecture_required:-false}"
-    printf 'Architecture: %s\n' "${architecture:-none}"
-    printf 'Release bundle: %s\n' "${release_bundle:-none}"
-    printf 'Direction status: %s\n' "${direction_status:-not_applicable}"
-    printf 'Direction artifact: %s\n\n' "${direction_artifact:-none}"
+    if [[ "$lane" == "express" ]]; then
+      printf 'Base commit: %s\n' "$base_commit"
+      printf 'Task commits: %s\n\n' "$task_commits"
+    else
+      printf 'Supervisor: %s\n' "$supervisor"
+      printf 'Base commit: %s\n' "$base_commit"
+      printf 'Task commits: %s\n' "$task_commits"
+      printf 'Supervision artifact: none\n'
+      printf 'Supervision decision: none\n'
+      printf 'Done recommendation: false\n'
+      printf 'Architecture required: %s\n' "${architecture_required:-false}"
+      printf 'Architecture: %s\n' "${architecture:-none}"
+      printf 'Release bundle: %s\n' "${release_bundle:-none}"
+      printf 'Direction status: %s\n' "${direction_status:-not_applicable}"
+      printf 'Direction artifact: %s\n\n' "${direction_artifact:-none}"
+    fi
     cat <<'REPORT'
 ## Summary
 
@@ -153,9 +158,13 @@ REPORT
 <!-- TEAM_PLACEHOLDER: memory-proposals -->
 REPORT
   } > "$report_file"
+elif [[ "$lane" == "express" ]]; then
+  team_update_markdown_field "$report_file" "Status" "$status"
+  team_update_markdown_field "$report_file" "Base commit" "$base_commit"
+  team_update_markdown_field "$report_file" "Task commits" "$task_commits"
 else
   team_update_markdown_field "$report_file" "Status" "$status"
-  team_update_markdown_field "$report_file" "Supervisor" "${supervisor:-none}"
+  team_update_markdown_field "$report_file" "Supervisor" "$supervisor"
   team_update_markdown_field "$report_file" "Base commit" "$base_commit"
   team_update_markdown_field "$report_file" "Task commits" "$task_commits"
   team_update_markdown_field "$report_file" "Supervision artifact" "none"
@@ -177,7 +186,7 @@ rm -f "$commits_file"
 
 team_write_task_state \
   "$task_id" \
-  "$manager" \
+  "$owner" \
   "$agent_id" \
   "$supervisor" \
   "$status" \

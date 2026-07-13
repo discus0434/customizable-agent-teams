@@ -82,8 +82,8 @@ task-lint:
 
 dispatch:
 	@test -n "$(TASK)" || { echo "TASK is required" >&2; exit 2; }
-	@if [ -n "$(MANAGER)" ]; then \
-		./.agents/scripts/team_dispatch.sh --manager "$(MANAGER)" "$(TASK)"; \
+	@if [ -n "$(OWNER)" ]; then \
+		./.agents/scripts/team_dispatch.sh --owner "$(OWNER)" "$(TASK)"; \
 	else \
 		./.agents/scripts/team_dispatch.sh "$(TASK)"; \
 	fi

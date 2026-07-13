@@ -37,7 +37,7 @@ state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
 worker="$(team_task_state_field "$task_id" worker)"
-manager="$(team_task_state_field "$task_id" manager)"
+owner="$(team_task_state_field "$task_id" owner)"
 assigned_supervisor="$(team_task_state_field "$task_id" supervisor)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 task_commits="$(team_task_state_field "$task_id" task_commits)"
@@ -52,7 +52,7 @@ direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
   "supervisor is not assigned to task $task_id" \
   "task state names $assigned_supervisor, but the command uses $supervisor_id" \
   "run the command from the fixed supervisor pane"
-[[ -n "$manager" && -n "$worker" && -n "$base_commit" ]] || die "task $task_id state is incomplete"
+[[ -n "$owner" && -n "$worker" && -n "$base_commit" ]] || die "task $task_id state is incomplete"
 [[ -n "$task_commits" ]] || die_rule \
   "task has no recorded commits: $task_id" \
   "supervision starts after the implementation worker writes a report" \
@@ -118,7 +118,7 @@ case "$decision" in
     done_recommendation="true"
     done_recommendation_text="yes"
     next_status="supervision_ok"
-    target="$manager"
+    target="$owner"
     message="Supervision Decision: OK。Done recommendation: yes。$(team_relative_path "$supervision_file")を確認し、task間の制約にも問題がなければdoneにしてください。"
     ;;
   FIX)
@@ -132,7 +132,7 @@ case "$decision" in
     done_recommendation="false"
     done_recommendation_text="no"
     next_status="supervision_ask_manager"
-    target="$manager"
+    target="$owner"
     message="Supervision Decision: ASK_MANAGER。Done recommendation: no。$(team_relative_path "$supervision_file")を確認し、Managerが判断するか、Leadへ確認してください。"
     ;;
 esac
@@ -151,7 +151,7 @@ team_update_markdown_field "$report_file" "Done recommendation" "$done_recommend
 
 team_write_task_state \
   "$task_id" \
-  "$manager" \
+  "$owner" \
   "$worker" \
   "$supervisor_id" \
   "$next_status" \

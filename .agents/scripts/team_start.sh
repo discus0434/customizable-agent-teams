@@ -151,9 +151,9 @@ main() {
 
   local first=1
   [[ "$session_exists" -eq 1 ]] && first=0
-  while IFS='|' read -r id role cli model effort window supervisor mode; do
+  while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
-    if [[ "$mode" == "exec" ]]; then
+    if team_config_role_is_exec "$role"; then
       continue
     fi
     if [[ "$lead_only" -eq 1 && "$role" != "lead" ]]; then

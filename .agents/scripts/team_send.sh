@@ -133,7 +133,7 @@ load_task_assignment() {
     "task state not found: $task_id" \
     "$type requires a dispatched task" \
     "dispatch the task first"
-  task_manager="$(team_task_state_field "$task_id" manager)"
+  task_owner="$(team_task_state_field "$task_id" owner)"
   task_worker="$(team_task_state_field "$task_id" worker)"
   task_supervisor="$(team_task_state_field "$task_id" supervisor)"
   task_status="$(team_task_state_field "$task_id" status)"
@@ -185,7 +185,7 @@ case "$type" in
         load_task_assignment
         [[ "$task_supervisor" == "$from" ]] || die_rule "supervisor is not assigned to $task_id" "only the fixed task supervisor may request task-local analysis" "send from $task_supervisor"
         subtype="${from_role}-supervision"
-        cc_to="$task_manager"
+        cc_to="$task_owner"
         ;;
       general-worker|hard-task-worker|frontend-worker)
         load_task_assignment
@@ -211,7 +211,7 @@ case "$type" in
           "strategy result target does not supervise $task_id" \
           "task supervisor is $task_supervisor" \
           "send to $task_supervisor"
-        cc_to="$task_manager"
+        cc_to="$task_owner"
         ;;
       *)
         die_rule \
@@ -230,7 +230,7 @@ case "$type" in
         load_task_assignment
         [[ "$task_supervisor" == "$from" ]] || die_rule "supervisor is not assigned to $task_id" "only the fixed task supervisor may request task-local architecture direction" "send from $task_supervisor"
         subtype="${from_role}-supervision"
-        cc_to="$task_manager"
+        cc_to="$task_owner"
         ;;
       release-captain)
         [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "release architecture request requires BUNDLE" "release readiness is scoped to one bundle" "pass BUNDLE=<bundle_id>"
@@ -250,7 +250,7 @@ case "$type" in
     if [[ -n "$task_id" && "$task_id" != "-" ]]; then
       load_task_assignment
       team_write_task_state \
-        "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "$task_status" \
+        "$task_id" "$task_owner" "$task_worker" "$task_supervisor" "$task_status" \
         "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
         "$task_supervision_decision" "${task_done_recommendation:-false}" "true" "$artifact_path" \
         "$task_release_bundle" "$task_direction_status" "$task_direction_artifact"
@@ -265,7 +265,7 @@ case "$type" in
       general-reviewer|frontend-critic)
         load_task_assignment
         [[ "$to" == "$task_supervisor" ]] || die_rule "architecture result target does not supervise $task_id" "task supervisor is $task_supervisor" "send to $task_supervisor"
-        cc_to="$task_manager"
+        cc_to="$task_owner"
         ;;
       release-captain)
         [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "architecture_result requires BUNDLE" "the result returns to one release review" "pass BUNDLE=<bundle_id>"
@@ -308,11 +308,11 @@ case "$type" in
   manager_fix)
     [[ "$from_role" == "manager" ]] || die_rule "manager_fix sender must be manager" "only Manager returns an accepted task to its implementation pair" "send from manager"
     load_task_assignment
-    [[ "$from" == "$task_manager" ]] || die "task manager is $task_manager, not $from"
+    [[ "$from" == "$task_owner" ]] || die "task owner is $task_owner, not $from"
     [[ "$task_status" == "supervision_ok" ]] || die_rule "task is not awaiting Manager done decision: $task_id" "status=$task_status, but manager_fix requires supervision_ok" "wait for supervisor OK or use supervision_feedback earlier"
     [[ "$to" == "$task_worker" || "$to" == "$task_supervisor" ]] || die_rule "manager_fix target is outside the implementation pair" "the task pair is $task_worker and $task_supervisor" "send to one of the task pair"
     team_write_task_state \
-      "$task_id" "$task_manager" "$task_worker" "$task_supervisor" "manager_fix" \
+      "$task_id" "$task_owner" "$task_worker" "$task_supervisor" "manager_fix" \
       "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
       "FIX" "false" "$task_architecture_required" "$task_architecture" "$task_release_bundle" \
       "$task_direction_status" "$task_direction_artifact"
@@ -324,12 +324,12 @@ case "$type" in
     else
       [[ "$from_role" == "manager" ]] || die "task_assigned sender must be manager"
     fi
-    [[ "$from" == "$task_manager" && "$to" == "$task_worker" ]] || die "task_assigned route does not match task state"
+    [[ "$from" == "$task_owner" && "$to" == "$task_worker" ]] || die "task_assigned route does not match task state"
     ;;
   supervision_assigned)
     [[ "$from_role" == "manager" ]] || die "supervision_assigned sender must be manager"
     load_task_assignment
-    [[ "$from" == "$task_manager" && "$to" == "$task_supervisor" ]] || die "supervision_assigned route does not match task state"
+    [[ "$from" == "$task_owner" && "$to" == "$task_supervisor" ]] || die "supervision_assigned route does not match task state"
     ;;
   supervision_checkpoint|ready_for_supervision|view_direction_ready)
     require_assigned_worker_to_supervisor
@@ -361,7 +361,7 @@ case "$type" in
     load_task_assignment
     [[ "$task_id" == T-E-* ]] || die "express_ready requires an express task id"
     [[ "$from" == "$task_worker" ]] || die "express_ready sender must be the assigned express worker"
-    [[ "$to" == "$task_manager" ]] || die "express_ready target must be the dispatching lead"
+    [[ "$to" == "$task_owner" ]] || die "express_ready target must be the dispatching lead"
     [[ "$task_status" == "ready_for_lead" ]] || die_rule \
       "task is not ready for lead review: $task_id" \
       "task status is $task_status, but express_ready requires a current implementation report" \
@@ -382,12 +382,12 @@ case "$type" in
   view_direction_result)
     load_task_assignment
     [[ "$from" == "$task_supervisor" && "$from_role" == "frontend-critic" ]] || die "view_direction_result sender must be the assigned frontend-critic"
-    [[ "$to" == "$task_worker" || "$to" == "$task_manager" ]] || die "view_direction_result target must be task worker or manager"
+    [[ "$to" == "$task_worker" || "$to" == "$task_owner" ]] || die "view_direction_result target must be task worker or manager"
     ;;
   supervision_result)
     load_task_assignment
     [[ "$from" == "$task_supervisor" ]] || die "supervision_result sender must be the assigned supervisor"
-    [[ "$to" == "$task_worker" || "$to" == "$task_manager" ]] || die "supervision_result target must be task worker or manager"
+    [[ "$to" == "$task_worker" || "$to" == "$task_owner" ]] || die "supervision_result target must be task worker or manager"
     ;;
   research_request)
     [[ "$from_role" =~ ^(lead|manager|strategist|architect|release-captain)$ ]] || die "invalid research_request sender role: $from_role"

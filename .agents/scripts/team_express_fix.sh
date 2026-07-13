@@ -33,7 +33,7 @@ ensure_team_dirs
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 
-manager="$(team_task_state_field "$task_id" manager)"
+owner="$(team_task_state_field "$task_id" owner)"
 worker="$(team_task_state_field "$task_id" worker)"
 status="$(team_task_state_field "$task_id" status)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
@@ -44,7 +44,7 @@ release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 direction_status="$(team_task_state_field "$task_id" direction_status)"
 direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
-[[ "$manager" == "$lead_id" ]] || die "task $task_id belongs to $manager, not $lead_id"
+[[ "$owner" == "$lead_id" ]] || die "task $task_id belongs to $owner, not $lead_id"
 case "$status" in
   ready_for_lead|blocked) ;;
   *) die_rule \
@@ -56,10 +56,20 @@ esac
 "$SCRIPT_DIR/team_send.sh" --from "$lead_id" --type request --task "$task_id" "$worker" "$feedback" >/dev/null
 
 team_write_task_state \
-  "$task_id" "$manager" "$worker" "" "dispatched" \
+  "$task_id" "$owner" "$worker" "" "dispatched" \
   "$base_commit" "$task_commits" "$report_file" "" \
   "" "false" "$architecture_required" "" "$release_bundle" \
   "$direction_status" "$direction_artifact"
+
+session_id=""
+exec_state="$TEAM_STATE_DIR/exec/$worker.env"
+if [[ -f "$exec_state" ]]; then
+  session_id="$(sed -n "s/^session_id='\{0,1\}\([0-9a-f-]*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
+fi
+[[ -n "$session_id" ]] || die_rule \
+  "express fix has no session to resume: $task_id" \
+  "the last exec run of $worker left no recorded codex session id" \
+  "mark the task blocked, delete its state, and dispatch it again as a new express or normal task"
 
 resume_prompt="Leadからexpress task ${task_id}へのfix feedbackです。
 ${feedback}
@@ -70,30 +80,9 @@ feedbackを反映し、task固有の検証とmake post-changeとmake smokeを再
 その後、make report TASK=${task_id} STATUS=ready_for_leadを再実行して証拠を更新し、
 make team-send TO=${lead_id} TYPE=express_ready TASK=${task_id} BODY=\"<要点>\"で再報告してください。"
 
-session_id=""
-exec_state="$TEAM_STATE_DIR/exec/$worker.env"
-if [[ -f "$exec_state" ]]; then
-  # shellcheck disable=SC1090
-  source "$exec_state"
-  session_id="${session_id:-}"
-fi
-
-exec_args=(--kind task --ref "$task_id" --notify "$lead_id")
-if [[ -n "$session_id" ]]; then
-  exec_args+=(--resume "$session_id")
-else
-  resume_prompt="あなたはこのteamのexpress worker、agent_id=${worker}です。
-make team-identityで自分を確認し、AGENTS.mdとteam-express-worker skillに従ってください。
-.agents/queue/tasks/${task_id}.mdと既存のreport ${report_file}を読んでから、次のfeedbackに対応してください。
-
-${resume_prompt}"
-fi
-
-"$SCRIPT_DIR/team_exec_run.sh" "${exec_args[@]}" "$worker" "$resume_prompt" >/dev/null || die_rule \
+"$SCRIPT_DIR/team_exec_run.sh" --resume "$session_id" --kind task --ref "$task_id" --notify "$lead_id" "$worker" "$resume_prompt" >/dev/null || die_rule \
   "express fix exec launch failed: $task_id" \
   "$worker could not start a codex exec run" \
   "inspect .agents/queue/state/exec/${worker}.err, then run make express-fix again"
 
-printf 'task=%s\nstatus=dispatched\nworker=%s\n' "$task_id" "$worker"
-[[ -n "$session_id" ]] && printf 'resumed_session=%s\n' "$session_id"
-exit 0
+printf 'task=%s\nstatus=dispatched\nworker=%s\nresumed_session=%s\n' "$task_id" "$worker" "$session_id"

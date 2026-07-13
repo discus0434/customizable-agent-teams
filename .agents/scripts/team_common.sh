@@ -893,15 +893,14 @@ team_write_research_state() {
   local request_message_id="$5"
   local artifact="$6"
   local task_id="$7"
-  local question_message_id="$8"
-  local created_at="$9"
+  local created_at="$8"
   local state_file
   local updated_at
 
   state_file="$(team_research_state_file "$request_id")"
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
-  printf '{"request_id":"%s","caller":"%s","worker":"%s","status":"%s","request_message_id":"%s","artifact":"%s","task_id":"%s","question_message_id":"%s","created_at":"%s","updated_at":"%s"}\n' \
+  printf '{"request_id":"%s","caller":"%s","worker":"%s","status":"%s","request_message_id":"%s","artifact":"%s","task_id":"%s","created_at":"%s","updated_at":"%s"}\n' \
     "$(json_string "$request_id")" \
     "$(json_string "$caller")" \
     "$(json_string "$worker")" \
@@ -909,7 +908,6 @@ team_write_research_state() {
     "$(json_string "$request_message_id")" \
     "$(json_string "$artifact")" \
     "$(json_string "$task_id")" \
-    "$(json_string "$question_message_id")" \
     "$(json_string "$created_at")" \
     "$updated_at" > "$state_file"
 }
@@ -969,7 +967,7 @@ team_release_state_field() {
 
 team_write_task_state() {
   local task_id="$1"
-  local manager="$2"
+  local owner="$2"
   local worker="$3"
   local supervisor="$4"
   local status="$5"
@@ -991,9 +989,9 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","manager":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","task_commits":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","owner":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","task_commits":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
-    "$(json_string "$manager")" \
+    "$(json_string "$owner")" \
     "$(json_string "$worker")" \
     "$(json_string "$supervisor")" \
     "$(json_string "$status")" \

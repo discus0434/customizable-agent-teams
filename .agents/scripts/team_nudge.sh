@@ -18,7 +18,7 @@ if [[ "${TEAM_DISABLE_NUDGE:-0}" == "1" ]]; then
   exit 0
 fi
 
-if [[ "$(team_config_agent_field "$agent_id" mode 2>/dev/null || true)" == "exec" ]]; then
+if team_config_role_is_exec "$(team_config_agent_field "$agent_id" role)"; then
   exit 0
 fi
 

@@ -146,7 +146,7 @@ team_write_release_state \
   "$tasks"
 
 for task_id in "$@"; do
-  task_manager="$(team_task_state_field "$task_id" manager)"
+  task_owner="$(team_task_state_field "$task_id" owner)"
   worker="$(team_task_state_field "$task_id" worker)"
   supervisor="$(team_task_state_field "$task_id" supervisor)"
   status="$(team_task_state_field "$task_id" status)"
@@ -162,7 +162,7 @@ for task_id in "$@"; do
   direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
   team_write_task_state \
     "$task_id" \
-    "$task_manager" \
+    "$task_owner" \
     "$worker" \
     "$supervisor" \
     "$status" \

@@ -23,7 +23,6 @@ status="$(team_research_state_field "$request_id" status)"
 request_message_id="$(team_research_state_field "$request_id" request_message_id)"
 artifact="$(team_research_state_field "$request_id" artifact)"
 task_id="$(team_research_state_field "$request_id" task_id)"
-question_message_id="$(team_research_state_field "$request_id" question_message_id)"
 created_at="$(team_research_state_field "$request_id" created_at)"
 [[ "$caller" == "$caller_id" ]] || {
   release_team_lock
@@ -39,21 +38,17 @@ esac
 
 if [[ -n "$worker" ]]; then
   "$SCRIPT_DIR/team_send.sh" --from "$caller_id" --type research_cancelled --task "$task_id" --research "$request_id" "$worker" "$reason" >/dev/null
-  if [[ "$(team_config_agent_field "$worker" mode 2>/dev/null || true)" == "exec" ]]; then
-    exec_state="$TEAM_STATE_DIR/exec/$worker.env"
-    if [[ -f "$exec_state" ]]; then
-      pid=""
-      ref=""
-      # shellcheck disable=SC1090
-      source "$exec_state"
-      if [[ "$ref" == "$request_id" && -n "${pid:-}" ]] && kill -0 "$pid" 2>/dev/null; then
-        pkill -TERM -P "$pid" 2>/dev/null || true
-        kill -TERM "$pid" 2>/dev/null || true
-      fi
+  exec_state="$TEAM_STATE_DIR/exec/$worker.env"
+  if [[ -f "$exec_state" ]]; then
+    exec_pid="$(sed -n "s/^pid='\{0,1\}\([0-9]*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
+    exec_ref="$(sed -n "s/^ref='\{0,1\}\([^']*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
+    if [[ "$exec_ref" == "$request_id" && -n "$exec_pid" ]] && kill -0 "$exec_pid" 2>/dev/null; then
+      pkill -TERM -P "$exec_pid" 2>/dev/null || true
+      kill -TERM "$exec_pid" 2>/dev/null || true
     fi
   fi
 fi
-team_write_research_state "$request_id" "$caller" "$worker" "cancelled" "$request_message_id" "$artifact" "$task_id" "$question_message_id" "$created_at"
+team_write_research_state "$request_id" "$caller" "$worker" "cancelled" "$request_message_id" "$artifact" "$task_id" "$created_at"
 team_update_markdown_field "$TEAM_ROOT/$artifact" "Status" "cancelled"
 release_team_lock
 

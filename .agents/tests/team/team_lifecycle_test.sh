@@ -131,6 +131,7 @@ cat > "$TMP_BASE/bin/codex" <<'SH'
 if [[ -n "${TEAM_FAKE_CODEX_LOG:-}" ]]; then
   printf 'codex %s\n' "$*" >> "$TEAM_FAKE_CODEX_LOG"
 fi
+printf '%s\n' '{"type":"thread.started","thread_id":"00000000-0000-4000-8000-000000000000"}'
 exit 0
 SH
 chmod +x "$TMP_BASE/bin/codex"
@@ -145,28 +146,28 @@ git -C "$TMP_ROOT" commit -qm "Initial template"
 
 # Config and launcher contracts.
 team "$TMP_ROOT/.agents/scripts/team_config.sh" validate
-research_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command research-worker-1)"
 general_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command general-worker-1)"
 hard_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command hard-task-worker-1)"
 reviewer_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command general-reviewer-1)"
 critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command frontend-critic-1)"
-[[ "$research_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "research worker lost Codex permission bypass"
-[[ "$research_command" == *"--search"* ]] || fail "research worker is not launched with Web search"
 [[ "$general_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "general worker lost Codex permission bypass"
 [[ "$general_command" == *"--model gpt-5.6-luna"* ]] || fail "general worker model is not gpt-5.6-luna"
 [[ "$general_command" == *'model_reasoning_effort=\"high\"'* ]] || fail "general worker effort is not high"
-[[ "$general_command" != *"--search"* ]] || fail "general worker unexpectedly enables Web search"
 [[ "$hard_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "hard task worker lost Codex permission bypass"
 [[ "$hard_command" == *"--model gpt-5.6-sol"* ]] || fail "hard task worker model is not gpt-5.6-sol"
 [[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
-[[ "$hard_command" != *"--search"* ]] || fail "hard task worker unexpectedly enables Web search"
 [[ "$reviewer_command" == *"--model gpt-5.6-sol"* ]] || fail "general reviewer model is not gpt-5.6-sol"
 [[ "$reviewer_command" == *'model_reasoning_effort=\"low\"'* ]] || fail "general reviewer effort is not low"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
-[[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field research-worker-1 mode)" == "exec" ]] \
-  || fail "research worker is not configured as exec mode"
-[[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field express-worker-1 mode)" == "exec" ]] \
-  || fail "express worker is not configured as exec mode"
+if team "$TMP_ROOT/.agents/scripts/team_config.sh" command research-worker-1 \
+  > /dev/null 2> "$TMP_BASE/exec-launcher.err"; then
+  fail "on-demand research worker offered a resident launcher"
+fi
+grep -q 'on-demand role has no resident launcher' "$TMP_BASE/exec-launcher.err"
+if team "$TMP_ROOT/.agents/scripts/team_config.sh" command express-worker-1 \
+  > /dev/null 2>> "$TMP_BASE/exec-launcher.err"; then
+  fail "on-demand express worker offered a resident launcher"
+fi
 [[ "$(team "$TMP_ROOT/.agents/scripts/team_config.sh" field express-worker-1 model)" == "gpt-5.6-luna" ]] \
   || fail "express worker model does not match the research worker tier"
 
@@ -231,7 +232,7 @@ cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/
 perl -0pi -e 's/T-XXX/T-GENERAL/g; s#\x60path/to/file\x60#\x60general-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-GENERAL >/dev/null
-general_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-GENERAL)"
+general_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-GENERAL)"
 grep -q '"worker":"general-worker-1"' "$general_state"
 grep -q '"supervisor":"general-reviewer-1"' "$general_state"
 grep -q '^Supervisor: general-reviewer-1$' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
@@ -248,7 +249,7 @@ grep -q '^error: task path ownership patterns overlap: conflict-output.txt and \
 cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-BUSY.md"
 perl -0pi -e 's/T-XXX/T-BUSY/g; s#\x60path/to/file\x60#\x60busy-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-BUSY.md"
-if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-BUSY > /dev/null 2> "$TMP_BASE/busy.err"; then
+if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-BUSY > /dev/null 2> "$TMP_BASE/busy.err"; then
   fail "dispatch accepted a busy fixed pair"
 fi
 grep -q '^error: implementation worker is busy: general-worker-1$' "$TMP_BASE/busy.err"
@@ -443,7 +444,7 @@ cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/
 perl -0pi -e 's/T-XXX/T-HARD/g; s/Worker: general-worker-1/Worker: hard-task-worker-1/; s#\x60path/to/file\x60#\x60hard-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-HARD.md"
 team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-HARD >/dev/null
-hard_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-HARD)"
+hard_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-HARD)"
 grep -q '"worker":"hard-task-worker-1"' "$hard_state"
 grep -q '"supervisor":"general-reviewer-4"' "$hard_state"
 grep -q '^Supervisor: general-reviewer-4$' "$TMP_ROOT/.agents/queue/tasks/T-HARD.md"
@@ -464,7 +465,7 @@ cp "$TMP_ROOT/.agents/queue/tasks/FRONTEND_TEMPLATE.md" "$TMP_ROOT/.agents/queue
 perl -0pi -e 's/T-XXX/T-FRONTEND/g; s#\x60path/to/frontend/file\x60#\x60frontend-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-FRONTEND.md"
 team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-FRONTEND >/dev/null
-frontend_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-FRONTEND)"
+frontend_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-FRONTEND)"
 grep -q '"direction_status":"pending"' "$frontend_state"
 
 if as_agent frontend-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-FRONTEND needs_supervision \
@@ -614,16 +615,16 @@ if team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-BAD \
 fi
 grep -q 'express task cannot own a governance path' "$TMP_BASE/express-governance.err"
 
-if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager manager T-E-001 \
+if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-E-001 \
   > /dev/null 2> "$TMP_BASE/express-manager.err"; then
   fail "express dispatch accepted the manager as dispatcher"
 fi
 grep -q 'express dispatch sender is not lead' "$TMP_BASE/express-manager.err"
 
-express_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager lead T-E-001)"
+express_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner lead T-E-001)"
 grep -q '"worker":"express-worker-1"' "$express_state"
 grep -q '"supervisor":""' "$express_state"
-grep -q '"manager":"lead"' "$express_state"
+grep -q '"owner":"lead"' "$express_state"
 for _attempt in $(seq 1 50); do
   grep -q 'T-E-001' "$TEAM_FAKE_CODEX_LOG" 2>/dev/null && break
   /bin/sleep 0.1
@@ -633,7 +634,7 @@ grep -q 'T-E-001' "$TEAM_FAKE_CODEX_LOG" || fail "express exec run did not recei
 cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-002.md"
 perl -0pi -e 's/T-E-XXX/T-E-002/g; s#\x60path/to/file\x60#\x60second-express-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-E-002.md"
-if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --manager lead T-E-002 \
+if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner lead T-E-002 \
   > /dev/null 2> "$TMP_BASE/express-flight.err"; then
   fail "express dispatch accepted a second in-flight task"
 fi
@@ -657,17 +658,8 @@ write_express_report() {
 # Report: T-E-001 by express-worker-1
 
 Status: ready_for_lead
-Supervisor: none
 Base commit: $express_base
 Task commits: $commits
-Supervision artifact: none
-Supervision decision: none
-Done recommendation: false
-Architecture required: false
-Architecture: none
-Release bundle: none
-Direction status: not_applicable
-Direction artifact: none
 
 ## Summary
 
@@ -712,6 +704,12 @@ grep -q "Task commits: $express_commit" <<<"$lead_inbox_raw"
 
 as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." >/dev/null
 [[ "$(state_field task T-E-001 status)" == "dispatched" ]] || fail "express fix did not return the task to dispatched"
+for _attempt in $(seq 1 50); do
+  grep -q 'codex exec resume 00000000-0000-4000-8000-000000000000' "$TEAM_FAKE_CODEX_LOG" 2>/dev/null && break
+  /bin/sleep 0.1
+done
+grep -q 'codex exec resume 00000000-0000-4000-8000-000000000000' "$TEAM_FAKE_CODEX_LOG" \
+  || fail "express fix did not resume the recorded codex session"
 printf '%s\n' "express change refined" > "$TMP_ROOT/express-output.txt"
 express_fix_output="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-E-001 "refine express output")"
 express_fix_commit="$(printf '%s\n' "$express_fix_output" | sed -n 's/^commit=//p')"

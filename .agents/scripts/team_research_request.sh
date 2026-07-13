@@ -47,7 +47,7 @@ artifact="$TEAM_ROOT/$artifact_rel"
 } > "$artifact"
 
 acquire_team_lock "research-queue"
-team_write_research_state "$request_id" "$from" "" "queued" "" "$artifact_rel" "$task_id" "" "$created_at"
+team_write_research_state "$request_id" "$from" "" "queued" "" "$artifact_rel" "$task_id" "$created_at"
 release_team_lock
 
 "$SCRIPT_DIR/team_research_assign.sh"

@@ -7,16 +7,16 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 usage() {
-  echo "usage: team_dispatch.sh [--manager <manager_id>] <task_id>" >&2
+  echo "usage: team_dispatch.sh [--owner <agent_id>] <task_id>" >&2
 }
 
-manager_id=""
+owner_id=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --manager)
-      [[ $# -ge 2 ]] || die "--manager requires a value"
-      manager_id="$2"
+    --owner)
+      [[ $# -ge 2 ]] || die "--owner requires a value"
+      owner_id="$2"
       shift 2
       ;;
     -h|--help)
@@ -45,28 +45,28 @@ esac
 ensure_team_dirs
 team_config_validate
 
-if [[ -z "$manager_id" ]]; then
+if [[ -z "$owner_id" ]]; then
   [[ -n "${TEAM_AGENT_ID+x}" && -n "$TEAM_AGENT_ID" ]] || die_rule \
     "dispatcher is required for dispatch" \
     "dispatch records the task owner, but this shell has no TEAM_AGENT_ID" \
-    "run dispatch inside the manager or lead pane, or pass MANAGER=<agent_id>"
-  manager_id="$TEAM_AGENT_ID"
+    "run dispatch inside the manager or lead pane, or pass OWNER=<agent_id>"
+  owner_id="$TEAM_AGENT_ID"
 fi
 
-team_config_agent_record "$manager_id" >/dev/null || die_rule \
-  "unknown dispatcher: $manager_id" \
+team_config_agent_record "$owner_id" >/dev/null || die_rule \
+  "unknown dispatcher: $owner_id" \
   "the dispatch sender must be present in $TEAM_CONFIG_FILE" \
-  "run from the configured manager pane or pass MANAGER=<agent_id>"
-manager_role="$(team_config_agent_field "$manager_id" role)"
+  "run from the configured manager pane or pass OWNER=<agent_id>"
+dispatcher_role="$(team_config_agent_field "$owner_id" role)"
 if [[ "$lane" == "express" ]]; then
-  [[ "$manager_role" == "lead" ]] || die_rule \
-    "express dispatch sender is not lead: $manager_id" \
-    "$manager_id has role $manager_role, but express tasks belong to Lead" \
+  [[ "$dispatcher_role" == "lead" ]] || die_rule \
+    "express dispatch sender is not lead: $owner_id" \
+    "$owner_id has role $dispatcher_role, but express tasks belong to Lead" \
     "run express dispatch from the lead pane"
 else
-  [[ "$manager_role" == "manager" ]] || die_rule \
-    "dispatch sender is not manager: $manager_id" \
-    "$manager_id has role $manager_role" \
+  [[ "$dispatcher_role" == "manager" ]] || die_rule \
+    "dispatch sender is not manager: $owner_id" \
+    "$owner_id has role $dispatcher_role" \
     "run dispatch from the manager pane"
 fi
 
@@ -110,9 +110,7 @@ fi
 
 if [[ "$lane" == "express" ]]; then
   supervisor_id=""
-  supervisor_role=""
   direction_status="not_applicable"
-  supervision_path=""
 else
   supervisor_id="$(team_config_agent_field "$worker_id" supervisor)"
   supervisor_role="$(team_config_agent_field "$supervisor_id" role)"
@@ -154,7 +152,7 @@ fi
 acquire_team_lock "dispatch-$task_id"
 team_write_task_state \
   "$task_id" \
-  "$manager_id" \
+  "$owner_id" \
   "$worker_id" \
   "$supervisor_id" \
   "dispatched" \
@@ -172,8 +170,8 @@ team_write_task_state \
 release_team_lock
 
 if [[ "$lane" == "express" ]]; then
-  worker_body="${task_file}を読み、express taskとして実装からreportまで進めてください。Supervisorはいません。完了報告はexpress_readyで${manager_id}へ送ってください。"
-  team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
+  worker_body="${task_file}を読み、express taskとして実装からreportまで進めてください。Supervisorはいません。完了報告はexpress_readyで${owner_id}へ送ってください。"
+  team_send_with_body_file "$owner_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
 
   exec_prompt="あなたはこのteamのexpress worker、agent_id=${worker_id}です。
 make team-identityで自分を確認し、AGENTS.mdとteam-express-worker skillに従ってください。
@@ -181,9 +179,9 @@ express task ${task_id}が割り当てられています。.agents/queue/tasks/$
 検証はtask固有の検証に加えて、make post-changeとmake smokeを実行してください。
 変更のcommitはmake task-commit TASK=${task_id} MESSAGE=\"<summary>\"で行ってください。
 その後、make report TASK=${task_id} STATUS=ready_for_leadを実行し、reportのplaceholderをすべて実測の証拠で埋めてください。
-最後にmake team-send TO=${manager_id} TYPE=express_ready TASK=${task_id} BODY=\"<要点>\"でLeadへ報告してください。
-Supervisorはいません。解消できないblockerがあれば、make team-send TO=${manager_id} TYPE=question TASK=${task_id} BODY=\"<質問>\"を送って終了してください。"
-  if ! "$SCRIPT_DIR/team_exec_run.sh" --kind task --ref "$task_id" --notify "$manager_id" "$worker_id" "$exec_prompt" >/dev/null; then
+最後にmake team-send TO=${owner_id} TYPE=express_ready TASK=${task_id} BODY=\"<要点>\"でLeadへ報告してください。
+Supervisorはいません。解消できないblockerがあれば、make team-send TO=${owner_id} TYPE=question TASK=${task_id} BODY=\"<質問>\"を送って終了してください。"
+  if ! "$SCRIPT_DIR/team_exec_run.sh" --kind task --ref "$task_id" --notify "$owner_id" "$worker_id" "$exec_prompt" >/dev/null; then
     die_rule \
       "express exec launch failed: $task_id" \
       "$worker_id could not start a codex exec run" \
@@ -193,8 +191,8 @@ else
   worker_body="${task_file}を読み、固定Supervisor ${supervisor_id}と連携してtaskを進めてください。"
   supervisor_body="${task_file}を読み、固定Worker ${worker_id}の相談と最終判断を担当してください。最終成果物は${supervision_path}へ書いてください。"
 
-  team_send_with_body_file "$manager_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
-  team_send_with_body_file "$manager_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
+  team_send_with_body_file "$owner_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
+  team_send_with_body_file "$owner_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
 fi
 
 printf '%s\n' "$state_file"
