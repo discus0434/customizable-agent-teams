@@ -52,11 +52,16 @@ team_tmux_pane_is_busy() {
 
 team_tmux_input_is_pending() {
   local pane="$1"
+  local cli="$2"
   local input_line
   local content
 
-  input_line="$(team_tmux_capture_pane "$pane" | grep -E '^[❯›] ' | tail -n 1)"
-  content="${input_line#[❯›] }"
+  # 人間が入力するpaneはclaudeのLeadだけという設計を前提に、
+  # placeholderの語彙が固定できないcodex paneは判定しない。
+  [[ "$cli" == "claude" ]] || return 1
+
+  input_line="$(team_tmux_capture_pane "$pane" | grep -E '^❯ ' | tail -n 1)"
+  content="${input_line#❯ }"
   content="${content#"${content%%[![:space:]]*}"}"
   [[ -n "$content" ]] || return 1
   case "$content" in

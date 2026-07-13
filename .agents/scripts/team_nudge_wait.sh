@@ -27,7 +27,7 @@ for _attempt in $(seq 1 7200); do
   tmux has-session -t "$session" 2>/dev/null || exit 0
   team_tmux_pane_in_session "$pane" "$session" || exit 0
 
-  if ! team_tmux_pane_is_busy "$pane" && ! team_tmux_input_is_pending "$pane"; then
+  if ! team_tmux_pane_is_busy "$pane" && ! team_tmux_input_is_pending "$pane" "${cli:-}"; then
     team_tmux_send_text "$pane" "inbox $agent_id"
     exit 0
   fi
