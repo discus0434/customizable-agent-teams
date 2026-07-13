@@ -95,11 +95,6 @@ team_tmux_prepare_input() {
   tmux send-keys -t "$pane" C-u
 }
 
-team_tmux_pane_exists() {
-  local pane="$1"
-  tmux display-message -p -t "$pane" '#{pane_id}' >/dev/null 2>&1
-}
-
 team_tmux_pane_in_session() {
   local pane="$1"
   local expected_session="$2"
@@ -1120,23 +1115,6 @@ team_update_markdown_field() {
     }
   ' "$file" > "$tmp"
   mv "$tmp" "$file"
-}
-
-team_supervision_decision() {
-  local supervision_file="$1"
-  [[ -f "$supervision_file" ]] || return 0
-  awk '
-    /^Decision:[[:space:]]*(OK|FIX|ASK_MANAGER)[[:space:]]*$/ {
-      value = $0
-      sub(/^Decision:[[:space:]]*/, "", value)
-      print value
-      found = 1
-      exit
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' "$supervision_file"
 }
 
 team_state_file() {
