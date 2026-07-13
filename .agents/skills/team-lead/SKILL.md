@@ -58,12 +58,15 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 
 次のすべてを満たす依頼は、Managerを通さずexpress taskとして流せる。
 
-- 変更対象が少数のファイルに閉じ、境界が明確である。
-- 設計判断、他taskとの調整、architectureの確認が要らない。
+- 依頼の本質が1つの変更として完結する。
+- 複数taskへの分解、設計判断、他taskとの調整が要らない。
 - `.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`に触れない。
-- 失敗してもrollbackが1 commitの取り消しで済む。
 
-一つでも外れる場合、または迷う場合は、通常のintakeとしてManagerへ渡す。
+ファイル数は基準にしない。READMEなどdocsの随伴更新も含めてよい。
+
+`AGENTS.md`や`.agents/`の更新が混ざる依頼でも、その更新を切り離してexpressに収める判断はLeadがしてよい。切り離した場合は完了報告で明示する。
+
+分解や設計判断が要る場合、または迷う場合は、通常のintakeとしてManagerへ渡す。
 
 手順は次のとおり。
 
@@ -92,15 +95,16 @@ taskの範囲や成功条件が動く場合はexpressを中止し、通常task�
 
 実行中のtaskに関する技術判断は、ManagerまたはSupervisorからArchitectまたはStrategistへ相談する。
 
-## 完了報告
+## 受け入れと完了報告
 
-Managerから`completion_ready`を受けたら、次の情報を確認する。
+Managerから`completion_ready`を受けたら、Leadが受け入れ検証をする。
 
-- release decision。
-- 検証したcommit。
-- 最終検証の結果とlog。
-- 未解決事項。
-- 人間へ伝えるべき注意点。
+- 対象taskがすべて`done`で、reportとreviewが揃っていることを`make team-status`で確認する。
+- 現在のHEADで`make post-change`と`make smoke`を実行する。
+- 利用者に見える挙動を、可能な範囲で直接確認する。
+- 未解決事項と人間へ伝えるべき注意点を洗い出す。
+
+問題があればManagerへ差し戻し、なければ人間へ完了を報告する。
 
 将来の作業へ反映すべきmemory proposalとskill proposalも確認する。
 

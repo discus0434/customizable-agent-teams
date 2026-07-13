@@ -72,7 +72,6 @@ source_from="$(printf '%s\n' "$source_line" | extract_json_field from)"
 source_to="$(printf '%s\n' "$source_line" | extract_json_field to)"
 source_type="$(printf '%s\n' "$source_line" | extract_json_field type)"
 task_id="$(printf '%s\n' "$source_line" | extract_json_field task_id)"
-bundle_id="$(printf '%s\n' "$source_line" | extract_json_field bundle_id)"
 research_id="$(printf '%s\n' "$source_line" | extract_json_field research_id)"
 
 [[ "$source_to" == "$from" ]] || die_rule \
@@ -120,7 +119,6 @@ fi
 
 send_args=(--from "$from" --type "$type" --requires-attention)
 [[ -n "$task_id" ]] && send_args+=(--task "$task_id")
-[[ -n "$bundle_id" ]] && send_args+=(--bundle "$bundle_id")
 [[ -n "$research_id" ]] && send_args+=(--research "$research_id")
 "$SCRIPT_DIR/team_send.sh" "${send_args[@]}" "$to" "$body"
 

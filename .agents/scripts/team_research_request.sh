@@ -26,7 +26,7 @@ ensure_team_dirs
 team_config_validate
 team_config_agent_record "$from" >/dev/null || die "unknown research caller: $from"
 case "$(team_config_agent_field "$from" role)" in
-  lead|manager|strategist|architect|release-captain) ;;
+  lead|manager|strategist|architect) ;;
   *) die "role cannot request research: $(team_config_agent_field "$from" role)" ;;
 esac
 

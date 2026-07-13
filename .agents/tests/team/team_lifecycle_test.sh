@@ -73,7 +73,6 @@ post-change:
 	@echo "temp post-change ok"
 
 smoke:
-	@if [ -f .agents/queue/state/fail-release-smoke ]; then echo "forced release smoke failure" >&2; exit 1; fi
 	@echo "temp smoke ok"
 
 include .agents/agent-team.mk
@@ -384,7 +383,6 @@ Supervision decision: none
 Done recommendation: false
 Architecture required: false
 Architecture: none
-Release bundle: none
 Direction status: not_applicable
 Direction artifact: none
 
@@ -545,7 +543,6 @@ Supervision decision: none
 Done recommendation: false
 Architecture required: false
 Architecture: none
-Release bundle: none
 Direction status: proceed
 Direction artifact: .agents/queue/direction-critiques/T-FRONTEND_frontend-critic-1.md
 
@@ -805,127 +802,35 @@ research_status="$(team "$TMP_ROOT/.agents/scripts/team_status.sh")"
 [[ "$research_status" != *"$first_request"* ]] || fail "completed research appeared in active team status"
 [[ "$research_status" != *"$sixth_request"* ]] || fail "cancelled research appeared in active team status"
 
-# Whole-system release gate.
-team "$TMP_ROOT/.agents/scripts/team_release_prepare.sh" \
-  --manager manager R-001 T-GENERAL T-FRONTEND >/dev/null
-release_bundle="$TMP_ROOT/.agents/queue/releases/R-001.md"
-cat > "$release_bundle" <<'BUNDLE'
-# Release Bundle: R-001
-
-Status: prepared
-Manager: manager
-Release captain: release-captain
-Review: .agents/queue/releases/R-001_review.md
-Decision: none
-
-## Goal
-
-- Ship both implementation tasks.
-
-## Included tasks
-
-- T-GENERAL
-- T-FRONTEND
-
-## Evidence summary
-
-- Both tasks are done with Supervisor OK.
-
-## Known issues
-
-- None.
-
-## Requested decision
-
-- Decide SHIP, FIX, or BLOCKED.
-BUNDLE
-team "$TMP_ROOT/.agents/scripts/team_release_request.sh" \
-  --manager manager R-001 T-GENERAL T-FRONTEND >/dev/null
-
-release_review="$TMP_ROOT/.agents/queue/releases/R-001_review.md"
-cat > "$release_review" <<'RELEASE'
-# Release Review: R-001
-
-Decision: none
-Bundle: .agents/queue/releases/R-001.md
-Manager: manager
-Release captain: release-captain
-Verified commit: pending
-Post-change: pending
-Post-change evidence: .agents/queue/releases/R-001_post-change.log
-Smoke: pending
-Smoke evidence: .agents/queue/releases/R-001_smoke.log
-
-## Decision Summary
-
-- SHIP.
-
-## Bundle Checks
-
-- [x] Intent, tasks, evidence, and current state agree.
-
-## Evidence Reviewed
-
-- Reports, review, critique, visual evidence, commits, post-change, and smoke.
-
-## Caveats
-
-- None.
-
-## Required fixes
-
-- None.
-RELEASE
-printf '%s\n' "uncommitted release change" > "$TMP_ROOT/unreleased.txt"
-if team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP \
-  > /dev/null 2> "$TMP_BASE/release-dirty.err"; then
-  fail "SHIP accepted uncommitted project changes"
-fi
-grep -q '^error: release verification requires committed project changes$' \
-  "$TMP_BASE/release-dirty.err"
-grep -q 'unreleased.txt' "$TMP_BASE/release-dirty.err"
-[[ "$(state_field release R-001 status)" == "requested" ]] \
-  || fail "dirty release verification changed the release status"
-rm "$TMP_ROOT/unreleased.txt"
-touch "$TMP_ROOT/.agents/queue/state/fail-release-smoke"
-if team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP \
-  > /dev/null 2> "$TMP_BASE/release-smoke.err"; then
-  fail "SHIP accepted a failing release smoke check"
-fi
-grep -q '^error: release verification failed: make smoke$' "$TMP_BASE/release-smoke.err"
-[[ "$(state_field release R-001 status)" == "requested" ]] \
-  || fail "failed release verification changed the release status"
-rm "$TMP_ROOT/.agents/queue/state/fail-release-smoke"
-team "$TMP_ROOT/.agents/scripts/team_release_report.sh" R-001 release-captain SHIP >/dev/null
-[[ "$(state_field release R-001 status)" == "ship" ]] || fail "release did not reach ship"
-verified_release_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
-grep -q "^Verified commit: $verified_release_commit$" "$release_review"
-grep -q '^Post-change: passed$' "$release_review"
-grep -q '^Smoke: passed$' "$release_review"
-grep -q '^temp post-change ok$' "$TMP_ROOT/.agents/queue/releases/R-001_post-change.log"
-grep -q '^temp smoke ok$' "$TMP_ROOT/.agents/queue/releases/R-001_smoke.log"
-
-if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001 \
+# Completion flow: completion_ready, acceptance ack, and the STATE commit gate.
+if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" \
   > /dev/null 2> "$TMP_BASE/state-no-ack.err"; then
-  fail "completion state commit accepted a release without completion_ack"
+  fail "completion state commit accepted a completion without completion_ack"
 fi
-grep -q '^error: completion acknowledgment is not pending: R-001$' "$TMP_BASE/state-no-ack.err"
+grep -q '^error: completion acknowledgment is not pending$' "$TMP_BASE/state-no-ack.err"
+
+if team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from lead --type completion_ready \
+  manager "Wrong direction." > /dev/null 2> "$TMP_BASE/completion-route.err"; then
+  fail "completion_ready accepted a non-manager sender"
+fi
+grep -q '^error: invalid completion_ready route$' "$TMP_BASE/completion-route.err"
 
 team "$TMP_ROOT/.agents/scripts/team_send.sh" \
-  --from manager --type completion_ready --bundle R-001 \
-  lead "R-001 is ready for the human completion report." >/dev/null
+  --from manager --type completion_ready \
+  lead "T-GENERAL and T-FRONTEND are done and ready for acceptance." >/dev/null
 ack_output="$(
   team "$TMP_ROOT/.agents/scripts/team_send.sh" \
-    --from lead --type completion_ack --bundle R-001 \
-    manager "R-001 was reported complete."
+    --from lead --type completion_ack \
+    manager "Completion was reported to the human."
 )"
 ack_id="$(printf '%s\n' "$ack_output" | sed -n 's/^message_id=//p')"
 [[ -n "$ack_id" ]] || fail "completion_ack returned no message id"
 
-printf '\n- R-001 is complete and the team is waiting for the next intake.\n' \
+printf '\n- The intake is complete and the team is waiting for the next one.\n' \
   >> "$TMP_ROOT/.agents/state/STATE.md"
 printf '%s\n' "unfinished change" > "$TMP_ROOT/unfinished.txt"
-if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001 \
+if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" \
   > /dev/null 2> "$TMP_BASE/state-dirty.err"; then
   fail "completion state commit accepted unrelated repository changes"
 fi
@@ -936,15 +841,21 @@ grep -q 'unfinished.txt' "$TMP_BASE/state-dirty.err"
   || fail "failed completion state commit consumed completion_ack"
 rm "$TMP_ROOT/unfinished.txt"
 
-state_commit_output="$(as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" R-001)"
+state_commit_output="$(as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh")"
 state_commit="$(printf '%s\n' "$state_commit_output" | sed -n 's/^commit=//p')"
 [[ -n "$state_commit" ]] || fail "completion state commit returned no commit hash"
 [[ "$(git -C "$TMP_ROOT" show --format= --name-only "$state_commit")" == ".agents/state/STATE.md" ]] \
   || fail "completion state commit included paths outside STATE.md"
-git -C "$TMP_ROOT" show -s --format=%B "$state_commit" | grep -q '^Agent-State: R-001$'
+git -C "$TMP_ROOT" show -s --format=%B "$state_commit" | grep -q "^Agent-State: $ack_id$"
 [[ -f "$TMP_ROOT/.agents/queue/state/processed/manager/$ack_id" ]] \
   || fail "completion state commit did not process completion_ack"
 [[ -z "$(git -C "$TMP_ROOT" status --short --untracked-files=all)" ]] \
   || fail "completion state commit did not leave a clean repository"
+
+if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" \
+  > /dev/null 2> "$TMP_BASE/state-reuse.err"; then
+  fail "completion state commit reused a processed completion_ack"
+fi
+grep -q '^error: completion acknowledgment is not pending$' "$TMP_BASE/state-reuse.err"
 
 echo "harness lifecycle ok"

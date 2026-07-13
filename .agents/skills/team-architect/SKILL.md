@@ -1,6 +1,6 @@
 ---
 name: team-architect
-description: ArchitectがLead、Manager、General Reviewer、Frontend Critic、Release Captainからarchitecture_requestを受け、技術方針、設計境界、共通化、test方針、task間の設計一貫性を判断するときに使う。
+description: ArchitectがLead、Manager、General Reviewer、Frontend Criticからarchitecture_requestを受け、技術方針、設計境界、共通化、test方針、task間の設計一貫性を判断するときに使う。
 ---
 
 # team-architect

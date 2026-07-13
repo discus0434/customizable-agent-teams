@@ -23,10 +23,6 @@
 | Task | Worker | Supervisor | Status | Next Action |
 | --- | --- | --- | --- | --- |
 
-## Bundles
-
-- なし。
-
 ## Blockers
 
 - なし。

@@ -64,7 +64,6 @@ case "$command" in
     done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
     architecture_required="$(team_task_state_field "$task_id" architecture_required)"
     architecture="$(team_task_state_field "$task_id" architecture)"
-    release_bundle="$(team_task_state_field "$task_id" release_bundle)"
     direction_status="$(team_task_state_field "$task_id" direction_status)"
     direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
@@ -116,8 +115,8 @@ case "$command" in
       "$task_id" "$owner" "$worker" "$supervisor" "$next_status" \
       "$base_commit" "$task_commits" "$report_file" "$supervision_artifact" \
       "$supervision_decision" "$done_recommendation" "$architecture_required" \
-      "$architecture" "$release_bundle" "$direction_status" "$direction_artifact"
-    team_mark_inbox_processed "$owner" "$task_id" ""
+      "$architecture" "$direction_status" "$direction_artifact"
+    team_mark_inbox_processed "$owner" "$task_id"
     printf '%s\n' "$state_file"
     ;;
   -h|--help) usage ;;

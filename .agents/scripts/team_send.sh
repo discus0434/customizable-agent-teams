@@ -9,16 +9,15 @@ source "$SCRIPT_DIR/team_config.sh"
 usage() {
   cat >&2 <<'USAGE'
 usage:
-  team_send.sh [--from <agent_id>] [--type <type>] [--task <task_id>] [--bundle <bundle_id>] [--research <request_id>] [--body-file <path>] [--done-recommendation <true|false>] <to> [body...]
+  team_send.sh [--from <agent_id>] [--type <type>] [--task <task_id>] [--research <request_id>] [--body-file <path>] [--done-recommendation <true|false>] <to> [body...]
 
-TYPE=note records information. Omit TYPE when requesting strategist, architect, release-captain, or the research-worker pool.
+TYPE=note records information. Omit TYPE when requesting strategist, architect, or the research-worker pool.
 USAGE
 }
 
 from=""
 type=""
 task_id=""
-bundle_id=""
 research_id=""
 body_file=""
 done_recommendation=""
@@ -29,7 +28,6 @@ while [[ $# -gt 0 ]]; do
     --from) [[ $# -ge 2 ]] || die "--from requires a value"; from="$2"; shift 2 ;;
     --type) [[ $# -ge 2 ]] || die "--type requires a value"; type="$2"; shift 2 ;;
     --task) [[ $# -ge 2 ]] || die "--task requires a value"; task_id="$2"; shift 2 ;;
-    --bundle) [[ $# -ge 2 ]] || die "--bundle requires a value"; bundle_id="$2"; shift 2 ;;
     --research) [[ $# -ge 2 ]] || die "--research requires a value"; research_id="$2"; shift 2 ;;
     --body-file) [[ $# -ge 2 ]] || die "--body-file requires a path"; body_file="$2"; shift 2 ;;
     --done-recommendation) [[ $# -ge 2 ]] || die "--done-recommendation requires true or false"; done_recommendation="$2"; shift 2 ;;
@@ -79,15 +77,15 @@ if [[ "$to" == "research-worker" ]]; then
     "research-worker pool accepts research requests only" \
     "TYPE=$type does not describe a pool request" \
     "omit TYPE when sending to research-worker"
-  [[ -z "$bundle_id" && -z "$research_id" && -z "$done_recommendation" ]] || die_rule \
+  [[ -z "$research_id" && -z "$done_recommendation" ]] || die_rule \
     "research request has incompatible routing fields" \
-    "a new research request is not a bundle, result, or done recommendation" \
+    "a new research request is not a result or done recommendation" \
     "send only TASK when the research is related to an implementation task"
   case "$from_role" in
-    lead|manager|strategist|architect|release-captain) ;;
+    lead|manager|strategist|architect) ;;
     *) die_rule \
       "role cannot request research: $from_role" \
-      "research-worker is available to lead, manager, strategist, architect, and release-captain" \
+      "research-worker is available to lead, manager, strategist, and architect" \
       "route the need through one of those roles" ;;
   esac
   exec "$SCRIPT_DIR/team_research_request.sh" --from "$from" --task "$task_id" "$body"
@@ -110,7 +108,6 @@ if [[ -z "$type" ]]; then
   case "$to_role" in
     strategist) type="strategy_request" ;;
     architect) type="architecture_request" ;;
-    release-captain) type="release_request" ;;
     *) die_rule \
       "message type is required" \
       "the recipient role does not imply a unique action" \
@@ -145,7 +142,6 @@ load_task_assignment() {
   task_done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
   task_architecture_required="$(team_task_state_field "$task_id" architecture_required)"
   task_architecture="$(team_task_state_field "$task_id" architecture)"
-  task_release_bundle="$(team_task_state_field "$task_id" release_bundle)"
   task_direction_status="$(team_task_state_field "$task_id" direction_status)"
   task_direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 }
@@ -232,28 +228,20 @@ case "$type" in
         subtype="${from_role}-supervision"
         cc_to="$task_owner"
         ;;
-      release-captain)
-        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "release architecture request requires BUNDLE" "release readiness is scoped to one bundle" "pass BUNDLE=<bundle_id>"
-        [[ -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "release state not found: $bundle_id" "the bundle has not been requested" "run make release-request first"
-        assigned_release_captain="$(team_release_state_field "$bundle_id" release_captain)"
-        [[ "$assigned_release_captain" == "$from" ]] || die_rule "release-captain is not assigned to $bundle_id" "release state names $assigned_release_captain" "send from $assigned_release_captain"
-        subtype="release_readiness"
-        cc_to="$(team_release_state_field "$bundle_id" manager)"
-        ;;
       general-worker|hard-task-worker|frontend-worker)
         load_task_assignment
         die_rule "implementation worker cannot request architect directly" "task-local technical direction goes through the fixed supervisor" "ask $task_supervisor"
         ;;
-      *) die_rule "role cannot request architecture: $from_role" "architecture requests come from lead, manager, assigned supervisors, or release-captain" "route the request through an allowed role" ;;
+      *) die_rule "role cannot request architecture: $from_role" "architecture requests come from lead, manager, or assigned supervisors" "route the request through an allowed role" ;;
     esac
-    artifact_path="$(team_architecture_artifact_path "$task_id" "$bundle_id" "$subtype")"
+    artifact_path="$(team_architecture_artifact_path "$task_id" "$subtype")"
     if [[ -n "$task_id" && "$task_id" != "-" ]]; then
       load_task_assignment
       team_write_task_state \
         "$task_id" "$task_owner" "$task_worker" "$task_supervisor" "$task_status" \
         "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
         "$task_supervision_decision" "${task_done_recommendation:-false}" "true" "$artifact_path" \
-        "$task_release_bundle" "$task_direction_status" "$task_direction_artifact"
+        "$task_direction_status" "$task_direction_artifact"
     fi
     [[ -n "$body" ]] || body="${from}からのarchitecture_requestです。"
     body+=$'\n\n'"Architecture output path: $artifact_path"
@@ -267,43 +255,20 @@ case "$type" in
         [[ "$to" == "$task_supervisor" ]] || die_rule "architecture result target does not supervise $task_id" "task supervisor is $task_supervisor" "send to $task_supervisor"
         cc_to="$task_owner"
         ;;
-      release-captain)
-        [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "architecture_result requires BUNDLE" "the result returns to one release review" "pass BUNDLE=<bundle_id>"
-        [[ "$to" == "$(team_release_state_field "$bundle_id" release_captain)" ]] || die_rule "architecture result target is not assigned to $bundle_id" "release state names another captain" "send to the assigned release-captain"
-        cc_to="$(team_release_state_field "$bundle_id" manager)"
-        ;;
-      *) die_rule "architecture_result target role is invalid: $to_role" "results return to the requester role" "send to lead, manager, assigned supervisor, or release-captain" ;;
+      *) die_rule "architecture_result target role is invalid: $to_role" "results return to the requester role" "send to lead, manager, or the assigned supervisor" ;;
     esac
     ;;
-  release_request)
-    [[ "$from_role" == "manager" && "$to_role" == "release-captain" ]] || die_rule "invalid release_request route" "release requests go from manager to release-captain" "use make release-request"
-    [[ -n "$bundle_id" && "$bundle_id" != "-" ]] || die_rule "release_request requires BUNDLE" "the message must reference a prepared bundle" "pass BUNDLE=<bundle_id>"
-    [[ -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "release state not found: $bundle_id" "make release-request creates state before sending" "run make release-request"
-    [[ "$(team_release_state_field "$bundle_id" manager)" == "$from" ]] || die "release manager mismatch for $bundle_id"
-    [[ "$(team_release_state_field "$bundle_id" release_captain)" == "$to" ]] || die "release-captain mismatch for $bundle_id"
-    artifact_path="$(team_relative_path "$(team_release_bundle_file "$bundle_id")")"
-    [[ -n "$body" ]] || body="${from}からのrelease_requestです。"
-    body+=$'\n\n'"Release bundle path: $artifact_path"$'\n'"Release review path: $(team_relative_path "$(team_release_review_file "$bundle_id")")"
+  completion_ready)
+    [[ "$from_role" == "manager" && "$to_role" == "lead" ]] || die_rule \
+      "invalid completion_ready route" \
+      "the manager reports intake completion to lead" \
+      "send from manager to lead"
     ;;
-  release_result)
-    [[ "$from_role" == "release-captain" && "$to_role" == "manager" ]] || die_rule "invalid release_result route" "release results return from release-captain to manager" "use make release-report"
-    [[ -n "$bundle_id" && -f "$(team_release_state_file "$bundle_id")" ]] || die "release state not found: $bundle_id"
-    [[ "$(team_release_state_field "$bundle_id" manager)" == "$to" ]] || die "release manager mismatch for $bundle_id"
-    [[ "$(team_release_state_field "$bundle_id" release_captain)" == "$from" ]] || die "release-captain mismatch for $bundle_id"
-    artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
-    ;;
-  completion_ready|completion_ack)
-    [[ -n "$bundle_id" && -f "$(team_release_state_file "$bundle_id")" ]] || die_rule "$type requires a shipped BUNDLE" "completion messages close one release" "pass BUNDLE=<bundle_id> after SHIP"
-    release_manager="$(team_release_state_field "$bundle_id" manager)"
-    release_status="$(team_release_state_field "$bundle_id" status)"
-    release_decision="$(team_release_state_field "$bundle_id" decision)"
-    [[ "$release_status" == "ship" && "$release_decision" == "SHIP" ]] || die_rule "release is not shipped: $bundle_id" "status=$release_status decision=$release_decision" "wait for release-captain SHIP"
-    if [[ "$type" == "completion_ready" ]]; then
-      [[ "$from_role" == "manager" && "$to_role" == "lead" && "$from" == "$release_manager" ]] || die_rule "invalid completion_ready route" "the bundle manager sends readiness to lead" "send from $release_manager to lead"
-    else
-      [[ "$from_role" == "lead" && "$to" == "$release_manager" ]] || die_rule "invalid completion_ack route" "lead acknowledges the bundle manager" "send from lead to $release_manager"
-    fi
-    artifact_path="$(team_relative_path "$(team_release_review_file "$bundle_id")")"
+  completion_ack)
+    [[ "$from_role" == "lead" && "$to_role" == "manager" ]] || die_rule \
+      "invalid completion_ack route" \
+      "lead acknowledges the manager after reporting to the human" \
+      "send from lead to manager"
     ;;
   manager_fix)
     [[ "$from_role" == "manager" ]] || die_rule "manager_fix sender must be manager" "only Manager returns an accepted task to its implementation pair" "send from manager"
@@ -314,7 +279,7 @@ case "$type" in
     team_write_task_state \
       "$task_id" "$task_owner" "$task_worker" "$task_supervisor" "manager_fix" \
       "$task_base_commit" "$task_commits" "$task_report" "$task_supervision_artifact" \
-      "FIX" "false" "$task_architecture_required" "$task_architecture" "$task_release_bundle" \
+      "FIX" "false" "$task_architecture_required" "$task_architecture" \
       "$task_direction_status" "$task_direction_artifact"
     ;;
   task_assigned)
@@ -390,7 +355,7 @@ case "$type" in
     [[ "$to" == "$task_worker" || "$to" == "$task_owner" ]] || die "supervision_result target must be task worker or manager"
     ;;
   research_request)
-    [[ "$from_role" =~ ^(lead|manager|strategist|architect|release-captain)$ ]] || die "invalid research_request sender role: $from_role"
+    [[ "$from_role" =~ ^(lead|manager|strategist|architect)$ ]] || die "invalid research_request sender role: $from_role"
     [[ "$to_role" == "research-worker" && -n "$research_id" ]] || die "direct research_request requires an assigned research worker and request id"
     [[ -f "$(team_research_state_file "$research_id")" ]] || die "research state not found: $research_id"
     [[ "$(team_research_state_field "$research_id" caller)" == "$from" ]] || die "research caller mismatch: $research_id"
@@ -452,7 +417,7 @@ write_message() {
   inbox_file="$TEAM_QUEUE_DIR/inbox/$message_to.jsonl"
   message_file="$TEAM_STATE_DIR/messages/$message_id.json"
   processed_dir="$TEAM_STATE_DIR/processed/$message_to"
-  line="{\"id\":\"$(json_string "$message_id")\",\"from\":\"$(json_string "$from")\",\"to\":\"$(json_string "$message_to")\",\"type\":\"$(json_string "$type")\",\"subtype\":\"$(json_string "$subtype")\",\"task_id\":\"$(json_string "$task_id")\",\"bundle_id\":\"$(json_string "$bundle_id")\",\"research_id\":\"$(json_string "$research_id")\",\"artifact_path\":\"$(json_string "$artifact_path")\",\"cc_of\":\"$(json_string "$message_cc_of")\",\"done_recommendation\":\"$(json_string "$done_recommendation")\",\"requires_attention\":\"$(json_string "$message_requires_attention")\",\"created_at\":\"$created_at\",\"body\":\"$(json_string "$message_body")\"}"
+  line="{\"id\":\"$(json_string "$message_id")\",\"from\":\"$(json_string "$from")\",\"to\":\"$(json_string "$message_to")\",\"type\":\"$(json_string "$type")\",\"subtype\":\"$(json_string "$subtype")\",\"task_id\":\"$(json_string "$task_id")\",\"research_id\":\"$(json_string "$research_id")\",\"artifact_path\":\"$(json_string "$artifact_path")\",\"cc_of\":\"$(json_string "$message_cc_of")\",\"done_recommendation\":\"$(json_string "$done_recommendation")\",\"requires_attention\":\"$(json_string "$message_requires_attention")\",\"created_at\":\"$created_at\",\"body\":\"$(json_string "$message_body")\"}"
 
   acquire_team_lock "inbox-$message_to"
   printf '%s\n' "$line" >> "$inbox_file"
@@ -483,5 +448,5 @@ fi
 
 case "$type" in
   research_request|research_cancelled|research_result) ;;
-  *) team_mark_inbox_processed "$from" "$task_id" "$bundle_id" ;;
+  *) team_mark_inbox_processed "$from" "$task_id" ;;
 esac

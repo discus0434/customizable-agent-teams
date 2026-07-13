@@ -44,7 +44,6 @@ task_commits="$(team_task_state_field "$task_id" task_commits)"
 report_file="$(team_task_state_field "$task_id" report)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
 architecture="$(team_task_state_field "$task_id" architecture)"
-release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 direction_status="$(team_task_state_field "$task_id" direction_status)"
 direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
@@ -163,10 +162,9 @@ team_write_task_state \
   "$done_recommendation" \
   "$architecture_required" \
   "$architecture" \
-  "$release_bundle" \
   "$direction_status" \
   "$direction_artifact"
 
 "$SCRIPT_DIR/team_send.sh" --from "$supervisor_id" --type supervision_result --task "$task_id" --done-recommendation "$done_recommendation" "$target" "$message" >/dev/null
-team_mark_inbox_processed "$supervisor_id" "$task_id" ""
+team_mark_inbox_processed "$supervisor_id" "$task_id"
 printf '%s\n' "$supervision_file"

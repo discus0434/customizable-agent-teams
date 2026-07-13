@@ -12,7 +12,7 @@ description: Research Workerがcodex execの非対話実行で起動され、共
 - 実験と一時データには`/tmp`を使う。
 - プロジェクトコードの編集とcommit、task割り当て、`STATE.md`の更新は行わない。
 - 確認した事実、推論、推奨、未解決の不確実さを区別する。
-- architecture、strategy、実行、release、productの最終判断は、それぞれの担当roleへ残す。
+- architecture、strategy、実行、productの最終判断は、それぞれの担当roleへ残す。
 
 ## 実行形態
 

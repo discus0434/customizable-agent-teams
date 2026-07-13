@@ -189,7 +189,7 @@ team_config_validate() {
     [[ -n "$id" ]] || continue
     [[ -n "$role" ]] || die_rule "agent role is missing: $id" "routing uses role as the source of truth" "add '    role: <role>'"
     case "$role" in
-      lead|manager|strategist|architect|release-captain|general-reviewer|general-worker|hard-task-worker|research-worker|express-worker|frontend-worker|frontend-critic) ;;
+      lead|manager|strategist|architect|general-reviewer|general-worker|hard-task-worker|research-worker|express-worker|frontend-worker|frontend-critic) ;;
       *) die_rule "unknown agent role: $role" "$id uses a role outside the team protocol" "use a role defined by .agents/docs/TEAM_PROTOCOL.md" ;;
     esac
     case "$cli" in
@@ -241,7 +241,7 @@ team_config_validate() {
     fi
   done <<< "$agents"
 
-  for singleton_role in lead manager strategist architect release-captain; do
+  for singleton_role in lead manager strategist architect; do
     role_count="$(printf '%s\n' "$agents" | awk -F'|' -v role="$singleton_role" '$2 == role { count++ } END { print count + 0 }')"
     [[ "$role_count" -eq 1 ]] || die_rule \
       "role must have exactly one agent: $singleton_role" \

@@ -9,7 +9,7 @@ description: Leadが.agents/queue/memory_proposalsにある提案を審査し、
 
 - 次回以降の作業で再利用できる。
 - 一つのentryに一つの教訓だけがある。
-- sourceとなるtask、report、review、strategy、architecture、release、commitを追跡できる。
+- sourceとなるtask、report、review、strategy、architecture、commitを追跡できる。
 - credential、private data、raw log、未検証の推測を含まない。
 
 ## 審査

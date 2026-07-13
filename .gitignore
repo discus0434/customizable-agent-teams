@@ -113,13 +113,8 @@ CMakeCache.txt
 !.agents/queue/strategy/.gitkeep
 .agents/queue/architecture/*
 !.agents/queue/architecture/.gitkeep
-.agents/queue/releases/*
-!.agents/queue/releases/.gitkeep
 .agents/queue/state/*
 !.agents/queue/state/.gitkeep
-!.agents/queue/state/releases/
-.agents/queue/state/releases/*
-!.agents/queue/state/releases/.gitkeep
 .agents/queue/memory_proposals/*
 !.agents/queue/memory_proposals/.gitkeep
 .agents/queue/skill_proposals/*

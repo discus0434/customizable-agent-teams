@@ -1,6 +1,6 @@
 ---
 name: team-manager
-description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupervisorの判断を受けたとき、またはreleaseを準備し、依存関係、task設計、Worker選択、dispatch、STATE、完了判定、release bundleを扱うときに使う。
+description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupervisorの判断を受けたとき、依存関係、task設計、Worker選択、dispatch、STATE、完了判定を扱うときに使う。
 ---
 
 # team-manager
@@ -75,12 +75,11 @@ make dispatch TASK=<task_id>
 - `Intent`：Leadが確定した目的、成功条件、人間へ確認する条件。
 - `Execution`：現在の依存関係と実行状況。
 - `Active Tasks`：進行中のtaskだけを記載した表。
-- `Bundles`：準備中または判定中のrelease bundle。
 - `Blockers`：未解決のblocker。
 - `Current Decisions`：現在の実行へ影響している判断。
 - `Next Actions`：次に動くroleと行動。
 
-完了したtaskの詳細は削除し、task、report、review、releaseの成果物に残す。
+完了したtaskの詳細は削除し、task、report、reviewの成果物に残す。
 
 次の時点で`STATE.md`を更新する。
 
@@ -88,7 +87,6 @@ make dispatch TASK=<task_id>
 - taskを割り当てた後。
 - Supervisorの判断を受けた後。
 - taskを`done`にした後。
-- releaseを依頼または受領した後。
 - エスカレーションを解決した後。
 - `completion_ready`を送る前。
 
@@ -100,7 +98,7 @@ make dispatch TASK=<task_id>
 - 人間の承認、productの意図、利用者に見える挙動、対象範囲、優先順位、trade-offはLeadへ上げる。
 - Supervisorから判断を求められた場合は、次に判断するroleを選び、結果をSupervisorへ返す。
 
-## 完了とrelease
+## 完了
 
 taskを`done`にする前に、次の情報を確認する。
 
@@ -115,12 +113,12 @@ taskを`done`にした後で追加変更が必要になった場合は、新し�
 
 taskを`done`にすると、そのWorkerとSupervisorは次のtaskを担当できる。
 
-関連する`done` taskをrelease bundleへまとめ、Release Captainへ依頼する。
+intakeの成功条件を満たすtaskがすべて`done`になったら、対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
 
-Release Captainが`SHIP`を返した後に限り、Leadへ`completion_ready`を送る。
+Leadは受け入れ検証をして人間へ報告し、`completion_ack`を返す。
 
-Leadから`completion_ack`を受けたら`STATE.md`を整理し、次のcommandで完了状態をcommitする。
+`completion_ack`を受けたら`STATE.md`を整理し、次のcommandで完了状態をcommitする。
 
 ```bash
-make state-commit BUNDLE=<bundle_id>
+make state-commit
 ```

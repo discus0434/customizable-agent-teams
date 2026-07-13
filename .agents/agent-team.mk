@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report release-prepare release-request release-report state state-update state-commit memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report state state-update state-commit memory-list memory-append
 
 bootstrap:
 	direnv allow
@@ -31,15 +31,15 @@ team-send:
 	fi
 	@if [ -n "$(BODY_FILE)" ]; then \
 		if [ -n "$(FROM)" ]; then \
-			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)" "$(TO)"; \
+			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
 		else \
-			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" --body-file "$(BODY_FILE)" "$(TO)"; \
+			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
 		fi; \
 	else \
 		if [ -n "$(FROM)" ]; then \
-			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 		else \
-			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --bundle "$(BUNDLE)" "$(TO)" "$(BODY)"; \
+			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 		fi; \
 	fi
 
@@ -117,30 +117,6 @@ supervision-report:
 	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
 	@./.agents/scripts/team_supervision_report.sh "$(TASK)" "$(DECISION)"
 
-release-prepare:
-	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
-	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
-	@if [ -n "$(MANAGER)" ]; then \
-		./.agents/scripts/team_release_prepare.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
-	else \
-		./.agents/scripts/team_release_prepare.sh "$(BUNDLE)" $(TASKS); \
-	fi
-
-release-request:
-	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
-	@test -n "$(TASKS)" || { echo "TASKS is required" >&2; exit 2; }
-	@if [ -n "$(MANAGER)" ]; then \
-		./.agents/scripts/team_release_request.sh --manager "$(MANAGER)" "$(BUNDLE)" $(TASKS); \
-	else \
-		./.agents/scripts/team_release_request.sh "$(BUNDLE)" $(TASKS); \
-	fi
-
-release-report:
-	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
-	@test -n "$(RELEASE_CAPTAIN)" || { echo "RELEASE_CAPTAIN is required" >&2; exit 2; }
-	@test -n "$(DECISION)" || { echo "DECISION is required" >&2; exit 2; }
-	@./.agents/scripts/team_release_report.sh "$(BUNDLE)" "$(RELEASE_CAPTAIN)" "$(DECISION)"
-
 state:
 	@./.agents/scripts/team_state_update.sh show
 
@@ -150,8 +126,7 @@ state-update:
 	@./.agents/scripts/team_state_update.sh update "$(TASK)" "$(STATUS)"
 
 state-commit:
-	@test -n "$(BUNDLE)" || { echo "BUNDLE is required" >&2; exit 2; }
-	@./.agents/scripts/team_state_commit.sh "$(BUNDLE)"
+	@./.agents/scripts/team_state_commit.sh
 
 memory-list:
 	./.agents/scripts/team_memory_update.sh list

@@ -2,7 +2,7 @@
 
 Claude CodeとCodexを、複数のroleに分けてtmux上で動かすproject templateです。
 
-人間との対話、進行管理、技術判断、調査、実装、review、release判断を別々のagentが担当します。
+人間との対話、進行管理、技術判断、調査、実装、reviewを別々のagentが担当します。
 
 人間はLeadとだけ対話します。
 
@@ -15,14 +15,13 @@ Research Workerは、codebase、実現可能性、Webを並列に調査します
 ## 特徴
 
 - **Lead**：人間への質問、承認の確認、目的と成功条件の整理に集中します。
-- **Manager**：task作成、Worker選択、割り当て、完了判定、release bundle、`STATE.md`を担当します。
+- **Manager**：task作成、Worker選択、割り当て、完了判定、`STATE.md`を担当します。
 - **Strategist**：原因調査、選択肢の比較、実行方針の検討を担当します。
 - **Architect**：技術方針、設計境界、test方針、task間の一貫性を担当します。
-- **Release Captain**：task単位の`OK`とは別に、複数taskを統合した状態を確認します。
 - **General Worker**：複数のWorkerが通常の実装を担当し、それぞれに固定General Reviewerが付きます。
 - **Hard Task Worker**：複数のWorkerが難しいdebugと複数境界にまたがる実装を担当し、それぞれに固定General Reviewerが付きます。
 - **Research Worker**：常駐せず、依頼が来たときだけ`codex exec`で起動され、調査結果を依頼元へ直接返します。
-- **Express Worker**：常駐せず、Leadが直接dispatchした小さなtaskを`codex exec`で実装します。Managerとreleaseの工程を通らず、reviewはLeadが行います。
+- **Express Worker**：常駐せず、Leadが直接dispatchした小さなtaskを`codex exec`で実装します。Managerを通らず、reviewはLeadが行います。
 - **Frontend Worker**：実際の画面を確認しながら実装し、固定Frontend Criticが画面方針と完成結果をreviewします。
 - **共有repository**：すべてのagentが同じrepository rootを使うため、venv、`node_modules`、`.env`、direnvを共有できます。
 - **構成変更**：`.agents/config/agent-team.yaml`でCLI、model、effort、agent数、固定Supervisorを変更できます。
@@ -32,10 +31,9 @@ Research Workerは、codebase、実現可能性、Webを並列に調査します
 | Role | 責務 |
 | --- | --- |
 | **Lead** | 人間の唯一の窓口として、目的、成功条件、制約、承認を確認する。 |
-| **Manager** | task、依存関係、担当割り当て、完了判定、release bundle、`STATE.md`を管理する。 |
+| **Manager** | task、依存関係、担当割り当て、完了判定、`STATE.md`を管理する。 |
 | **Strategist** | 原因調査、複数案の比較、実行方針をまとめる。 |
 | **Architect** | 技術方針、設計境界、共通化、test方針を判断する。 |
-| **Release Captain** | 複数taskを統合した状態を確認し、`SHIP`、`FIX`、`BLOCKED`を返す。 |
 | **General Worker** | 通常の実装、検証、task commit、reportを担当する。 |
 | **Hard Task Worker** | 高度な調査と推論を要する実装またはdebugを担当する。 |
 | **General Reviewer** | 固定Workerの相談、途中feedback、最終reviewを担当する。 |
@@ -53,8 +51,7 @@ Human
      or Frontend Worker + Frontend Critic
   -> Supervisor OK / FIX / ASK_MANAGER
   -> Manager marks done
-  -> Release Captain SHIP / FIX / BLOCKED
-  -> Lead reports completion
+  -> Lead verifies and reports completion
 ```
 
 小さく境界が明確なtaskは、LeadがManagerを通さずExpress Workerへ直接dispatchできます。
@@ -74,8 +71,8 @@ Hard Task Worker -> General Reviewer -> Manager -> Lead -> Human
 Frontend Worker -> Frontend Critic -> Manager -> Lead -> Human
 
 Lead / Manager / Architect / General Reviewer / Frontend Critic -> Strategist
-Lead / Manager / General Reviewer / Frontend Critic / Release Captain -> Architect
-Lead / Manager / Strategist / Architect / Release Captain -> Research Worker pool
+Lead / Manager / General Reviewer / Frontend Critic -> Architect
+Lead / Manager / Strategist / Architect -> Research Worker pool
 ```
 
 ## 必要なtool
@@ -196,7 +193,7 @@ Research WorkerとExpress Workerは常駐windowを持たず、依頼が割り当
 | 長文の連絡 | `make team-send FROM=lead TO=manager TYPE=intake TASK=- BODY_FILE=.agents/queue/state/tmp/message.md` | 全role |
 | 対応不要の記録 | `make team-send TO=general-worker-1 TYPE=note TASK=T-001 BODY="..."` | 全role |
 | inboxへの返信 | `make team-reply IN_REPLY_TO=<message_id> TYPE=answer BODY_FILE=.agents/queue/state/tmp/reply.md` | 全role |
-| research依頼 | `make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research.md` | Lead、Manager、Strategist、Architect、Release Captain |
+| research依頼 | `make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research.md` | Lead、Manager、Strategist、Architect |
 | task割り当て | `make dispatch TASK=T-001` | Manager |
 | express taskの割り当て | `make dispatch TASK=T-E-001` | Lead |
 | express taskの修正指示 | `make express-fix TASK=T-E-001 BODY="..."` | Lead |
@@ -208,17 +205,13 @@ Research WorkerとExpress Workerは常駐windowを持たず、依頼が割り当
 | Managerからの差し戻し | `make team-send TO=<pair_agent_id> TYPE=manager_fix TASK=T-001 BODY_FILE=.agents/queue/state/tmp/manager-fix.md` | Manager |
 | Strategistへの相談 | `make team-send TO=strategist TASK=T-001 BODY="..."` | Lead、Manager、Supervisor、Architect |
 | Architectへのtask相談 | `make team-send TO=architect TASK=T-001 BODY="..."` | Lead、Manager、Supervisor |
-| Architectへのrelease相談 | `make team-send TO=architect BUNDLE=R-001 BODY="..."` | Release Captain |
 | implementation report | `make report TASK=T-001 STATUS=needs_supervision` | Implementation Worker |
 | 画面方針のdecision | `make direction-report TASK=T-001 DECISION=PROCEED` | Frontend Critic |
 | Supervisorのdecision | `make supervision-report TASK=T-001 DECISION=OK` | General Reviewer、Frontend Critic |
 | taskの完了 | `make state-update TASK=T-001 STATUS=done` | Manager |
-| release bundle作成 | `make release-prepare BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
-| release review依頼 | `make release-request BUNDLE=R-001 TASKS="T-001 T-002"` | Manager |
-| release判断と最終検証 | `make release-report BUNDLE=R-001 RELEASE_CAPTAIN=release-captain DECISION=SHIP` | Release Captain |
-| 完了報告の準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready BUNDLE=R-001 BODY="..."` | Manager |
-| 完了報告済みの通知 | `make team-send FROM=lead TO=manager TYPE=completion_ack BUNDLE=R-001 BODY="..."` | Lead |
-| 完了状態のcommit | `make state-commit BUNDLE=R-001` | Manager |
+| 完了報告の準備 | `make team-send FROM=manager TO=lead TYPE=completion_ready TASK=- BODY="..."` | Manager |
+| 完了報告済みの通知 | `make team-send FROM=lead TO=manager TYPE=completion_ack TASK=- BODY="..."` | Lead |
+| 完了状態のcommit | `make state-commit` | Manager |
 | チーム停止 | `make team-stop` | 人間 |
 
 team paneでは`TEAM_AGENT_ID`が送信元になります。
@@ -240,7 +233,7 @@ repository shellからtaskを割り当てる場合は`OWNER=<agent_id>`も指定
 | `.agents/state/MEMORY.md` | 中長期に再利用するrule、tip、pitfall、user preference。 |
 | `.agents/skills/` | Claude CodeとCodexが共有するskillsであり、`.claude/skills`と`.codex/skills`はこのdirectoryへのsymlink。 |
 | `.agents/scripts/` | 各Make targetの実装。 |
-| `.agents/queue/` | task、report、review、research、releaseなどの共有成果物。 |
+| `.agents/queue/` | task、report、review、researchなどの共有成果物。 |
 | `.agents/tests/team/` | このtemplate自体のtest。 |
 | `Makefile` | projectの`post-change`と`smoke`を定義し、`.agents/agent-team.mk`をincludeする。 |
 

@@ -164,14 +164,13 @@ team_write_task_state \
   "false" \
   "$architecture_required" \
   "" \
-  "" \
   "$direction_status" \
   ""
 release_team_lock
 
 if [[ "$lane" == "express" ]]; then
   worker_body="${task_file}を読み、express taskとして実装からreportまで進めてください。Supervisorはいません。完了報告はexpress_readyで${owner_id}へ送ってください。"
-  team_send_with_body_file "$owner_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
+  team_send_with_body_file "$owner_id" task_assigned "$task_id" "$worker_id" "$worker_body" >/dev/null
 
   exec_prompt="あなたはこのteamのexpress worker、agent_id=${worker_id}です。
 make team-identityで自分を確認し、AGENTS.mdとteam-express-worker skillに従ってください。
@@ -191,8 +190,8 @@ else
   worker_body="${task_file}を読み、固定Supervisor ${supervisor_id}と連携してtaskを進めてください。"
   supervisor_body="${task_file}を読み、固定Worker ${worker_id}の相談と最終判断を担当してください。最終成果物は${supervision_path}へ書いてください。"
 
-  team_send_with_body_file "$owner_id" task_assigned "$task_id" "" "$worker_id" "$worker_body" >/dev/null
-  team_send_with_body_file "$owner_id" supervision_assigned "$task_id" "" "$supervisor_id" "$supervisor_body" >/dev/null
+  team_send_with_body_file "$owner_id" task_assigned "$task_id" "$worker_id" "$worker_body" >/dev/null
+  team_send_with_body_file "$owner_id" supervision_assigned "$task_id" "$supervisor_id" "$supervisor_body" >/dev/null
 fi
 
 printf '%s\n' "$state_file"

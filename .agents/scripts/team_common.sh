@@ -139,9 +139,8 @@ team_send_with_body_file() {
   local from="$1"
   local type="$2"
   local task_id="$3"
-  local bundle_id="$4"
-  local to="$5"
-  local body="$6"
+  local to="$4"
+  local body="$5"
   local body_file
   local status
 
@@ -153,7 +152,6 @@ team_send_with_body_file() {
     --from "$from" \
     --type "$type" \
     --task "$task_id" \
-    --bundle "$bundle_id" \
     --body-file "$body_file" \
     "$to"; then
     rm -f "$body_file"
@@ -238,7 +236,6 @@ ensure_team_dirs() {
     "$TEAM_QUEUE_DIR/research" \
     "$TEAM_QUEUE_DIR/strategy" \
     "$TEAM_QUEUE_DIR/architecture" \
-    "$TEAM_QUEUE_DIR/releases" \
     "$TEAM_QUEUE_DIR/memory_proposals" \
     "$TEAM_QUEUE_DIR/skill_proposals" \
     "$TEAM_STATE_DIR/agents" \
@@ -246,7 +243,6 @@ ensure_team_dirs() {
     "$TEAM_STATE_DIR/locks" \
     "$TEAM_STATE_DIR/messages" \
     "$TEAM_STATE_DIR/processed" \
-    "$TEAM_STATE_DIR/releases" \
     "$TEAM_STATE_DIR/research" \
     "$TEAM_STATE_DIR/task_progress" \
     "$TEAM_STATE_DIR/tmp" \
@@ -318,31 +314,18 @@ team_strategy_artifact_path() {
 
 team_architecture_artifact_path() {
   local task_id="$1"
-  local bundle_id="$2"
-  local subtype="$3"
+  local subtype="$2"
   local scope
   local timestamp
 
   if [[ -n "$task_id" && "$task_id" != "-" ]]; then
     scope="$task_id"
-  elif [[ -n "$bundle_id" && "$bundle_id" != "-" ]]; then
-    scope="release-$bundle_id"
   else
     scope="general"
   fi
   scope="$(team_sanitize_token "$scope")"
   timestamp="$(team_now_compact_utc)"
   printf '.agents/queue/architecture/%s_%s_%s.md\n' "$scope" "$subtype" "$timestamp"
-}
-
-team_release_bundle_file() {
-  local bundle_id="$1"
-  printf '%s/releases/%s.md\n' "$TEAM_QUEUE_DIR" "$bundle_id"
-}
-
-team_release_review_file() {
-  local bundle_id="$1"
-  printf '%s/releases/%s_review.md\n' "$TEAM_QUEUE_DIR" "$bundle_id"
 }
 
 team_placeholder_pattern() {
@@ -829,14 +812,13 @@ team_record_task_message_activity() {
 team_mark_inbox_processed() {
   local agent_id="$1"
   local task_id="$2"
-  local bundle_id="$3"
-  shift 3
+  shift 2
 
   local inbox_file="$TEAM_QUEUE_DIR/inbox/$agent_id.jsonl"
   local processed_dir="$TEAM_STATE_DIR/processed/$agent_id"
-  local line message_id message_task message_bundle message_type wanted_type type_matches
+  local line message_id message_task message_type wanted_type type_matches
 
-  if [[ ( -z "$task_id" || "$task_id" == "-" ) && ( -z "$bundle_id" || "$bundle_id" == "-" ) && $# -eq 0 ]]; then
+  if [[ ( -z "$task_id" || "$task_id" == "-" ) && $# -eq 0 ]]; then
     return 0
   fi
 
@@ -850,11 +832,6 @@ team_mark_inbox_processed() {
     if [[ -n "$task_id" && "$task_id" != "-" ]]; then
       message_task="$(printf '%s\n' "$line" | extract_json_field task_id)"
       [[ "$message_task" == "$task_id" ]] || continue
-    fi
-
-    if [[ -n "$bundle_id" && "$bundle_id" != "-" ]]; then
-      message_bundle="$(printf '%s\n' "$line" | extract_json_field bundle_id)"
-      [[ "$message_bundle" == "$bundle_id" ]] || continue
     fi
 
     if [[ $# -gt 0 ]]; then
@@ -971,20 +948,6 @@ team_markdown_section_has_content() {
   ' "$file"
 }
 
-team_release_state_file() {
-  local bundle_id="$1"
-  printf '%s/releases/%s.json\n' "$TEAM_STATE_DIR" "$bundle_id"
-}
-
-team_release_state_field() {
-  local bundle_id="$1"
-  local field="$2"
-  local state_file
-  state_file="$(team_release_state_file "$bundle_id")"
-  [[ -f "$state_file" ]] || return 0
-  extract_json_field "$field" < "$state_file"
-}
-
 team_write_task_state() {
   local task_id="$1"
   local owner="$2"
@@ -999,9 +962,8 @@ team_write_task_state() {
   local done_recommendation="${11}"
   local architecture_required="${12}"
   local architecture="${13}"
-  local release_bundle="${14}"
-  local direction_status="${15}"
-  local direction_artifact="${16}"
+  local direction_status="${14}"
+  local direction_artifact="${15}"
   local state_file
   local updated_at
 
@@ -1009,7 +971,7 @@ team_write_task_state() {
   updated_at="$(team_now_utc)"
   mkdir -p "$(dirname "$state_file")"
 
-  printf '{"task_id":"%s","owner":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","task_commits":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","release_bundle":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
+  printf '{"task_id":"%s","owner":"%s","worker":"%s","supervisor":"%s","status":"%s","base_commit":"%s","task_commits":"%s","report":"%s","supervision_artifact":"%s","supervision_decision":"%s","done_recommendation":"%s","architecture_required":"%s","architecture":"%s","direction_status":"%s","direction_artifact":"%s","updated_at":"%s"}\n' \
     "$(json_string "$task_id")" \
     "$(json_string "$owner")" \
     "$(json_string "$worker")" \
@@ -1023,7 +985,6 @@ team_write_task_state() {
     "$(json_string "$done_recommendation")" \
     "$(json_string "$architecture_required")" \
     "$(json_string "$architecture")" \
-    "$(json_string "$release_bundle")" \
     "$(json_string "$direction_status")" \
     "$(json_string "$direction_artifact")" \
     "$updated_at" > "$state_file"
@@ -1063,94 +1024,6 @@ team_task_supervisor_is_busy() {
     fi
   done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name '*.json' | sort)
   return 1
-}
-
-team_write_release_state() {
-  local bundle_id="$1"
-  local manager="$2"
-  local release_captain="$3"
-  local status="$4"
-  local decision="$5"
-  local bundle_artifact="$6"
-  local review_artifact="$7"
-  local tasks="$8"
-  local state_file
-  local updated_at
-
-  state_file="$(team_release_state_file "$bundle_id")"
-  updated_at="$(team_now_utc)"
-  mkdir -p "$(dirname "$state_file")"
-
-  printf '{"bundle_id":"%s","manager":"%s","release_captain":"%s","status":"%s","decision":"%s","bundle_artifact":"%s","review_artifact":"%s","tasks":"%s","updated_at":"%s"}\n' \
-    "$(json_string "$bundle_id")" \
-    "$(json_string "$manager")" \
-    "$(json_string "$release_captain")" \
-    "$(json_string "$status")" \
-    "$(json_string "$decision")" \
-    "$(json_string "$bundle_artifact")" \
-    "$(json_string "$review_artifact")" \
-    "$(json_string "$tasks")" \
-    "$updated_at" > "$state_file"
-}
-
-team_require_release_task_ready() {
-  local bundle_id="$1"
-  local task_id="$2"
-  local task_state_file
-  local task_status
-  local supervision_decision
-  local done_recommendation
-  local report_file
-  local supervision_artifact
-  local architecture_required
-  local architecture
-  local base_commit
-  local task_commits
-
-  task_state_file="$(team_task_state_file "$task_id")"
-  [[ -f "$task_state_file" ]] || die_rule \
-    "release task state is missing: $task_id" \
-    "release review requires every included task to have current machine state" \
-    "dispatch, supervise, and mark $task_id done before including it in $bundle_id"
-
-  task_status="$(team_task_state_field "$task_id" status)"
-  supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
-  done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
-  report_file="$(team_task_state_field "$task_id" report)"
-  supervision_artifact="$(team_task_state_field "$task_id" supervision_artifact)"
-  architecture_required="$(team_task_state_field "$task_id" architecture_required)"
-  architecture="$(team_task_state_field "$task_id" architecture)"
-  base_commit="$(team_task_state_field "$task_id" base_commit)"
-  task_commits="$(team_task_state_field "$task_id" task_commits)"
-
-  [[ "$task_status" == "done" ]] || die_rule \
-    "release task is not done: $task_id" \
-    "task state has status=$task_status, but release review requires status=done" \
-    "manager must finish $task_id or remove it from release bundle $bundle_id"
-  [[ "$supervision_decision" == "OK" ]] || die_rule \
-    "release task supervision is not OK: $task_id" \
-    "task state has supervision_decision=$supervision_decision, but release review requires supervision_decision=OK" \
-    "the assigned supervisor must record OK before manager includes $task_id in release bundle $bundle_id"
-  [[ "$done_recommendation" == "true" ]] || die_rule \
-    "release task is not recommended done: $task_id" \
-    "task state has done_recommendation=$done_recommendation, but release review requires done_recommendation=true" \
-    "the assigned supervisor must recommend done before manager includes $task_id in release bundle $bundle_id"
-  [[ -n "$report_file" && -f "$report_file" ]] || die_rule \
-    "release task report is missing: $task_id" \
-    "task state points to report=$report_file" \
-    "worker must write the report before $task_id is included in release bundle $bundle_id"
-  [[ -n "$supervision_artifact" && -f "$supervision_artifact" ]] || die_rule \
-    "release task supervision artifact is missing: $task_id" \
-    "task state points to supervision_artifact=$supervision_artifact" \
-    "the assigned supervisor must write the final artifact before $task_id is included in release bundle $bundle_id"
-  team_require_report_matches_task_state "$task_id" "$report_file" "$base_commit" "$task_commits"
-
-  if [[ "$architecture_required" == "true" ]]; then
-    [[ -n "$architecture" && -f "$TEAM_ROOT/$architecture" ]] || die_rule \
-      "release task architecture note is missing: $task_id" \
-      "task state has architecture_required=true and architecture=$architecture" \
-      "architect must write the recorded architecture note before release review"
-  fi
 }
 
 team_task_markdown_field() {

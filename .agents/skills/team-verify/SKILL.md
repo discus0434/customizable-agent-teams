@@ -1,6 +1,6 @@
 ---
 name: team-verify
-description: Workerのreport、SupervisorのOK、Managerのdone、Release CaptainのSHIP、Leadの完了報告など、完了を表す判断の前に、roleごとに必要な現在の検証結果と対応するcommitまたは状態を確認するために使う。
+description: Workerのreport、SupervisorのOK、Managerのdone、Leadの完了報告など、完了を表す判断の前に、roleごとに必要な現在の検証結果と対応するcommitまたは状態を確認するために使う。
 ---
 
 # team-verify
@@ -9,9 +9,8 @@ description: Workerのreport、SupervisorのOK、Managerのdone、Release Captai
 
 - Implementation Workerは、task固有の検証、`make post-change`、`make smoke`を実行し、commandと結果をreportへ記録する。
 - Supervisorは、task、task commit、report、関連コードを調べ、変更の不確実さと影響に応じて追加確認を選ぶ。
-- Managerは、task state、成果物の必須項目、Supervisorの判断、release bundleの整合性を確認する。
-- Release Captainは、現在のcommitで実行した`make post-change`と`make smoke`、および複数taskを統合した状態の証拠を確認する。
-- Leadは、release decision、検証したcommit、最終検証、注意点を確認して人間へ報告する。
+- Managerは、task state、成果物の必須項目、Supervisorの判断を確認する。
+- Leadは、完了報告の前にHEADで`make post-change`と`make smoke`を実行し、差分と注意点を確認して人間へ報告する。
 
 検証後に対象commitまたは状態が変わった場合は、その検証を担当するroleが結果を更新する。
 

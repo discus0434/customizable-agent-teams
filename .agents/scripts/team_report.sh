@@ -56,7 +56,6 @@ supervisor="$(team_task_state_field "$task_id" supervisor)"
 base_commit="$(team_task_state_field "$task_id" base_commit)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
 architecture="$(team_task_state_field "$task_id" architecture)"
-release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 direction_status="$(team_task_state_field "$task_id" direction_status)"
 direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
@@ -100,7 +99,6 @@ if [[ ! -f "$report_file" ]]; then
       printf 'Done recommendation: false\n'
       printf 'Architecture required: %s\n' "${architecture_required:-false}"
       printf 'Architecture: %s\n' "${architecture:-none}"
-      printf 'Release bundle: %s\n' "${release_bundle:-none}"
       printf 'Direction status: %s\n' "${direction_status:-not_applicable}"
       printf 'Direction artifact: %s\n\n' "${direction_artifact:-none}"
     fi
@@ -172,7 +170,6 @@ else
   team_update_markdown_field "$report_file" "Done recommendation" "false"
   team_update_markdown_field "$report_file" "Architecture required" "${architecture_required:-false}"
   team_update_markdown_field "$report_file" "Architecture" "${architecture:-none}"
-  team_update_markdown_field "$report_file" "Release bundle" "${release_bundle:-none}"
   team_update_markdown_field "$report_file" "Direction status" "${direction_status:-not_applicable}"
   team_update_markdown_field "$report_file" "Direction artifact" "${direction_artifact:-none}"
 fi
@@ -198,9 +195,8 @@ team_write_task_state \
   "false" \
   "${architecture_required:-false}" \
   "$architecture" \
-  "$release_bundle" \
   "$direction_status" \
   "$direction_artifact"
 
-team_mark_inbox_processed "$agent_id" "$task_id" ""
+team_mark_inbox_processed "$agent_id" "$task_id"
 printf '%s\n' "$report_file"

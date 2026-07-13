@@ -54,7 +54,7 @@ make team-reply IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=.agents/q
 - `TYPE=note`は記録として保存されるが、対応待ちにはならない。
 - `supervision_assigned`、`supervision_checkpoint`、`research_cancelled`は、受信側が読むと処理済みになる。
 - Workerに対応を求める場合は`supervision_feedback`を使う。
-- taskとreleaseのcommandは、対応するmessageを処理済みにする。
+- taskのcommandは、対応するmessageを処理済みにする。
 - 返信が不要なmessageを処理済みにする場合に限り、`MARK=<message_id>`を使う。
 - task、research、pane、inboxの現在状態は`make team-status`で確認する。
 - paneの入力欄にpromptが残っている場合は`make team-submit AGENT=<agent_id>`を実行する。

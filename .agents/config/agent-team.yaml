@@ -31,13 +31,6 @@ agents:
     effort: xhigh
     window: architect
 
-  - id: release-captain
-    role: release-captain
-    cli: codex
-    model: gpt-5.6-sol
-    effort: xhigh
-    window: release-captain
-
   - id: general-reviewer-1
     role: general-reviewer
     cli: codex

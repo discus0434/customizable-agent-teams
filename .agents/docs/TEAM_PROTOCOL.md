@@ -10,13 +10,12 @@
 Human -> Lead -> Manager
           |        |-> General Worker + General Reviewer
           |        |-> Hard Task Worker + General Reviewer
-          |        |-> Frontend Worker + Frontend Critic
-          |        `-> Release Captain
+          |        `-> Frontend Worker + Frontend Critic
           `-> Express Worker (小さなtaskの直接dispatch)
 
 Lead / Manager / Architect / General Reviewer / Frontend Critic -> Strategist
-Lead / Manager / General Reviewer / Frontend Critic / Release Captain -> Architect
-Lead / Manager / Strategist / Architect / Release Captain -> Research Worker pool
+Lead / Manager / General Reviewer / Frontend Critic -> Architect
+Lead / Manager / Strategist / Architect -> Research Worker pool
 ```
 
 General WorkerまたはHard Task Workerには、固定されたGeneral Reviewerが付く。
@@ -105,13 +104,13 @@ task_assigned (Leadがdispatch、express workerがexec起動)
 
 `express-fix`は同じcodex exec sessionを再開し、指摘を渡して再実装させる。
 
-express taskはrelease bundleを通らないため、Leadのdone判定が最終ゲートになる。
+express taskはManagerを通らないため、Leadのdone判定が最終ゲートになる。
 
 expressに収まらないと分かった時点で、Leadは通常taskとしてManagerへ引き継ぐ。
 
 ## Research
 
-Lead、Manager、Strategist、Architect、Release Captainは、共有poolへ調査を依頼できる。
+Lead、Manager、Strategist、Architectは、共有poolへ調査を依頼できる。
 
 ```bash
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
@@ -150,7 +149,7 @@ make team-send TO=strategist TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/st
 make team-send TO=architect TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/architecture-request.md
 ```
 
-StrategistとArchitectへの依頼では、送信元とtaskまたはrelease bundleから依頼種別と成果物pathが決まる。
+StrategistとArchitectへの依頼では、送信元とtaskから依頼種別と成果物pathが決まる。
 
 Supervisorが送った依頼と結果はManagerにも共有される。
 
@@ -158,34 +157,29 @@ Managerは、人間の判断が必要な内容をLeadへ上げる。
 
 Leadは人間と確認し、Managerへ判断を返す。
 
-## Release
+## 完了
 
-Managerは、関連する`done` taskをrelease bundleにまとめる。
+intakeの成功条件を満たすtaskがすべて`done`になったら、Managerは対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
 
-```bash
-make release-prepare BUNDLE=<bundle_id> TASKS="T-001 T-002"
-make release-request BUNDLE=<bundle_id> TASKS="T-001 T-002"
-```
+Leadは受け入れ検証をする。
 
-Release Captainは、複数taskを統合した状態、利用者に見える挙動、frontendの表示証拠、未解決事項を確認し、`SHIP`、`FIX`、`BLOCKED`のいずれかを記録する。
+現在のHEADで`make post-change`と`make smoke`を実行し、task state、report、利用者に見える挙動、未解決事項を確認する。
 
-`SHIP`を記録するcommandは、現在のcommitに対して`make post-change`と`make smoke`を実行し、commit hashとlogをrelease reviewへ保存する。
-
-`SHIP`の後、ManagerはLeadへ`completion_ready`を送る。
-
-Leadは人間へ完了を報告し、Managerへ`completion_ack`を返す。
+問題があればManagerへ差し戻し、なければ人間へ完了を報告して、Managerへ`completion_ack`を返す。
 
 Managerは`STATE.md`を次の作業に必要な状態へ整理し、完了状態をcommitする。
 
 ```bash
-make state-commit BUNDLE=<bundle_id>
+make state-commit
 ```
+
+このcommandは、`completion_ack`が届いていることと、`STATE.md`以外に未commitの変更がないことを検証する。
 
 ## 状態と成果物
 
-`STATE.md`は、`Intent`、`Execution`、`Active Tasks`、`Bundles`、`Blockers`、`Current Decisions`、`Next Actions`で現在状態を表す。
+`STATE.md`は、`Intent`、`Execution`、`Active Tasks`、`Blockers`、`Current Decisions`、`Next Actions`で現在状態を表す。
 
-完了した作業の詳細は、task、report、review、critique、research、architecture、strategy、releaseの各成果物へ残す。
+完了した作業の詳細は、task、report、review、critique、research、architecture、strategyの各成果物へ残す。
 
 `MEMORY.md`には、中長期に再利用する情報だけを残す。
 
@@ -200,6 +194,5 @@ make state-commit BUNDLE=<bundle_id>
 | `.agents/queue/research/` | 調査依頼と結果 |
 | `.agents/queue/strategy/` | Strategistの分析 |
 | `.agents/queue/architecture/` | Architectの技術判断 |
-| `.agents/queue/releases/` | release bundleとrelease判断 |
 | `.agents/queue/memory_proposals/` | MEMORYへの提案 |
 | `.agents/queue/skill_proposals/` | project skillへの提案 |

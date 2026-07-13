@@ -120,14 +120,12 @@ while IFS= read -r task_file; do
   supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
   done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
   direction_status="$(team_task_state_field "$task_id" direction_status)"
-  release_bundle="$(team_task_state_field "$task_id" release_bundle)"
   latest_commit="${task_commits##* }"
   [[ ${#latest_commit} -gt 12 ]] && latest_commit="${latest_commit:0:12}"
   line="  $task_id owner=$owner worker=$worker supervisor=$supervisor status=$status latest_commit=${latest_commit:-none} supervision=${supervision_decision:-none} done_recommendation=${done_recommendation:-false}"
   [[ "$direction_status" != "not_applicable" && -n "$direction_status" ]] && line+=" direction=$direction_status"
   progress="$(latest_task_progress_summary "$task_id")"
   [[ -n "$progress" ]] && line+=" progress=\"$progress\""
-  [[ -n "$release_bundle" ]] && line+=" release_bundle=$release_bundle"
   echo "$line"
 done < <(find "$TEAM_QUEUE_DIR/tasks" -maxdepth 1 -type f -name '*.md' | sort)
 [[ "$task_count" -gt 0 ]] || echo "  none"
@@ -185,21 +183,6 @@ for artifact_group in "Reports:$TEAM_QUEUE_DIR/reports" "Reviews:$TEAM_QUEUE_DIR
   [[ "$count" -gt 0 ]] || echo "  none"
   echo
 done
-
-echo "Releases:"
-release_count=0
-while IFS= read -r release_state; do
-  release_count=$((release_count + 1))
-  bundle_id="$(basename "$release_state" .json)"
-  printf '  %s manager=%s release_captain=%s status=%s decision=%s\n' \
-    "$bundle_id" \
-    "$(team_release_state_field "$bundle_id" manager)" \
-    "$(team_release_state_field "$bundle_id" release_captain)" \
-    "$(team_release_state_field "$bundle_id" status)" \
-    "$(team_release_state_field "$bundle_id" decision)"
-done < <(find "$TEAM_STATE_DIR/releases" -maxdepth 1 -type f -name '*.json' | sort)
-[[ "$release_count" -gt 0 ]] || echo "  none"
-echo
 
 for proposal_group in "Memory proposals:$TEAM_QUEUE_DIR/memory_proposals" "Skill proposals:$TEAM_QUEUE_DIR/skill_proposals"; do
   label="${proposal_group%%:*}"

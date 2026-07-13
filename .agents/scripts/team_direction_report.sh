@@ -46,7 +46,6 @@ supervision_decision="$(team_task_state_field "$task_id" supervision_decision)"
 done_recommendation="$(team_task_state_field "$task_id" done_recommendation)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
 architecture="$(team_task_state_field "$task_id" architecture)"
-release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 
 [[ "$supervisor" == "$critic_id" ]] || die "task $task_id critic is $supervisor, not $critic_id"
 worker_role="$(team_config_agent_field "$worker" role)"
@@ -97,9 +96,9 @@ team_write_task_state \
   "$task_id" "$owner" "$worker" "$supervisor" "$status" \
   "$base_commit" "$task_commits" "$report_file" "$supervision_artifact" \
   "$supervision_decision" "${done_recommendation:-false}" "$architecture_required" \
-  "$architecture" "$release_bundle" "$direction_status" "$direction_artifact"
+  "$architecture" "$direction_status" "$direction_artifact"
 
 "$SCRIPT_DIR/team_send.sh" --from "$critic_id" --type view_direction_result --task "$task_id" "$target" "$body" >/dev/null
-team_mark_inbox_processed "$critic_id" "$task_id" "" view_direction_ready
+team_mark_inbox_processed "$critic_id" "$task_id" view_direction_ready
 printf 'direction_status=%s\n' "$direction_status"
 [[ -n "$direction_artifact" ]] && printf 'direction_artifact=%s\n' "$direction_artifact"

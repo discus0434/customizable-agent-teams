@@ -40,7 +40,6 @@ base_commit="$(team_task_state_field "$task_id" base_commit)"
 task_commits="$(team_task_state_field "$task_id" task_commits)"
 report_file="$(team_task_state_field "$task_id" report)"
 architecture_required="$(team_task_state_field "$task_id" architecture_required)"
-release_bundle="$(team_task_state_field "$task_id" release_bundle)"
 direction_status="$(team_task_state_field "$task_id" direction_status)"
 direction_artifact="$(team_task_state_field "$task_id" direction_artifact)"
 
@@ -58,7 +57,7 @@ esac
 team_write_task_state \
   "$task_id" "$owner" "$worker" "" "dispatched" \
   "$base_commit" "$task_commits" "$report_file" "" \
-  "" "false" "$architecture_required" "" "$release_bundle" \
+  "" "false" "$architecture_required" "" \
   "$direction_status" "$direction_artifact"
 
 session_id=""
