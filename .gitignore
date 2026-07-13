@@ -128,3 +128,4 @@ CMakeCache.txt
 !.agents/queue/tasks/.gitkeep
 !.agents/queue/tasks/GENERAL_TEMPLATE.md
 !.agents/queue/tasks/FRONTEND_TEMPLATE.md
+!.agents/queue/tasks/EXPRESS_TEMPLATE.md
