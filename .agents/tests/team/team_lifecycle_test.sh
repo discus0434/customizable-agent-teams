@@ -146,8 +146,8 @@ critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command fronte
 [[ "$hard_command" == *"--model gpt-5.6-sol"* ]] || fail "hard task worker model is not gpt-5.6-sol"
 [[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
 [[ "$hard_command" != *"--search"* ]] || fail "hard task worker unexpectedly enables Web search"
-[[ "$reviewer_command" == *"--model gpt-5.6-terra"* ]] || fail "general reviewer model is not gpt-5.6-terra"
-[[ "$reviewer_command" == *'model_reasoning_effort=\"high\"'* ]] || fail "general reviewer effort is not high"
+[[ "$reviewer_command" == *"--model gpt-5.6-sol"* ]] || fail "general reviewer model is not gpt-5.6-sol"
+[[ "$reviewer_command" == *'model_reasoning_effort=\"low\"'* ]] || fail "general reviewer effort is not low"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
 
 export TEAM_FAKE_TMUX_LOG="$TMP_BASE/tmux.log"
