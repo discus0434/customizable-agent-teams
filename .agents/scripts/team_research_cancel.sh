@@ -45,6 +45,10 @@ if [[ -n "$worker" ]]; then
     if [[ "$exec_ref" == "$request_id" && -n "$exec_pid" ]] && kill -0 "$exec_pid" 2>/dev/null; then
       pkill -TERM -P "$exec_pid" 2>/dev/null || true
       kill -TERM "$exec_pid" 2>/dev/null || true
+      {
+        printf 'ended_at=%s\n' "'$(team_now_utc)'"
+        printf 'exit_code=%s\n' "'cancelled'"
+      } >> "$exec_state"
     fi
   fi
 fi

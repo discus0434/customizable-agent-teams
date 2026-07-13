@@ -88,21 +88,25 @@ rm -f "$last_message_file"
 
 runner="$SCRIPT_DIR/team_exec_wait.sh"
 
-TEAM_AGENT_ID="$agent_id" \
-TEAM_AGENT_ROLE="$role" \
-TEAM_AGENT_CLI="$cli" \
-TEAM_AGENT_MODEL="$model" \
-TEAM_AGENT_EFFORT="$effort" \
-TEAM_ROOT="$TEAM_ROOT" \
-TEAM_CONFIG_FILE="$TEAM_CONFIG_FILE" \
-TEAM_EXEC_STATE_FILE="$state_file" \
-TEAM_EXEC_LOG_FILE="$log_file" \
-TEAM_EXEC_ERR_FILE="$err_file" \
-TEAM_EXEC_KIND="$kind" \
-TEAM_EXEC_REF="$ref" \
-TEAM_EXEC_NOTIFY="$notify" \
-  nohup "$runner" "${command_args[@]}" >/dev/null 2>&1 &
-pid=$!
+# callerがcodex paneの場合、command終了時に子processがprocess groupごと
+# 回収される。set -mでrunnerを独立したprocess groupとして切り離す。
+pid="$(
+  TEAM_AGENT_ID="$agent_id" \
+  TEAM_AGENT_ROLE="$role" \
+  TEAM_AGENT_CLI="$cli" \
+  TEAM_AGENT_MODEL="$model" \
+  TEAM_AGENT_EFFORT="$effort" \
+  TEAM_ROOT="$TEAM_ROOT" \
+  TEAM_CONFIG_FILE="$TEAM_CONFIG_FILE" \
+  TEAM_EXEC_STATE_FILE="$state_file" \
+  TEAM_EXEC_LOG_FILE="$log_file" \
+  TEAM_EXEC_ERR_FILE="$err_file" \
+  TEAM_EXEC_KIND="$kind" \
+  TEAM_EXEC_REF="$ref" \
+  TEAM_EXEC_NOTIFY="$notify" \
+    bash -c 'set -m; nohup "$@" >/dev/null 2>&1 & echo $!' _ "$runner" "${command_args[@]}"
+)"
+[[ -n "$pid" ]] || die "exec runner did not start for $agent_id"
 
 {
   printf 'agent_id=%s\n' "$(shell_quote "$agent_id")"
