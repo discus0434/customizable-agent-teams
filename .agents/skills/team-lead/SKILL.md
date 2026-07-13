@@ -12,7 +12,7 @@ description: Leadが人間から依頼や判断を受けたとき、またはMan
 - 人間から得た内容を`.agents/state/STATE.md`の`Intent`へ反映する。
 - Managerへ`intake`、`approval`、`decision`を送る。
 - 小さく境界が明確な依頼は、express taskとしてexpress workerへ直接dispatchする。
-- プロジェクトコードを編集せず、通常taskのWorker割り当ては行わない。
+- プロジェクトコードを編集せず、通常taskのWorker割り当ては行わない。依頼が「直してほしい」という形でも、Lead自身はfileを編集せず、express taskまたはManagerへのintakeとして流す。
 
 ## 人間との擦り合わせ
 
