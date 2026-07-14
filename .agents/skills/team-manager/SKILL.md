@@ -15,9 +15,9 @@ description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupe
 
 - **micro**：小さなcleanupまたはpolishを、同じ目的と検証を持つ進行中のtaskへ含める。
 - **research**：codebaseの事実、実現可能性、外部情報が必要な場合にResearch Workerへ依頼する。
-- **general**：通常の実装をGeneral Workerへ割り当てる。
-- **hard**：難しいdebug、複数の境界にまたがる変更、algorithm、重大な選択肢の比較を要する実装をHard Task Workerへ割り当てる。
+- **hard**：次のいずれかに当たる場合に限り、Hard Task Workerへ割り当てる。曖昧な不具合対応。長大なコンテキストの追跡を要する変更、または複数の境界にまたがる変更。移行、セキュリティ、本番障害対応のように失敗のコストが大きい作業。
 - **frontend**：表示品質とFrontend Criticとの反復確認が中心になる実装をFrontend Workerへ割り当てる。
+- **general**：hardとfrontendのどちらにも当たらない実装は、難しそうに見えてもGeneral Workerへ割り当てる。
 
 microな変更を含める進行中のtaskがない場合は、目的と検証が一つにまとまる単独taskとして扱う。
 
@@ -52,7 +52,7 @@ Leadの`intake`から依存関係を明示する。
 - General WorkerとHard Task Workerには`GENERAL_TEMPLATE.md`を使う。
 - Frontend Workerには`FRONTEND_TEMPLATE.md`を使う。
 - Workerは、空き状況、変更対象の所有、直前まで扱っていた領域を考慮して選ぶ。
-- Hard Task Workerは、難度の高いtaskに使い、通常taskの空き枠として使わない。
+- Hard Task Workerは、hardの条件に当たるtaskだけに使い、通常taskの空き枠として使わない。
 - 一人のImplementation Workerが同時に持つtaskは一つとする。
 - 固定Supervisorは`dispatch`が設定ファイルから解決する。
 - `Acceptance`には外部から観測できる成功条件を書く。
