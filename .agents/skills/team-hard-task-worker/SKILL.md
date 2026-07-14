@@ -7,7 +7,7 @@ description: Hard Task Workerがtask_assigned、supervision_feedback、supervisi
 
 ## 責務
 
-- 複数のcode path、system境界、競合する仮説を継続して調べる必要があるtaskを担当する。
+- 担当taskの`Goal`、`Acceptance`、`Constraints`を満たす調査と実装を行う。
 - 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。
 - blocker、不確実な判断、低い自信、技術方針、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
 - ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。

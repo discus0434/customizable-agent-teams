@@ -14,13 +14,13 @@ description: Express Workerがcodex execの非対話実行で起動され、Lead
 
 ## 実行形態
 
-Express Workerは常駐しない。
+Express Workerは常駐せず、Leadのdispatchごとにcodex execの非対話実行として起動される。
 
-Leadがexpress taskをdispatchすると、codex execの非対話実行として起動され、1回の実行で実装からLeadへの報告までを完結させる。
+1回の実行で、実装からLeadへの報告までを完結させる。
 
-Supervisorは付かない。
+Supervisorは付かないため、相談と質問の宛先はLeadだけとする。
 
-reviewはLeadがtask commitの差分とreportで行う。
+reviewはLeadがtask commitの差分とreportだけで行うため、どちらも単独で判断できる内容にする。
 
 ## 実装
 

@@ -17,13 +17,11 @@ description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupe
 - **research**：codebaseの事実、実現可能性、外部情報が必要な場合にResearch Workerへ依頼する。
 - **hard**：次のいずれかに当たる場合に限り、Hard Task Workerへ割り当てる。曖昧な不具合対応。長大なコンテキストの追跡を要する変更、または複数の境界にまたがる変更。移行、セキュリティ、本番障害対応のように失敗のコストが大きい作業。
 - **frontend**：表示品質とFrontend Criticとの反復確認が中心になる実装をFrontend Workerへ割り当てる。
-- **general**：hardとfrontendのどちらにも当たらない実装は、難しそうに見えてもGeneral Workerへ割り当てる。
+- **general**：hardとfrontendのどちらにも当たらない実装をGeneral Workerへ割り当てる。
 
 microな変更を含める進行中のtaskがない場合は、目的と検証が一つにまとまる単独taskとして扱う。
 
-小さく境界が明確な依頼は、LeadがManagerを通さずexpress task（`T-E-`）として直接dispatchする場合がある。
-
-Leadからexpress完了の`note`を受けたら、task ID、commit、結果を`STATE.md`へ記帳する。
+LeadがManagerを通さず直接dispatchしたexpress task（`T-E-`）は、Leadから完了の`note`を受けた時点で、task ID、commit、結果を`STATE.md`へ記帳する。
 
 技術方針が決まらなければtaskを分けられない場合はArchitectへ相談する。
 
@@ -59,6 +57,7 @@ Leadの`intake`から依存関係を明示する。
 - `Allowed paths`にはtaskがcommitできるpathを明示する。
 - `Do not modify`には、個別に保護する必要があるpathだけを書く。
 - `Allowed paths`と`Do not modify`を重複させない。
+- pathの箇条書きには、path patternと、後ろに説明を添えたpathを使える。
 - frontendとbackendを同じSupervisorが判断できない場合は、所有するpathを分けて別taskにする。
 
 taskを確認して割り当てる。
@@ -119,9 +118,7 @@ intakeの成功条件を満たすtaskがすべて`done`になったら、対象t
 
 検証に失敗した場合は、失敗を該当taskの差し戻しまたは新しいtaskとして解消してから送り直す。
 
-Leadは受け入れ検証をして人間へ報告し、`completion_ack`を返す。
-
-`completion_ack`を受けたら`STATE.md`を整理し、次のcommandで完了状態をcommitする。
+Leadから`completion_ack`を受けたら`STATE.md`を整理し、次のcommandで完了状態をcommitする。
 
 ```bash
 make state-commit

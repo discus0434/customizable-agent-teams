@@ -17,10 +17,6 @@ Architecture required: false
 - `.agents/state/STATE.md`
 - `.agents/state/MEMORY.md`
 
-express taskの`Allowed paths`には、`.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`を含められない。
-
-これらに触れる作業は通常taskとしてManagerへ渡す。
-
 ## Goal
 
 <このtaskで成立させる状態>

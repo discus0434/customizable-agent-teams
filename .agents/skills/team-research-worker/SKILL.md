@@ -16,9 +16,9 @@ description: Research Workerがcodex execの非対話実行で起動され、共
 
 ## 実行形態
 
-Research Workerは常駐しない。
+Research Workerは常駐せず、requestの割り当てごとにcodex execの非対話実行として起動される。
 
-research requestが割り当てられると、codex execの非対話実行として起動され、1回の実行で調査から返信までを完結させる。
+1回の実行で、調査から返信までを完結させる。
 
 ## 調査
 
@@ -36,8 +36,6 @@ research requestが割り当てられると、codex execの非対話実行とし
 実行中に依頼元へ質問はできない。
 
 依頼元の回答がなければ確定できない内容は、置いた前提を明示した上で調べられる範囲の結果を返し、必要な追加情報を`## Result`に書く。
-
-依頼元は回答を添えた新しいrequestで調査を続ける。
 
 結果を完成させたら、typeを指定せずに元のassignment messageへ返信する。
 
