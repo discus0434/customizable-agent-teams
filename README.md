@@ -81,7 +81,7 @@ Lead / Manager / Strategist / Architect -> Research Worker pool
 
 GitHubの操作には`gh`を使います。
 
-repositoryの調査には`ripgrep`、`fd`、`bat`、`git-delta`が利用できます。
+repositoryの調査には`ripgrep`が利用できます。
 
 選んだstackのtoolchainもbootstrapで使います。
 
@@ -89,7 +89,7 @@ repositoryの調査には`ripgrep`、`fd`、`bat`、`git-delta`が利用でき�
 <summary>macOSでまとめてinstallする</summary>
 
 ```bash
-brew install gh ripgrep fd bat git-delta direnv tmux pnpm node python uv
+brew install gh ripgrep direnv tmux pnpm node python uv
 brew install --cask codex
 npm install -g @anthropic-ai/claude-code
 ```
@@ -112,9 +112,7 @@ sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg
 sudo mkdir -p -m 755 /etc/apt/sources.list.d
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null
 sudo apt update
-sudo apt-get install -y gh ripgrep fd-find bat direnv tmux python3 nodejs npm
-command -v fd >/dev/null || sudo ln -s /usr/bin/fdfind /usr/local/bin/fd
-command -v bat >/dev/null || sudo ln -s /usr/bin/batcat /usr/local/bin/bat
+sudo apt-get install -y gh ripgrep direnv tmux python3 nodejs npm
 ```
 
 </details>
