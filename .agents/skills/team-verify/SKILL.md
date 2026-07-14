@@ -10,7 +10,8 @@ description: Workerのreport、SupervisorのOK、Managerのdone、Leadの完了�
 - Implementation Workerは、task固有の検証、`make post-change`、`make smoke`を実行し、commandと結果をreportへ記録する。
 - Supervisorは、task、task commit、report、関連コードを調べ、変更の不確実さと影響に応じて追加確認を選ぶ。
 - Managerは、task state、成果物の必須項目、Supervisorの判断を確認する。
-- Leadは、完了報告の前にHEADで`make post-change`と`make smoke`を実行し、差分と注意点を確認して人間へ報告する。
+- `completion_ready`は、送信時に現在のHEADで`make post-change`と`make smoke`が実行され、通った場合だけ届く。
+- Leadは、利用者に見える挙動と注意点を確認して人間へ報告する。
 
 検証後に対象commitまたは状態が変わった場合は、その検証を担当するroleが結果を更新する。
 

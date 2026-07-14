@@ -161,9 +161,11 @@ Leadは人間と確認し、Managerへ判断を返す。
 
 intakeの成功条件を満たすtaskがすべて`done`になったら、Managerは対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
 
-Leadは受け入れ検証をする。
+`completion_ready`の送信時には、`STATE.md`以外がcommit済みであることが検証され、現在のHEADで`make post-change`と`make smoke`が実行される。
 
-現在のHEADで`make post-change`と`make smoke`を実行し、task state、report、利用者に見える挙動、未解決事項を確認する。
+どちらかが失敗すると、送信自体が失敗する。
+
+Leadは受け入れ検証として、task state、report、利用者に見える挙動、未解決事項を確認する。
 
 問題があればManagerへ差し戻し、なければ人間へ完了を報告して、Managerへ`completion_ack`を返す。
 

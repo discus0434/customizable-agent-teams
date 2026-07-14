@@ -263,6 +263,26 @@ case "$type" in
       "invalid completion_ready route" \
       "the manager reports intake completion to lead" \
       "send from manager to lead"
+    completion_state_rel="$(team_relative_path "$(team_state_file)")"
+    completion_dirty="$(team_git_changed_paths_except "$completion_state_rel" | paste -sd ',' - | sed 's/,/, /g')"
+    [[ -z "$completion_dirty" ]] || die_rule \
+      "completion verification requires committed project changes" \
+      "these paths still differ from HEAD: $completion_dirty" \
+      "finish and commit the owning work, then resend completion_ready"
+    make -C "$TEAM_ROOT" post-change 1>&2 || die_rule \
+      "completion verification failed: make post-change" \
+      "completion_ready certifies the integrated HEAD" \
+      "fix the failure under its owning task, then resend completion_ready"
+    make -C "$TEAM_ROOT" smoke 1>&2 || die_rule \
+      "completion verification failed: make smoke" \
+      "completion_ready certifies the integrated HEAD" \
+      "fix the failure under its owning task, then resend completion_ready"
+    completion_commit="$(git -C "$TEAM_ROOT" rev-parse HEAD)"
+    if [[ -n "$body" ]]; then
+      body+=$'\n\n'"Verified commit: $completion_commit"
+    else
+      body="Verified commit: $completion_commit"
+    fi
     ;;
   completion_ack)
     [[ "$from_role" == "lead" && "$to_role" == "manager" ]] || die_rule \

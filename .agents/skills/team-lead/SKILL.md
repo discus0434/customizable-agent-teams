@@ -97,10 +97,11 @@ taskの範囲や成功条件が動く場合はexpressを中止し、通常task�
 
 ## 受け入れと完了報告
 
+`completion_ready`は、送信の時点でHEADの`make post-change`と`make smoke`が実行され、通った場合だけ届く。
+
 Managerから`completion_ready`を受けたら、Leadが受け入れ検証をする。
 
 - 対象taskがすべて`done`で、reportとreviewが揃っていることを`make team-status`で確認する。
-- 現在のHEADで`make post-change`と`make smoke`を実行する。
 - 利用者に見える挙動を、可能な範囲で直接確認する。
 - 未解決事項と人間へ伝えるべき注意点を洗い出す。
 

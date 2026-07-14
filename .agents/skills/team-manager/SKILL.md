@@ -115,6 +115,10 @@ taskを`done`にすると、そのWorkerとSupervisorは次のtaskを担当で�
 
 intakeの成功条件を満たすtaskがすべて`done`になったら、対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
 
+`completion_ready`の送信時には、`STATE.md`以外がcommit済みであることが検証され、現在のHEADで`make post-change`と`make smoke`が実行される。
+
+検証に失敗した場合は、失敗を該当taskの差し戻しまたは新しいtaskとして解消してから送り直す。
+
 Leadは受け入れ検証をして人間へ報告し、`completion_ack`を返す。
 
 `completion_ack`を受けたら`STATE.md`を整理し、次のcommandで完了状態をcommitする。

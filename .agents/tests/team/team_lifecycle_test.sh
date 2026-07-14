@@ -73,6 +73,7 @@ post-change:
 	@echo "temp post-change ok"
 
 smoke:
+	@if [ -f .agents/queue/state/fail-smoke ]; then echo "forced smoke failure" >&2; exit 1; fi
 	@echo "temp smoke ok"
 
 include .agents/agent-team.mk
@@ -816,9 +817,32 @@ if team "$TMP_ROOT/.agents/scripts/team_send.sh" \
 fi
 grep -q '^error: invalid completion_ready route$' "$TMP_BASE/completion-route.err"
 
+printf '%s\n' "incomplete work" > "$TMP_ROOT/incomplete.txt"
+if team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from manager --type completion_ready \
+  lead "Dirty tree." > /dev/null 2> "$TMP_BASE/completion-dirty.err"; then
+  fail "completion_ready accepted uncommitted project changes"
+fi
+grep -q '^error: completion verification requires committed project changes$' \
+  "$TMP_BASE/completion-dirty.err"
+grep -q 'incomplete.txt' "$TMP_BASE/completion-dirty.err"
+rm "$TMP_ROOT/incomplete.txt"
+
+touch "$TMP_ROOT/.agents/queue/state/fail-smoke"
+if team "$TMP_ROOT/.agents/scripts/team_send.sh" \
+  --from manager --type completion_ready \
+  lead "Failing smoke." > /dev/null 2> "$TMP_BASE/completion-smoke.err"; then
+  fail "completion_ready accepted a failing smoke check"
+fi
+grep -q '^error: completion verification failed: make smoke$' "$TMP_BASE/completion-smoke.err"
+rm "$TMP_ROOT/.agents/queue/state/fail-smoke"
+
 team "$TMP_ROOT/.agents/scripts/team_send.sh" \
   --from manager --type completion_ready \
-  lead "T-GENERAL and T-FRONTEND are done and ready for acceptance." >/dev/null
+  lead "T-GENERAL and T-FRONTEND are done and ready for acceptance." >/dev/null 2>&1
+lead_completion_raw="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" lead --raw)"
+grep -q "Verified commit: $(git -C "$TMP_ROOT" rev-parse HEAD)" <<<"$lead_completion_raw" \
+  || fail "completion_ready did not record the verified commit"
 ack_output="$(
   team "$TMP_ROOT/.agents/scripts/team_send.sh" \
     --from lead --type completion_ack \
