@@ -21,6 +21,8 @@ Claude Code と Codex を11の役割に分けて、tmux の上で1つのチー�
 - **express レーン**：小さな依頼は Manager を通さず、Lead が Express Worker へ直接 dispatch します。レビューは Lead が行います。
 - **モデル配分は設定1ファイル**：`.agents/config/agent-team.yaml` の `model` と `effort` を書き換えるだけで、役割の構成を保ったままモデルを入れ替えられます。これが名前の由来です。
 
+この構成に至った理由と、チームにプロダクトを1つ作らせた実測記録は、[zennの記事](https://zenn.dev/discus0434/articles/customizable-agent-teams)にまとめています。
+
 ## 必要なtool
 
 チームの起動には`git`、`make`、`bash`、`tmux`、`direnv`と、使用するcoding agentのCLIが必要です。

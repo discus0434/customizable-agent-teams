@@ -21,6 +21,8 @@ The team is built on four mechanisms.
 - **Express lane**: small requests skip the Manager. The Lead dispatches them straight to an Express Worker and reviews the result itself.
 - **Model allocation in one config file**: edit `model` and `effort` in `.agents/config/agent-team.yaml` and the models swap out while the role structure stays intact. Hence the name.
 
+The reasoning behind this design, and a measured run where the team built a product end to end, are covered in [a Zenn article](https://zenn.dev/discus0434/articles/customizable-agent-teams) (Japanese).
+
 ## Requirements
 
 Starting the team requires `git`, `make`, `bash`, `tmux`, `direnv`, and the CLIs of the coding agents you use.
