@@ -1,13 +1,8 @@
 ---
 name: absolute-rules
-description: 仕様、コード、workflowを変更するときに、明示されていない後方互換、alias、互換layer、silent fallback、default値によるfallbackを避け、現在の要件に合う単一の実装へ整理するために使う。
+description: Use by any agent before writing specs, editing code, or changing workflow files when the change could add compatibility behavior, aliases, silent fallbacks, or default-value fallbacks.
 ---
 
-# absolute-rules
-
-- 後方互換が明示的な要件でない場合は、古いinterfaceと挙動を残さない。
-- 破壊的変更によって設計が単純になる場合は、古い経路、alias、互換layerを削除する。
-- 変更後の設計に不要な文書、test、設定、名称も削除し、過去の経緯を説明する記述を残さない。
-- silent fallbackと、場当たり的な代替経路を追加しない。
-- 環境変数、設定、引数が必須なら、default値で補わず不足を明示する。
-- 作業を継続できない場合は、失敗した理由、守るべき条件、成功させる方法を示して停止する。
+- 後方互換、互換性、エイリアスが明示的な要件でない場合は、その実装は絶対に行わない。明示的に求められない限りは必ず、実装をよりシンプルでクリーンにするための後方互換を残さない破壊的変更を行う。破壊的変更を行う際は、歴史的経緯を思わせるような痕跡すら完全に抹消する。初めからそうであったかのようにコードベースを変更する。
+- 明示的な要求がない限り、互換レイヤ・silent fallback・場当たり的な代替経路を追加しないこと。
+- fallback は原則的に禁止。failing fast を心がけること。安全に継続できない場合は、明確なエラーを raise すること。`os.getenv()`などにデフォルト引数を入れてフォールバックするのも厳禁。
