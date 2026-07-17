@@ -187,6 +187,16 @@ team_tmux_accept_startup_prompt() {
 
   for _attempt in $(seq 1 "$timeout_seconds"); do
     content="$(team_tmux_capture_pane "$pane")"
+    # Bypass Permissionsの確認は既定が「No, exit」なので、素のEnterを送ると
+    # paneごと終了する。先に「Yes, I accept」の番号へ選択を移す
+    if printf '%s\n' "$content" | grep -q 'Yes, I accept'; then
+      local accept_option
+      accept_option="$(printf '%s\n' "$content" | grep -Eo '[0-9]+\. Yes, I accept' | head -1 | cut -d. -f1)"
+      team_tmux_cancel_mode_if_needed "$pane"
+      tmux send-keys -t "$pane" "${accept_option:-2}"
+      sleep 1
+      continue
+    fi
     if printf '%s\n' "$content" | grep -Eq 'Do you trust the contents of this directory|Press enter to continue|Quick safety check: Is this a project you created or one you trust|Enter to confirm'; then
       team_tmux_cancel_mode_if_needed "$pane"
       team_tmux_submit "$pane"
