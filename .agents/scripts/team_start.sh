@@ -98,6 +98,23 @@ agent_state_is_live() {
   team_tmux_pane_in_session "$pane" "$configured_session"
 }
 
+send_boot_nudge() {
+  local pane="$1"
+  local id="$2"
+  local role="$3"
+  local cli="$4"
+
+  if [[ "${TEAM_BOOT_NUDGE:-1}" == "0" ]]; then
+    return 0
+  fi
+
+  sleep "${TEAM_BOOT_NUDGE_DELAY:-1}"
+  if [[ "$role" == "lead" ]]; then
+    team_tmux_wait_for_ready "$pane" "$cli" 30
+  fi
+  team_tmux_send_text "$pane" "AGENTS.mdを読み、role=${role}、agent_id=${id}としてinbox ${id}で待機してください。"
+}
+
 agent_launch_command() {
   local id="$1"
   local role="$2"
@@ -185,6 +202,8 @@ main() {
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     set_pane_metadata "$pane" "$id" "$role" "$model"
     team_tmux_accept_startup_prompt "$pane" "$cli" 10
+    team_tmux_require_pane "$id" "$pane" "$session" "$window"
+    send_boot_nudge "$pane" "$id" "$role" "$cli"
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     write_agent_state "$id" "$role" "$cli" "$model" "$effort" "$window" "$supervisor" "$command" "$pane" "$session"
   done < <(team_config_agents)

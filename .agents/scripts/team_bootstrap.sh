@@ -17,7 +17,7 @@ done < <(team_config_agents)
 
 [[ -n "$lead_id" ]] || die "no lead agent configured in $TEAM_CONFIG_FILE"
 
-"$SCRIPT_DIR/team_start.sh" --restart --lead-only
+TEAM_BOOT_NUDGE=0 "$SCRIPT_DIR/team_start.sh" --restart --lead-only
 
 state_file="$TEAM_STATE_DIR/agents/$lead_id.env"
 [[ -f "$state_file" ]] || die "no pane state for lead agent: $lead_id"
