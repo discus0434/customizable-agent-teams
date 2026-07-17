@@ -17,7 +17,7 @@ description: General Workerがtask_assigned、supervision_feedback、supervision
 
 1. task、関連コード、現在状態、適用されるskillsを確認する。
 2. 成功条件、変更path、検証方法、固定General Reviewerを確認する。
-3. 期待する挙動を先にtestで表せる場合は`team-tdd`を使う。
+3. testの要否、種類、書き方は`team-tdd`に従う。
 4. 影響する経路を確認し、task全体を満たす一貫した変更を実装する。
 5. task固有の検証を実行する。
 

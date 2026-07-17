@@ -30,7 +30,7 @@ make team-send TO=<critic_id> TYPE=view_direction_ready TASK=<task_id> BODY_FILE
 ## 実装と表示確認
 
 - projectの`AGENTS.md`にあるvisual verificationと、taskに記載された確認対象に従う。
-- client-sideの挙動を実装前にtestで表せる場合は`team-tdd`を使う。
+- client-side testの要否、種類、書き方は`team-tdd`に従う。
 - 実装中も表示結果を確認し、code reviewだけで見た目を判断しない。
 - 共有するscreenshotと確認結果は`.agents/queue/visuals/<task_id>/`に置く。
 - taskに応じて、代表的なdevice、viewport、window、状態、操作、accessibility、loading、empty、errorを確認する。
