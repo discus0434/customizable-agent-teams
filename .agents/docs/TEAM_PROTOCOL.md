@@ -142,7 +142,11 @@ Implementation Workerは、まず固定Supervisorへ相談する。
 
 Supervisorは、そのtask内の質問に答える。
 
-taskの対象範囲、成功条件、他taskへの影響、解消できないblockerについてManagerの判断が必要な場合は、SupervisorがManagerへ上げる。
+taskの対象範囲、成功条件、他taskへの影響、解消できないblockerについてManagerの判断が必要な場合は、SupervisorがManagerへ`question`で上げる。escalationのような専用型はない。
+
+```bash
+make team-send TO=manager TYPE=question TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/manager-question.md
+```
 
 ```bash
 make team-send TO=strategist TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/strategy-request.md
