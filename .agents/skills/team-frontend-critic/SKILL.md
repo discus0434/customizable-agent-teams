@@ -46,7 +46,7 @@ Workerのtask固有の検証、`make post-change`、`make smoke`がtask commit�
 
 実際のUIを操作または表示し、task、report、diff、画面方針、screenshot、操作、responsive behavior、accessibility、重要な状態を判断する。
 
-提出されたtestは`team-tdd`の基準で判定し、根拠コメントが欠けるtest、書いてはならないtestに該当するもの、対象外の網羅的unit testは`FIX`とする。
+提出されたtestは`team-test-strategy`の基準で判定し、根拠コメントが欠けるtest、書いてはならないtestに該当するもの、対象外の網羅的unit testは`FIX`とする。
 
 確認の順序、追加command、確認範囲は、変更の不確実さと影響から選ぶ。
 

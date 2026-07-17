@@ -1,9 +1,9 @@
 ---
-name: team-tdd
-description: Implementation Workerがtestの要否と種類を判断し、根拠コメント付きのtestをtest-firstで実装するときと、Supervisorが提出されたtestをreviewするときに使う。
+name: team-test-strategy
+description: テストの要否と種類を判断し、testを実装するときと、testをreviewするときに使う。
 ---
 
-# team-tdd
+# test戦略
 
 testは、壊れたときの損害が大きい挙動を守るために書く。数を揃えるためには書かない。
 
@@ -50,30 +50,12 @@ module、class、public関数を網羅するunit test群は作らない。covera
 
 ## 書いてはならないtest
 
-- 常に成功するtest。対象の実装を壊しても失敗しない。RED確認で検出する。
 - superficialなassertion。呼ばれた事実、nullでないこと、例外が出ないことだけを確認し、結果の中身を確認しない。
 - mockの戻り値を確認するtest。自分で置き換えた値がそのまま返ることを確認しても、実物の挙動は何も検証されない。根拠コメントの「何を実物として動かすか」が書けない。
 - 実装の内部構造を写したtest。private関数、呼び出し順、mockへの引数を固定し、挙動を変えないrefactoringで壊れる。根拠コメントの「成功し続けるべき内部変更」が書けない。
 
-## Cycle
-
-1. **RED**：根拠コメントと、期待する一つの挙動のtestを書く。
-2. **RED確認**：test commandを実行し、意図した理由で失敗することを確認する。
-3. **GREEN**：期待する挙動と影響する経路を満たす実装を行う。
-4. **GREEN確認**：同じtest commandを実行し、成功することを確認する。
-5. **REFACTOR**：重複、命名、責務境界を整え、挙動が変わっていないことを確認する。
-6. **REGRESSION**：bug fixでは、追加したtestが修正前の問題を検出することを確認する。
-
-実装済みのコードへtestを足す場合も、RED確認に相当する確認を行う。対象を一時的に壊すか入力を変えて、testが失敗できることを確かめる。
+## その他の注意
 
 - mockは、置き換えが必要な外部作用に限る。
 - `sleep`とtimeoutへ依存する不安定なtestを避ける。
 - 一つのtestでは一つの挙動を確認する。
-
-## 検証記録
-
-- 選んだtestの種類と対象。
-- REDのcommandと結果。
-- GREENのcommandと結果。
-- 追加または更新したtest file。
-- testを書かなかった場合は、その判断と代わりの検証。

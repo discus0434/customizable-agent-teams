@@ -41,10 +41,11 @@ make team-send TO=<worker_id> TYPE=supervision_feedback TASK=<task_id> BODY_FILE
 
 ## Testのreview
 
-提出されたtestは、`team-tdd`の基準で判定する。testの数と通過は、それだけでは検証の価値を示さない。
+提出されたtestは、`team-test-strategy`の基準で判定する。testの数と通過は、それだけでは検証の価値を示さない。
 
 - 各testの直前に根拠コメントの5点が揃っていて、内容がtestの実態と一致していることを確認する。期待結果の根拠が実装の出力になっているものは`FIX`とする。
-- `team-tdd`の「書いてはならないtest」（常に成功するtest、superficialなassertion、mockの戻り値の確認、内部構造の写し）に該当するものは`FIX`とする。疑わしい場合は、対象を壊してtestが失敗するかを確かめる。
+- `team-test-strategy`の「書いてはならないtest」（superficialなassertion、mockの戻り値の確認、内部構造の写し）に該当するものは`FIX`とする。
+- 対象の実装を壊しても失敗しないtestは、通過していても何も検証していないため`FIX`とする。疑わしい場合は、対象を壊して確かめる。
 - 「Testを書く対象」に該当しない網羅的なunit testは、削除を求める。
 - 対象に該当するのにtestがない場合は、要否の判断と代わりの検証がreportに記録されていることを確認する。
 

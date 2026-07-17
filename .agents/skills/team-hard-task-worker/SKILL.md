@@ -26,7 +26,7 @@ description: Hard Task Workerがtask_assigned、supervision_feedback、supervisi
 ## 実装
 
 - 既存architectureと抽象化を基準にし、変更する場合は根拠を示す。
-- testの要否、種類、書き方は`team-tdd`に従う。
+- testの要否、種類、書き方は`team-test-strategy`に従う。
 - 最初に通ったcaseだけに対象を狭めず、同じ原因から影響を受ける経路を直す。
 - 他moduleとの接続箇所とregressionの可能性を確認する。
 
