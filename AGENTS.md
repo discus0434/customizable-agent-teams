@@ -50,12 +50,8 @@ make team-send TO=<agent_id> TYPE=<message_type> TASK=<task_id> BODY_FILE=.agent
 make team-reply IN_REPLY_TO=<message_id> TYPE=<message_type> BODY_FILE=.agents/queue/state/tmp/reply.md
 ```
 
-- `inbox <agent_id>: 0 pending`は、対応待ちのmessageがないことを示す。
-- `TYPE=note`は記録として保存されるが、対応待ちにはならない。
-- `supervision_assigned`、`supervision_checkpoint`、`research_cancelled`は、受信側が読むと処理済みになる。
-- Workerに対応を求める場合は`supervision_feedback`を使う。
-- taskのcommandは、対応するmessageを処理済みにする。
-- 返信が不要なmessageを処理済みにする場合に限り、`MARK=<message_id>`を使う。
+messageの型、配送のされ方、処理済みの意味論は、`TEAM_PROTOCOL.md`の「Messageと処理済み」に従う。この文書には複製しない。
+
 - task、research、pane、inboxの現在状態は`make team-status`で確認する。
 - paneの入力欄にpromptが残っている場合は`make team-submit AGENT=<agent_id>`を実行する。
 
