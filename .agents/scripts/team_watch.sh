@@ -33,6 +33,7 @@ sweep() {
     fi
   done < <(team_config_agents)
   sweep_task_obligations
+  stall_alarm_check
 }
 
 # taskの生きたpendingがどこかのinboxにあれば、義務はmessage系の照合が担っている
@@ -108,6 +109,70 @@ sweep_task_obligations() {
     nudge_idle_pane_with_text "$target" \
       "task ${task_id} が status=${status} のまま、どのinboxにも義務が映っていません。担当はあなた(${target})です。作業を再開するか、待つ相手へpendingが立つmessageを送ってください。"
   done
+}
+
+# team全体が止まる新種の停滞は、既知の照合(inbox、task state)では拾えない。
+# 「仕事が残っているのに、inboxもtask stateも動かず、作業中のpaneも無い」
+# 状態が続いたら、診断者としてLeadを起こす。機構は修理せず、召喚だけを行う
+file_mtime() {
+  stat -c %Y "$1" 2>/dev/null || stat -f %m "$1" 2>/dev/null || printf '0\n'
+}
+
+stall_alarm_check() {
+  local threshold="${TEAM_STALL_ALARM_SECONDS:-300}"
+  [[ "$threshold" -gt 0 ]] || return 0
+
+  local state_json task_id status open_tasks=""
+  for state_json in "$TEAM_STATE_DIR"/tasks/*.json; do
+    [[ -f "$state_json" ]] || continue
+    task_id="$(basename "$state_json" .json)"
+    status="$(team_task_state_field "$task_id" status)"
+    [[ "$status" == "done" ]] && continue
+    open_tasks+="${task_id}(${status}) "
+  done
+  [[ -n "$open_tasks" ]] || return 0
+
+  local f mt newest=0 now age
+  for f in "$TEAM_QUEUE_DIR"/inbox/*.jsonl "$TEAM_STATE_DIR"/tasks/*.json; do
+    [[ -f "$f" ]] || continue
+    mt="$(file_mtime "$f")"
+    (( mt > newest )) && newest="$mt"
+  done
+  (( newest > 0 )) || return 0
+  now="$(date +%s)"
+  age=$(( now - newest ))
+  (( age >= threshold )) || return 0
+
+  local id role busy_found=0
+  while IFS='|' read -r id role _cli _model _effort _window _supervisor; do
+    [[ -n "$id" && "$id" != "lead" ]] || continue
+    if team_config_role_is_exec "$role"; then
+      continue
+    fi
+    if (
+      pane=""
+      state_file="$TEAM_STATE_DIR/agents/$id.env"
+      [[ -f "$state_file" ]] || exit 1
+      # shellcheck disable=SC1090
+      source "$state_file"
+      [[ -n "${pane:-}" ]] || exit 1
+      team_tmux_pane_is_busy "$pane"
+    ); then
+      busy_found=1
+      break
+    fi
+  done < <(team_config_agents)
+  (( busy_found == 0 )) || return 0
+
+  local marker="$TEAM_STATE_DIR/watch/stall-alarm.at" last
+  mkdir -p "$TEAM_STATE_DIR/watch"
+  last="$(cat "$marker" 2>/dev/null || printf '0\n')"
+  (( now - last >= threshold )) || return 0
+  printf '%s\n' "$now" > "$marker.tmp.$$"
+  mv "$marker.tmp.$$" "$marker"
+
+  nudge_idle_pane_with_text lead \
+    "停滞警報: 約$(( age / 60 ))分、inboxとtask stateが動かず、作業中のpaneもありません。open tasks: ${open_tasks}。team-statusと各paneの実態を調べ、原因を特定して介入してください。"
 }
 
 if [[ "$once" == "1" ]]; then

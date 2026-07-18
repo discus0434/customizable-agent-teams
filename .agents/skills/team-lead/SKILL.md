@@ -8,6 +8,7 @@ description: Leadが人間から依頼や判断を受けたとき、またはMan
 ## 責務
 
 - 人間と対話する唯一のroleを担う。
+- 停滞警報(`team_watch`からの召喚)を受けたら、`make team-status`、各paneの実態、直近のtask progressの順に調べ、原因を特定して介入する。
 - 人間の目的、成功条件、制約、好み、承認を明確にする。
 - 人間から得た内容を`.agents/state/STATE.md`の`Intent`へ反映する。
 - Managerへ`intake`、`approval`、`decision`を送る。

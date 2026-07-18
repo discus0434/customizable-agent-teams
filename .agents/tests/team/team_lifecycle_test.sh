@@ -560,6 +560,64 @@ rm -f "$TMP_ROOT/.agents/queue/state/tasks/T-STALL.json" \
   "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env"
 perl -0pi -e 's/^.*msg_stall_live.*\n//m' "$TMP_ROOT/.agents/queue/inbox/general-reviewer-1.jsonl"
 
+# Regression (stall alarm): a stall class nobody anticipated leaves open work
+# with no inbox movement, no task-state movement, and no busy pane. The watch
+# cannot repair what it cannot classify, so it summons the Lead to diagnose.
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
+  'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-STALL manager general-worker-1 general-reviewer-1 dispatched base-commit "" "" "" "" false false "" not_applicable ""' \
+  _ "$TMP_ROOT"
+find "$TMP_ROOT/.agents/queue/inbox" -name '*.jsonl' -exec touch -d '2020-01-01T00:00:00' {} +
+find "$TMP_ROOT/.agents/queue/state/tasks" -name '*.json' -exec touch -d '2020-01-01T00:00:00' {} +
+rm -f "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at"
+: > "$TEAM_FAKE_TMUX_LOG"
+rm -f "$composer_file.buffer"
+: > "$composer_file"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+grep -q '^set-buffer .*停滞警報' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "the stall alarm did not summon the lead"
+
+# A busy pane means somebody is working, so the same state must stay silent.
+find "$TMP_ROOT/.agents/queue/inbox" -name '*.jsonl' -exec touch -d '2020-01-01T00:00:00' {} +
+find "$TMP_ROOT/.agents/queue/state/tasks" -name '*.json' -exec touch -d '2020-01-01T00:00:00' {} +
+rm -f "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at"
+: > "$TEAM_FAKE_TMUX_LOG"
+: > "$busy_file"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_BUSY_FILE="$busy_file" \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+grep -q '^set-buffer .*停滞警報' "$TEAM_FAKE_TMUX_LOG" \
+  && fail "the stall alarm fired while a pane was busy"
+rm "$busy_file"
+
+# The firing sweep records its time; the cooldown gate reads this marker and
+# keeps later sweeps silent for TEAM_STALL_ALARM_SECONDS.
+find "$TMP_ROOT/.agents/queue/inbox" -name '*.jsonl' -exec touch -d '2020-01-01T00:00:00' {} +
+find "$TMP_ROOT/.agents/queue/state/tasks" -name '*.json' -exec touch -d '2020-01-01T00:00:00' {} +
+rm -f "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at"
+: > "$composer_file"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+[[ -s "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at" ]] \
+  || fail "the stall alarm did not record its firing time for the cooldown"
+rm -f "$TMP_ROOT/.agents/queue/state/tasks/T-STALL.json" \
+  "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at"
+
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' > "$message_body"
