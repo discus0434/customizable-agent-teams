@@ -359,6 +359,50 @@ cm_after="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FA
   || fail "nudge did not deliver on a transcript-polluted pane"
 rm -f "$transcript_file"
 
+# Regression (invisible stall): a worker that closes its turn without leaving
+# any pending message holds an obligation recorded only in task state. The
+# watch must derive the obligated agent from the status and wake it.
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
+  'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-STALL manager general-worker-1 general-reviewer-1 dispatched base-commit "" "" "" "" false false "" not_applicable ""' \
+  _ "$TMP_ROOT"
+cat > "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env" <<'ENV'
+agent_id='general-worker-1'
+role='general-worker'
+cli='codex'
+pane='%fake'
+session='agent-team'
+ENV
+rm -f "$composer_file.buffer"
+: > "$composer_file"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+grep -q '^set-buffer .*task T-STALL が status=dispatched のまま' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "team_watch did not wake the obligated worker of an invisible stall"
+
+# When the task has a live pending message anywhere, the pending machinery owns
+# the wake and the task reminder must stay silent (e.g. a checkpoint wait).
+printf '%s\n' '{"id":"msg_stall_live","from":"general-worker-1","to":"general-reviewer-1","type":"supervision_checkpoint","task_id":"T-STALL","requires_attention":"true","created_at":"2026-01-01T00:00:00Z","body":"checkpoint"}' \
+  >> "$TMP_ROOT/.agents/queue/inbox/general-reviewer-1.jsonl"
+: > "$TEAM_FAKE_TMUX_LOG"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+if grep -q 'task T-STALL が status=' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "task reminder fired although a live pending message owns the wake"
+fi
+rm -f "$TMP_ROOT/.agents/queue/state/tasks/T-STALL.json" \
+  "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env"
+perl -0pi -e 's/^.*msg_stall_live.*\n//m' "$TMP_ROOT/.agents/queue/inbox/general-reviewer-1.jsonl"
+
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' > "$message_body"

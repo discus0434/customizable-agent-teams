@@ -11,7 +11,7 @@ description: General Workerがtask_assigned、supervision_feedback、supervision
 - 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。両方に合致するpathは狭い指定が勝つ。
 - blocker、不確実な判断、低い自信、技術上の疑問、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
 - ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
-- 返答や他taskの完了を待つ間は、lockを解放しturnを閉じて待機する。返答はnudgeで届く。
+- 返答を待つ間は、lockを解放しturnを閉じて待機する。返答はnudgeで届く。messageの裏付けが無い待ち(他taskの完了など)は、相手へmessageを送って返答待ちに変えてから閉じる。担当taskの途中で待機に入らない。
 - `STATE.md`と`MEMORY.md`を編集しない。
 
 ## 実装

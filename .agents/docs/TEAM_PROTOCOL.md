@@ -176,11 +176,15 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 ## 待機
 
-返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。nudgeが失われても、常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
+turnを閉じて待ってよいのは、自分宛のmessageで起こされる待ちだけとする。messageが届けばnudgeで起こされ、nudgeが失われても常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
+
+messageの裏付けが無いもの(他taskの完了、散文で宣言した指示待ち)を待ちたい場合は、待つ相手へmessageを送り、返答待ちに変えてから閉じる。担当taskの作業途中は待機ではない。続きは自分で再開する。
 
 ただし`note`は記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
 
 判断を要求するmessageは、読んだだけでは処理済みにならない。応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。処理済みは義務の完了の記録であり、閲覧の記録ではない。
+
+`team_watch`は、活きたstatusのtaskがどのinboxにも映らず止まっている場合、statusから義務を負うagentを決めて起こす。
 
 待ちに入る前に、次を済ませる。
 
