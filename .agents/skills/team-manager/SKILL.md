@@ -69,7 +69,7 @@ make dispatch TASK=<task_id>
 `STATE.md`の各sectionを次のように保つ。
 
 - `Intent`：Leadが確定した目的、成功条件、人間へ確認する条件。
-- `Execution`：現在の依存関係と実行状況。
+- `Execution`：現在の依存関係と実行状況。数行の現在形に保ち、経緯は成果物への参照で示す。
 - `Active Tasks`：進行中のtaskだけを記載した表。
 - `Blockers`：未解決のblocker。
 - `Current Decisions`：現在の実行へ影響している判断。
@@ -105,6 +105,8 @@ taskを`done`にする前に、次の情報を確認する。
 - `done_recommendation=true`である。
 - reportの必須項目とWorkerの検証結果が揃っている。
 - 必要とされたarchitecture noteが存在する。
+
+検証はWorkerが、reviewはSupervisorが所有する。上の確認が揃っていれば、同じ検証を繰り返さずに`done`とする。深掘りの再検証は、intakeまたは`STATE.md`が保護すると名指しした資源へtaskが触れた場合と、Supervisorの判断に留保が付いている場合に限る。
 
 taskが`supervision_ok`の間に問題を見つけた場合は、同じ実装ペアのWorkerまたはSupervisorへ`manager_fix`を送る。
 
