@@ -52,6 +52,28 @@ case "$status" in
     "send fix feedback after the worker reports ready_for_lead or blocked" ;;
 esac
 
+# 再開できるかの検証をすべて先に済ませる。副作用(message送信、state書き換え)の後に
+# 失敗すると、statusだけ退行しexpress_readyだけ消費された中途半端な状態が残る
+exec_state="$TEAM_STATE_DIR/exec/$worker.env"
+[[ -f "$exec_state" ]] || die_rule \
+  "express fix has no exec record: $task_id" \
+  "the last exec run of $worker left no state file" \
+  "mark the task blocked, delete its state, and dispatch it again as a new express or normal task"
+
+exec_pid="$(sed -n "s/^pid='\{0,1\}\([0-9]*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
+if [[ -n "$exec_pid" ]] && kill -0 "$exec_pid" 2>/dev/null; then
+  die_rule \
+    "express worker has not finished its exec run: $task_id" \
+    "pid $exec_pid is still alive, and its session cannot be resumed until it ends" \
+    "wait for the run to end, then run make express-fix again"
+fi
+
+session_id="$(sed -n "s/^session_id='\{0,1\}\([0-9a-f-]*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
+[[ -n "$session_id" ]] || die_rule \
+  "express fix has no session to resume: $task_id" \
+  "the last exec run of $worker left no recorded codex session id" \
+  "mark the task blocked, delete its state, and dispatch it again as a new express or normal task"
+
 "$SCRIPT_DIR/team_send.sh" --from "$lead_id" --type request --task "$task_id" "$worker" "$feedback" >/dev/null
 
 team_write_task_state \
@@ -59,16 +81,6 @@ team_write_task_state \
   "$base_commit" "$task_commits" "$report_file" "" \
   "" "false" "$architecture_required" "" \
   "$direction_status" "$direction_artifact"
-
-session_id=""
-exec_state="$TEAM_STATE_DIR/exec/$worker.env"
-if [[ -f "$exec_state" ]]; then
-  session_id="$(sed -n "s/^session_id='\{0,1\}\([0-9a-f-]*\)'\{0,1\}$/\1/p" "$exec_state" | head -n 1)"
-fi
-[[ -n "$session_id" ]] || die_rule \
-  "express fix has no session to resume: $task_id" \
-  "the last exec run of $worker left no recorded codex session id" \
-  "mark the task blocked, delete its state, and dispatch it again as a new express or normal task"
 
 resume_prompt="Leadからexpress task ${task_id}へのfix feedbackです。
 ${feedback}
@@ -79,9 +91,17 @@ feedbackを反映し、task固有の検証とmake post-changeとmake smokeを再
 その後、make report TASK=${task_id} STATUS=ready_for_leadを再実行して証拠を更新し、
 make team-send TO=${lead_id} TYPE=express_ready TASK=${task_id} BODY=\"<要点>\"で再報告してください。"
 
-"$SCRIPT_DIR/team_exec_run.sh" --resume "$session_id" --kind task --ref "$task_id" --notify "$lead_id" "$worker" "$resume_prompt" >/dev/null || die_rule \
-  "express fix exec launch failed: $task_id" \
-  "$worker could not start a codex exec run" \
-  "inspect .agents/queue/state/exec/${worker}.err, then run make express-fix again"
+if ! "$SCRIPT_DIR/team_exec_run.sh" --resume "$session_id" --kind task --ref "$task_id" --notify "$lead_id" "$worker" "$resume_prompt" >/dev/null; then
+  # 起動できなかった場合はstatusを元に戻し、express-fixを再実行できる状態で終える
+  team_write_task_state \
+    "$task_id" "$owner" "$worker" "" "$status" \
+    "$base_commit" "$task_commits" "$report_file" "" \
+    "" "false" "$architecture_required" "" \
+    "$direction_status" "$direction_artifact"
+  die_rule \
+    "express fix exec launch failed: $task_id" \
+    "$worker could not start a codex exec run; task status was restored to $status" \
+    "inspect .agents/queue/state/exec/${worker}.err, then run make express-fix again"
+fi
 
 printf 'task=%s\nstatus=dispatched\nworker=%s\nresumed_session=%s\n' "$task_id" "$worker" "$session_id"

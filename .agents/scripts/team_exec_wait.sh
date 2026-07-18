@@ -18,15 +18,38 @@ agent_id="${TEAM_AGENT_ID:?}"
 
 cd "${TEAM_ROOT:?}"
 
-"$@" > "$log_file" 2> "$err_file" < /dev/null
+read_session_id() {
+  sed -nE 's/.*"type":"thread\.started","thread_id":"([0-9a-f-]{36})".*/\1/p' "$log_file" 2>/dev/null | head -n 1
+}
+
+"$@" > "$log_file" 2> "$err_file" < /dev/null &
+codex_pid=$!
+
+# thread.startedは実行開始直後にevent logへ流れる。終了時にまとめて記録すると
+# 「workerが報告済みだがsession_id未記録」の隙間が生まれ、その間のexpress-fixが
+# 再開先を見つけられないため、見つけ次第記録する
+session_id=""
+while :; do
+  session_id="$(read_session_id)"
+  if [[ -n "$session_id" ]]; then
+    printf 'session_id=%s\n' "'$session_id'" >> "$state_file"
+    break
+  fi
+  kill -0 "$codex_pid" 2>/dev/null || break
+  sleep 1
+done
+
+wait "$codex_pid"
 exit_code=$?
 
-session_id="$(sed -nE 's/.*"type":"thread\.started","thread_id":"([0-9a-f-]{36})".*/\1/p' "$log_file" | head -n 1)"
+if [[ -z "$session_id" ]]; then
+  session_id="$(read_session_id)"
+  [[ -n "$session_id" ]] && printf 'session_id=%s\n' "'$session_id'" >> "$state_file"
+fi
 
 {
   printf 'ended_at=%s\n' "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
   printf 'exit_code=%s\n' "'$exit_code'"
-  [[ -n "$session_id" ]] && printf 'session_id=%s\n' "'$session_id'"
 } >> "$state_file"
 
 if [[ "$exit_code" -ne 0 ]]; then

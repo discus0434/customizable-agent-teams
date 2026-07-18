@@ -730,6 +730,38 @@ team "$TMP_ROOT/.agents/scripts/team_send.sh" \
 lead_inbox_raw="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" lead --raw)"
 grep -q "Task commits: $express_commit" <<<"$lead_inbox_raw"
 
+# Regression (2026-07-18 T-E-001): express fix must validate the resumable
+# session before any shared-state mutation. A failed fix used to leave the
+# status regressed to dispatched, which both state-update and a retried
+# express-fix then rejected.
+express_exec_env="$TMP_ROOT/.agents/queue/state/exec/express-worker-1.env"
+cp "$express_exec_env" "$TMP_BASE/express-exec-env.backup"
+grep -v '^session_id=' "$TMP_BASE/express-exec-env.backup" > "$express_exec_env"
+if as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." \
+  > /dev/null 2> "$TMP_BASE/express-fix-no-session.err"; then
+  fail "express fix accepted a run with no recorded session id"
+fi
+grep -q 'no session to resume' "$TMP_BASE/express-fix-no-session.err"
+[[ "$(state_field task T-E-001 status)" == "ready_for_lead" ]] \
+  || fail "failed express fix (no session) changed the task status"
+
+# While the previous exec process is still alive, the fix must refuse cleanly
+# instead of mutating state and failing on the missing session id.
+grep -v '^pid=' "$TMP_BASE/express-exec-env.backup" > "$express_exec_env"
+printf "pid='%s'\n" "$$" >> "$express_exec_env"
+if as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." \
+  > /dev/null 2> "$TMP_BASE/express-fix-running.err"; then
+  fail "express fix accepted a still-running exec"
+fi
+grep -q 'has not finished its exec run' "$TMP_BASE/express-fix-running.err"
+[[ "$(state_field task T-E-001 status)" == "ready_for_lead" ]] \
+  || fail "refused express fix (running exec) changed the task status"
+
+cp "$TMP_BASE/express-exec-env.backup" "$express_exec_env"
+lead_inbox_raw="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" lead --raw)"
+grep -q "Task commits: $express_commit" <<<"$lead_inbox_raw" \
+  || fail "failed express fix consumed the pending express_ready report"
+
 as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." >/dev/null
 [[ "$(state_field task T-E-001 status)" == "dispatched" ]] || fail "express fix did not return the task to dispatched"
 for _attempt in $(seq 1 50); do
