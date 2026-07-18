@@ -96,16 +96,20 @@ case "$1" in
     fi
     ;;
   capture-pane)
+    # 実UIに合わせる: transcriptの過去messageは「❯ + 通常space」、
+    # composerは「prompt + non-breaking space」で、空でも表示される
     if [[ -n "${TEAM_FAKE_TMUX_BUSY_FILE:-}" && -f "$TEAM_FAKE_TMUX_BUSY_FILE" ]]; then
       printf '%s\n' "Working (1s - esc to interrupt)"
-    elif [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
-      printf '%s\n' "Claude Code"
-      printf '❯ %s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
-    elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -s "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
-      printf '%s\n' "Claude Code"
-      printf '%s %s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
     else
       printf '%s\n' "Claude Code"
+      if [[ -n "${TEAM_FAKE_TMUX_TRANSCRIPT_FILE:-}" && -f "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE" ]]; then
+        printf '❯ %s\n' "$(cat "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE")"
+      fi
+      if [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
+        printf '❯\xc2\xa0%s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
+      elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
+        printf '%s\xc2\xa0%s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+      fi
     fi
     ;;
   list-panes)
@@ -132,12 +136,14 @@ case "$1" in
         *C-m*)
           if [[ -n "${TEAM_FAKE_TMUX_SWALLOW:-}" && -f "$TEAM_FAKE_TMUX_SWALLOW" ]]; then
             rm -f "$TEAM_FAKE_TMUX_SWALLOW"
-          else
-            rm -f "$TEAM_FAKE_TMUX_COMPOSER"
+          elif [[ -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
+            : > "$TEAM_FAKE_TMUX_COMPOSER"
           fi
           ;;
         *C-u*)
-          rm -f "$TEAM_FAKE_TMUX_COMPOSER"
+          if [[ -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
+            : > "$TEAM_FAKE_TMUX_COMPOSER"
+          fi
           ;;
       esac
     fi
@@ -325,6 +331,33 @@ for composer_prompt in '❯' '›'; do
   [[ "$((cm_after - cm_before))" -ge 2 ]] \
     || fail "send_text did not retry the swallowed submit ($composer_prompt)"
 done
+
+# Regression (transcript pollution): past user messages stay in the claude
+# transcript as "❯ + regular space" lines, while the real composer renders as
+# "❯ + non-breaking space". Matching the regular space made the wake detector
+# treat the transcript as unsent input and silently starve the pane forever.
+transcript_file="$TMP_BASE/pane.transcript"
+printf '%s\n' "inbox lead" > "$transcript_file"
+rm -f "$composer_file.buffer"
+: > "$composer_file"
+cm_before="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  TEAM_FAKE_TMUX_TRANSCRIPT_FILE="$transcript_file" \
+  "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead >/dev/null 2> "$TMP_BASE/transcript-nudge.err"
+if grep -q 'queued nudge' "$TMP_BASE/transcript-nudge.err"; then
+  fail "a transcript line was mistaken for unsent input"
+fi
+[[ ! -s "$composer_file" ]] \
+  || fail "nudge was not submitted on the transcript-polluted pane"
+cm_after="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+[[ "$((cm_after - cm_before))" -ge 1 ]] \
+  || fail "nudge did not deliver on a transcript-polluted pane"
+rm -f "$transcript_file"
 
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"

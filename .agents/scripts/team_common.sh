@@ -50,6 +50,12 @@ team_tmux_pane_is_busy() {
   team_tmux_capture_pane "$pane" | tail -n 20 | grep -Fq 'esc to interrupt'
 }
 
+# Claude Codeのcomposerは「❯ + non-breaking space(U+00A0)」で描画され、
+# transcriptに残る過去のuser messageは「❯ + 通常のspace」で描画される。
+# 通常のspaceで判定するとtranscriptを未送信入力と誤認し続け、
+# そのpane宛のwakeが永久に配送されなくなる
+TEAM_TMUX_NBSP=$'\xc2\xa0'
+
 team_tmux_input_is_pending() {
   local pane="$1"
   local cli="$2"
@@ -60,8 +66,9 @@ team_tmux_input_is_pending() {
   # placeholderの語彙が固定できないcodex paneは判定しない。
   [[ "$cli" == "claude" ]] || return 1
 
-  input_line="$(team_tmux_capture_pane "$pane" | grep -E '^❯ ' | tail -n 1)"
-  content="${input_line#❯ }"
+  input_line="$(team_tmux_capture_pane "$pane" | grep -E "^❯${TEAM_TMUX_NBSP}" | tail -n 1 || true)"
+  [[ -n "$input_line" ]] || return 1
+  content="${input_line#❯"${TEAM_TMUX_NBSP}"}"
   content="${content#"${content%%[![:space:]]*}"}"
   [[ -n "$content" ]] || return 1
   case "$content" in
@@ -118,11 +125,13 @@ team_tmux_require_pane() {
   fi
 }
 
-# paneのcomposer(最後の入力行)を返す。claudeは「❯ 」、codexは「› 」で始まる。
+# paneのcomposer(最後の入力行)を返す。claudeは「❯」、codexは「›」で始まり、
+# 区切りは通常のspaceとnon-breaking spaceの両方がありうる。composerは画面の
+# いちばん下にあるため、transcriptの残骸ではなくtail -n 1が本物を指す。
 # composer行が無いpaneでは空を返す(呼び出し側はset -eなので失敗にしない)
 team_tmux_composer_line() {
   local pane="$1"
-  team_tmux_capture_pane "$pane" | grep -E '^(❯|›) ' | tail -n 1 || true
+  team_tmux_capture_pane "$pane" | grep -E "^(❯|›)( |${TEAM_TMUX_NBSP})" | tail -n 1 || true
 }
 
 # composer行が変わるまでEnterを送り直す。TUIは再描画中にEnterだけを
