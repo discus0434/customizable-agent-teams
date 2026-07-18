@@ -49,7 +49,22 @@ request_research() {
   printf '%s\n' "$output" | sed -n 's/^request_id=//p'
 }
 
-mkdir -p "$TMP_ROOT/.agents/queue/tasks"
+# A checkout provides every queue dir through tracked .gitkeep files; the
+# scripts only create the gitignored runtime dirs under queue/state/.
+mkdir -p \
+  "$TMP_ROOT/.agents/queue/tasks" \
+  "$TMP_ROOT/.agents/queue/backlog" \
+  "$TMP_ROOT/.agents/queue/inbox" \
+  "$TMP_ROOT/.agents/queue/reports" \
+  "$TMP_ROOT/.agents/queue/reviews" \
+  "$TMP_ROOT/.agents/queue/critiques" \
+  "$TMP_ROOT/.agents/queue/direction-critiques" \
+  "$TMP_ROOT/.agents/queue/visuals" \
+  "$TMP_ROOT/.agents/queue/research" \
+  "$TMP_ROOT/.agents/queue/strategy" \
+  "$TMP_ROOT/.agents/queue/architecture" \
+  "$TMP_ROOT/.agents/queue/memory_proposals" \
+  "$TMP_ROOT/.agents/queue/skill_proposals"
 cp -R "$ROOT/.agents/scripts" "$TMP_ROOT/.agents/scripts"
 cp -R "$ROOT/.agents/config" "$TMP_ROOT/.agents/config"
 cp -R "$ROOT/.agents/docs" "$TMP_ROOT/.agents/docs"
@@ -1300,10 +1315,13 @@ grep -q "Verified commit: $(git -C "$TMP_ROOT" rev-parse HEAD)" <<<"$lead_comple
 ack_output="$(
   team "$TMP_ROOT/.agents/scripts/team_send.sh" \
     --from lead --type completion_ack \
-    manager "Completion was reported to the human."
+    manager "Completion was reported to the human." 2> "$TMP_BASE/ack-next.err"
 )"
 ack_id="$(printf '%s\n' "$ack_output" | sed -n 's/^message_id=//p')"
 [[ -n "$ack_id" ]] || fail "completion_ack returned no message id"
+# Sending completion_ack is the moment the Lead should look at the backlog.
+grep -q 'next: backlogを確認' "$TMP_BASE/ack-next.err" \
+  || fail "completion_ack did not carry the backlog reminder"
 
 printf '\n- The intake is complete and the team is waiting for the next one.\n' \
   >> "$TMP_ROOT/.agents/state/STATE.md"
@@ -1335,5 +1353,26 @@ if as_agent manager "$TMP_ROOT/.agents/scripts/team_state_commit.sh" \
   fail "completion state commit reused a processed completion_ack"
 fi
 grep -q '^error: completion acknowledgment is not pending$' "$TMP_BASE/state-reuse.err"
+
+# Backlog: intents parked as cards, ordered high priority first, consumed into
+# an intake with a traceable Intake ref. Only open cards can be consumed.
+card_one="$(team "$TMP_ROOT/.agents/scripts/team_backlog.sh" add \
+  --title "Second intake idea" --priority normal | sed -n 's/^card_id=//p')"
+card_two="$(team "$TMP_ROOT/.agents/scripts/team_backlog.sh" add \
+  --title "Urgent wish" --priority high --body "spec detail" | sed -n 's/^card_id=//p')"
+[[ -n "$card_one" && -n "$card_two" ]] || fail "backlog add returned no card id"
+backlog_list="$(team "$TMP_ROOT/.agents/scripts/team_backlog.sh" list)"
+first_open="$(printf '%s\n' "$backlog_list" | sed -n '/^open:/{n;p;}' | awk '{print $1}')"
+[[ "$first_open" == "$card_two" ]] \
+  || fail "backlog did not order the high-priority card first"
+
+team "$TMP_ROOT/.agents/scripts/team_backlog.sh" pull "$card_two" --intake "msg_backlog_intake" >/dev/null
+grep -q '^Status: consumed$' "$TMP_ROOT/.agents/queue/backlog/$card_two.md" \
+  || fail "backlog pull did not mark the card consumed"
+grep -q '^Intake ref: msg_backlog_intake$' "$TMP_ROOT/.agents/queue/backlog/$card_two.md" \
+  || fail "backlog pull did not record the intake ref"
+if team "$TMP_ROOT/.agents/scripts/team_backlog.sh" pull "$card_two" --intake msg_y >/dev/null 2>&1; then
+  fail "backlog consumed the same card twice"
+fi
 
 echo "harness lifecycle ok"

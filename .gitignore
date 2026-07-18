@@ -119,6 +119,8 @@ CMakeCache.txt
 !.agents/queue/memory_proposals/.gitkeep
 .agents/queue/skill_proposals/*
 !.agents/queue/skill_proposals/.gitkeep
+.agents/queue/backlog/*
+!.agents/queue/backlog/.gitkeep
 .agents/queue/tasks/*
 !.agents/queue/tasks/.gitkeep
 !.agents/queue/tasks/GENERAL_TEMPLATE.md

@@ -470,3 +470,8 @@ case "$type" in
   research_request|research_cancelled|research_result) ;;
   *) team_mark_inbox_processed "$from" "$task_id" ;;
 esac
+
+# backlog確認の判断境界は、intakeの完了を締めるcompletion_ackを送る瞬間
+if [[ "$type" == "completion_ack" ]]; then
+  printf 'next: backlogを確認し、openカードがあれば先頭を人間と擦り合わせてintake化する。\n' >&2
+fi

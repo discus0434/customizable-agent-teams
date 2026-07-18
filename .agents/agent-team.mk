@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report state state-update state-commit memory-list memory-append
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report state state-update state-commit memory-list memory-append backlog backlog-add backlog-pull
 
 bootstrap:
 	direnv allow
@@ -22,6 +22,22 @@ team-stop:
 
 team-status:
 	@./.agents/scripts/team_status.sh
+
+backlog:
+	@./.agents/scripts/team_backlog.sh list
+
+backlog-add:
+	@test -n "$(TITLE)" || { echo "TITLE is required" >&2; exit 2; }
+	@if [ -n "$(BODY_FILE)" ]; then \
+		./.agents/scripts/team_backlog.sh add --title "$(TITLE)" --priority "$(or $(PRIORITY),normal)" --body-file "$(BODY_FILE)"; \
+	else \
+		./.agents/scripts/team_backlog.sh add --title "$(TITLE)" --priority "$(or $(PRIORITY),normal)" --body "$(BODY)"; \
+	fi
+
+backlog-pull:
+	@test -n "$(CARD)" || { echo "CARD is required" >&2; exit 2; }
+	@test -n "$(INTAKE)" || { echo "INTAKE is required" >&2; exit 2; }
+	@./.agents/scripts/team_backlog.sh pull "$(CARD)" --intake "$(INTAKE)"
 
 team-send:
 	@test -n "$(TO)" || { echo "TO is required" >&2; exit 2; }

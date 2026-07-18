@@ -113,6 +113,20 @@ Managerから`completion_ready`を受けたら、Leadが受け入れ検証をす
 
 人間へ完了を報告した後、Managerへ`completion_ack`を送る。
 
+## Backlog
+
+`.agents/queue/backlog/`は、次にやりたい意図をカードとして積む置き場で、積むのも消費するのもLeadだけとする。人間から「後でやりたい」と受けた依頼と、作業中に見つけた次の意図をカードにする。カードは意図の受け皿であり、契約は従来どおり`intake`で確定する。
+
+`completion_ack`を送った後と、活きたintakeが無いままidleになったとき、backlogを確認する。openカードがあれば先頭から引き、人間との擦り合わせと同じ要領で内容を確定する。カード本文とrepositoryから確定できる内容は質問せず、目的と成功条件が確定するまで一度に一つの質問を重ね、確定したらintakeへ変換する。
+
+```bash
+make backlog                                  # 一覧(priority、作成順)
+make backlog-add TITLE="<title>" [BODY="<body>"] [PRIORITY=high|normal|low]
+make backlog-pull CARD=<card_id> INTAKE=<intakeのmessage_id>
+```
+
+intakeを送ったら`backlog-pull`で消費を記録する。消費したカードは`Intake ref`でintakeへ追跡できる。
+
 ## Skill proposalの審査
 
 次の条件を満たすproposalをproject skillとして扱う。
