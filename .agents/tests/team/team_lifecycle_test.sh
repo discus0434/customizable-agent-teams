@@ -101,6 +101,9 @@ case "$1" in
     elif [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
       printf '%s\n' "Claude Code"
       printf '❯ %s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
+    elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -s "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
+      printf '%s\n' "Claude Code"
+      printf '%s %s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
     else
       printf '%s\n' "Claude Code"
     fi
@@ -109,7 +112,37 @@ case "$1" in
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     printf '%s\n' '  %fake lead agent=lead role=lead model=claude-opus-4-8'
     ;;
-  send-keys|set-buffer|paste-buffer|set-option|new-session|new-window|kill-session)
+  set-buffer)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    if [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" ]]; then
+      for _last; do :; done
+      printf '%s\n' "$_last" > "$TEAM_FAKE_TMUX_COMPOSER.buffer"
+    fi
+    ;;
+  paste-buffer)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    if [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -f "$TEAM_FAKE_TMUX_COMPOSER.buffer" ]]; then
+      cp "$TEAM_FAKE_TMUX_COMPOSER.buffer" "$TEAM_FAKE_TMUX_COMPOSER"
+    fi
+    ;;
+  send-keys)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    if [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" ]]; then
+      case "$*" in
+        *C-m*)
+          if [[ -n "${TEAM_FAKE_TMUX_SWALLOW:-}" && -f "$TEAM_FAKE_TMUX_SWALLOW" ]]; then
+            rm -f "$TEAM_FAKE_TMUX_SWALLOW"
+          else
+            rm -f "$TEAM_FAKE_TMUX_COMPOSER"
+          fi
+          ;;
+        *C-u*)
+          rm -f "$TEAM_FAKE_TMUX_COMPOSER"
+          ;;
+      esac
+    fi
+    ;;
+  set-option|new-session|new-window|kill-session)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     ;;
   *)
@@ -216,6 +249,15 @@ done
 [[ "${paste_count_after:-0}" -gt "$paste_count_before" ]] \
   || fail "deferred nudge was not delivered after the pane became idle"
 
+# The busy-test waiter holds the nudge lock while it finishes delivering.
+# Wait for it to exit so the next deferral test starts its own waiter.
+for _attempt in $(seq 1 30); do
+  [[ -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] || break
+  /bin/sleep 0.1
+done
+[[ ! -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] \
+  || fail "busy-test waiter did not release its lock"
+
 # Panes holding unsent human input defer the nudge until the input is sent.
 input_file="$TMP_BASE/pane.input"
 printf '%s\n' '書きかけの依頼文' > "$input_file"
@@ -256,6 +298,34 @@ PATH="$TMP_BASE/bin:$PATH" \
 [[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" -gt "$paste_count_before" ]] \
   || fail "team_watch did not wake an idle pane with pending messages"
 
+# Regression (swallowed Enter): the TUI can drop the submit keystroke while
+# re-rendering, leaving the pasted text unsent in the composer. send_text must
+# observe the composer and retry the submit until the text is gone, on both
+# the claude composer (❯) and the codex composer (›).
+composer_file="$TMP_BASE/pane.composer"
+swallow_file="$TMP_BASE/pane.swallow"
+for composer_prompt in '❯' '›'; do
+  rm -f "$composer_file" "$composer_file.buffer"
+  : > "$swallow_file"
+  cm_before="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+  PATH="$TMP_BASE/bin:$PATH" \
+    TEAM_ROOT="$TMP_ROOT" \
+    TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+    TEAM_DISABLE_NUDGE=0 \
+    TEAM_FAKE_TMUX_HAS_SESSION=1 \
+    TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+    TEAM_FAKE_TMUX_PROMPT="$composer_prompt" \
+    TEAM_FAKE_TMUX_SWALLOW="$swallow_file" \
+    "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead >/dev/null
+  [[ ! -f "$swallow_file" ]] \
+    || fail "the swallowed submit was not consumed by a first Enter ($composer_prompt)"
+  [[ ! -s "$composer_file" ]] \
+    || fail "send_text left the composer holding unsent text ($composer_prompt)"
+  cm_after="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+  [[ "$((cm_after - cm_before))" -ge 2 ]] \
+    || fail "send_text did not retry the swallowed submit ($composer_prompt)"
+done
+
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' > "$message_body"
@@ -269,6 +339,14 @@ raw_manager_inbox="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager --ra
 grep -q 'line one\\nrequires-python >=3.14 \\"quoted\\"' <<<"$raw_manager_inbox"
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=manager \
   make -s -C "$TMP_ROOT" team-reply IN_REPLY_TO="$message_id" TYPE=note BODY="Recorded." >/dev/null
+
+# A plain note is record-only and never wakes the recipient. Milestone reports
+# need REQUIRES_ATTENTION=1 so the note becomes pending and gets a nudge.
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=lead \
+  make -s -C "$TMP_ROOT" team-send TO=manager TYPE=note BODY="Phase milestone done" REQUIRES_ATTENTION=1 >/dev/null
+raw_manager_inbox="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" manager --raw)"
+grep -q '"type":"note".*"requires_attention":"true".*Phase milestone done' <<<"$raw_manager_inbox" \
+  || fail "REQUIRES_ATTENTION=1 did not mark the note as requiring attention"
 
 # General implementation lifecycle and fixed-pair availability.
 cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"

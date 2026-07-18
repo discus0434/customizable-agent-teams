@@ -33,4 +33,7 @@ fi
 
 team_tmux_require_pane "$agent_id" "$pane" "$session" "${window:-$agent_id}"
 team_tmux_cancel_mode_if_needed "$pane"
-team_tmux_submit "$pane"
+team_tmux_submit_verified "$pane" || die_rule \
+  "submit was not confirmed for $agent_id" \
+  "the composer still holds the same input after repeated Enter" \
+  "check the pane state with make team-attach, then run make team-submit again"

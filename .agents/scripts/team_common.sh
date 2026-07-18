@@ -118,16 +118,76 @@ team_tmux_require_pane() {
   fi
 }
 
+# paneのcomposer(最後の入力行)を返す。claudeは「❯ 」、codexは「› 」で始まる。
+# composer行が無いpaneでは空を返す(呼び出し側はset -eなので失敗にしない)
+team_tmux_composer_line() {
+  local pane="$1"
+  team_tmux_capture_pane "$pane" | grep -E '^(❯|›) ' | tail -n 1 || true
+}
+
+# composer行が変わるまでEnterを送り直す。TUIは再描画中にEnterだけを
+# 飲むことがあり、撃ちっぱなしの送信は未送信のまま残ることがある
+team_tmux_submit_verified() {
+  local pane="$1"
+  local before after attempt
+
+  before="$(team_tmux_composer_line "$pane")"
+  if [[ -z "$before" ]]; then
+    # composerが観測できないpaneでは検証できないので一発送信に落とす
+    team_tmux_submit "$pane"
+    return 0
+  fi
+  for attempt in 1 2 3 4; do
+    team_tmux_submit "$pane"
+    sleep 0.4
+    after="$(team_tmux_composer_line "$pane")"
+    if [[ "$after" != "$before" ]]; then
+      return 0
+    fi
+    sleep "$attempt"
+  done
+  return 1
+}
+
+# textをpaneへ貼り、composerから消える(=送信された)ことを観測できるまで
+# 貼り直しとEnterの再送を行う。貼り付けと送信は開ループでは百発百中に
+# ならないので、pane状態の観測で閉ループにする
 team_tmux_send_text() {
   local pane="$1"
   local text="$2"
-  local buffer_name
+  local buffer_name marker composer paste_attempt enter_attempt
 
-  team_tmux_prepare_input "$pane"
-  buffer_name="agent-team-$$_$RANDOM"
-  tmux set-buffer -b "$buffer_name" -- "$text"
-  tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
-  team_tmux_submit "$pane"
+  marker="${text%%$'\n'*}"
+  marker="${marker:0:16}"
+
+  for paste_attempt in 1 2 3; do
+    team_tmux_prepare_input "$pane"
+    buffer_name="agent-team-$$_$RANDOM"
+    tmux set-buffer -b "$buffer_name" -- "$text"
+    tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
+    sleep 0.3
+    composer="$(team_tmux_composer_line "$pane")"
+    if [[ -z "$composer" ]]; then
+      # composerが観測できないpaneでは検証できないので一発送信に落とす
+      team_tmux_submit "$pane"
+      return 0
+    fi
+    if [[ "$composer" != *"$marker"* ]]; then
+      # 貼り付けが反映されていない。composerを空にして貼り直す
+      continue
+    fi
+    for enter_attempt in 1 2 3 4; do
+      team_tmux_submit "$pane"
+      sleep 0.4
+      composer="$(team_tmux_composer_line "$pane")"
+      if [[ "$composer" != *"$marker"* ]]; then
+        return 0
+      fi
+      sleep "$enter_attempt"
+    done
+  done
+  warn "tmux send was not confirmed for pane $pane"
+  return 1
 }
 
 team_send_with_body_file() {
