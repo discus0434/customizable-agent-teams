@@ -1375,4 +1375,18 @@ if team "$TMP_ROOT/.agents/scripts/team_backlog.sh" pull "$card_two" --intake ms
   fail "backlog consumed the same card twice"
 fi
 
+# A clarified card carries a ## Spec section in its body and outranks priority:
+# it can become an intake without another clarification pass, so the Lead's
+# "pull the first open card" norm depends on it sorting first.
+printf '\n## Spec\n\nGoal and acceptance settled with the human.\n' \
+  >> "$TMP_ROOT/.agents/queue/backlog/$card_one.md"
+team "$TMP_ROOT/.agents/scripts/team_backlog.sh" add \
+  --title "Newer high wish" --priority high >/dev/null
+backlog_list="$(team "$TMP_ROOT/.agents/scripts/team_backlog.sh" list)"
+first_open="$(printf '%s\n' "$backlog_list" | sed -n '/^open:/{n;p;}' | awk '{print $1}')"
+[[ "$first_open" == "$card_one" ]] \
+  || fail "backlog did not order the spec-ready card first"
+printf '%s\n' "$backlog_list" | grep -q "$card_one \[normal/spec\]" \
+  || fail "backlog list did not mark the spec-ready card"
+
 echo "harness lifecycle ok"

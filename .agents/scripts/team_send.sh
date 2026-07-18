@@ -473,5 +473,5 @@ esac
 
 # backlog確認の判断境界は、intakeの完了を締めるcompletion_ackを送る瞬間
 if [[ "$type" == "completion_ack" ]]; then
-  printf 'next: backlogを確認し、openカードがあれば先頭を人間と擦り合わせてintake化する。\n' >&2
+  printf 'next: backlogを確認し、spec確定済みのカードはそのままintake化、なければ先頭を擦り合わせてintake化する。\n' >&2
 fi

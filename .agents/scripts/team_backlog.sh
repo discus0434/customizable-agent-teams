@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 
 # backlogはteamの供給源を一段上に足す層。人間との対話で受けた依頼と作業中に
-# 見つけた次の意図を、Leadがカードとして積む。intakeが完了したらLeadが先頭の
-# カードを引き、人間と擦り合わせてintakeへ契約化する。カードはfileが真実。
-# ManagerとWorkerはbacklogを読まない(intakeの品質ゲートを迂回させない)。
-# 状態はopenとconsumedの2つだけ。
+# 見つけた次の意図を、Leadがカードとして積む。擦り合わせのタイミングは
+# 引く瞬間に縛らず、人間が求めたらいつでもよい。確定したspecはカード本文の
+# `## Spec`節に残り、それが「clarify済み」の印になる(第3の状態は作らない)。
+# intakeが完了したらLeadがspec確定済みを先頭にカードを引き、intakeへ契約化する。
+# カードはfileが真実。ManagerとWorkerはbacklogを読まない(intakeの品質ゲートを
+# 迂回させない)。状態はopenとconsumedの2つだけ。
 # usage:
 #   team_backlog.sh list
 #   team_backlog.sh add --title <title> [--priority high|normal|low] [--body <text>|--body-file <path>]
@@ -51,7 +53,7 @@ priority_rank() {
 }
 
 cmd_list() {
-  local card_file card_id title priority status created intake
+  local card_file card_id title priority status created intake spec_rank spec_label
   local -a open_rows consumed_rows
 
   open_rows=()
@@ -64,9 +66,16 @@ cmd_list() {
     status="$(team_task_markdown_field "$card_file" "Status" || true)"
     created="$(team_task_markdown_field "$card_file" "Created at" || true)"
     intake="$(team_task_markdown_field "$card_file" "Intake ref" || true)"
+    # spec確定済みは擦り合わせ無しでintake化できるので先頭に置く
+    spec_rank="1"
+    spec_label=""
+    if grep -q '^## Spec' "$card_file"; then
+      spec_rank="0"
+      spec_label="/spec"
+    fi
     case "$status" in
       open)
-        open_rows+=("$(priority_rank "$priority")|$created|  $card_id [${priority:-normal}] $title") ;;
+        open_rows+=("$spec_rank|$(priority_rank "$priority")|$created|  $card_id [${priority:-normal}$spec_label] $title") ;;
       consumed)
         consumed_rows+=("$created|  $card_id -> ${intake:-none} $title") ;;
     esac
@@ -74,7 +83,7 @@ cmd_list() {
 
   echo "open:"
   if [[ "${#open_rows[@]}" -gt 0 ]]; then
-    printf '%s\n' "${open_rows[@]}" | sort | cut -d'|' -f3-
+    printf '%s\n' "${open_rows[@]}" | sort | cut -d'|' -f4-
   else
     echo "  none"
   fi
