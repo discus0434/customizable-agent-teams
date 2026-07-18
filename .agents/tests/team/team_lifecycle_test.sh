@@ -888,7 +888,11 @@ write_express_report "$express_commit $express_fix_commit" "- $express_commit T-
 team "$TMP_ROOT/.agents/scripts/team_send.sh" \
   --from express-worker-1 --type express_ready --task T-E-001 \
   lead "Fix feedback is applied." >/dev/null
-team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done >/dev/null
+# The dispatch barrier habit forms at the moment done is written, so the done
+# output must carry the re-evaluation reminder for the owner.
+express_done_output="$(team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done)"
+grep -q 'next: このdoneで依存が解けたtask' <<<"$express_done_output" \
+  || fail "done output did not remind the owner to re-evaluate dispatchable tasks"
 grep -q '"status":"done"' "$express_state"
 
 # External-repo task: when every allowed path lives outside the team root,

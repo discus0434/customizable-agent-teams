@@ -118,6 +118,11 @@ case "$command" in
       "$architecture" "$direction_status" "$direction_artifact"
     team_mark_inbox_processed "$owner" "$task_id"
     printf '%s\n' "$state_file"
+    # barrier癖はdoneを書いてturnを閉じる瞬間に出る。その瞬間に必ず読まれる
+    # 出力へ再判定の想起を置く(dispatch可能性の機械計算はしない。判断はowner側)
+    if [[ "$next_status" == "done" ]]; then
+      printf 'next: このdoneで依存が解けたtaskを再判定し、dispatchできるものは今すぐdispatchする。同時に投げた他のtaskの完了を待たない。\n'
+    fi
     ;;
   -h|--help) usage ;;
   *) usage; exit 2 ;;

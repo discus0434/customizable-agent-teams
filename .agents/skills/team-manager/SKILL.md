@@ -41,6 +41,8 @@ dispatchの既定は並列とする。直列にするのは、他taskの成果�
 
 着手可能なtaskとidle workerがある状態を放置しない。それでも直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
 
+dispatchはeventで駆動する。taskをdoneにしたturnの中で、そのdoneで依存が解けたtaskを再判定し、dispatchできるものは即dispatchする。同時に投げた他のtaskの完了を待たない。
+
 不確実な部分にはSupervisor、Architect、Strategistを付け、独立して進められるtaskは開始する。
 
 共有する変更対象または検証方法のために別々のtaskとして完了できない場合は、一つのtaskへまとめる。

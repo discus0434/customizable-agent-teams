@@ -170,6 +170,8 @@ dispatchの既定は並列とする。直列にするのは、次のいずれか
 
 着手可能なtaskとidle workerがあるのに直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
 
+dispatchはbatchではなくeventで駆動する。taskの完了は、それ単体で「新たにdispatch可能になったtaskはないか」を再判定して即dispatchするトリガーであり、同時に投げた他のtaskの完了を待たない。次のphaseの設計やresearchの発注も、現在のphaseの完了を待たずに並行してよい。
+
 HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体を止めない。
 
 ## 待機
