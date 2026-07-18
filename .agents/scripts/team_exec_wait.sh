@@ -22,6 +22,13 @@ read_session_id() {
   sed -nE 's/.*"type":"thread\.started","thread_id":"([0-9a-f-]{36})".*/\1/p' "$log_file" 2>/dev/null | head -n 1
 }
 
+# state fileの更新は必ず「完全なfileを作ってrename」で行う。追記や逐次writeは
+# 書きかけをsourceした読み手を壊す(unterminated quoteのparse error)
+append_state_lines() {
+  local tmp="$state_file.tmp.$$"
+  { cat "$state_file" 2>/dev/null; printf '%s\n' "$@"; } > "$tmp" && mv "$tmp" "$state_file"
+}
+
 "$@" > "$log_file" 2> "$err_file" < /dev/null &
 codex_pid=$!
 
@@ -32,7 +39,7 @@ session_id=""
 while :; do
   session_id="$(read_session_id)"
   if [[ -n "$session_id" ]]; then
-    printf 'session_id=%s\n' "'$session_id'" >> "$state_file"
+    append_state_lines "session_id='$session_id'"
     break
   fi
   kill -0 "$codex_pid" 2>/dev/null || break
@@ -44,13 +51,10 @@ exit_code=$?
 
 if [[ -z "$session_id" ]]; then
   session_id="$(read_session_id)"
-  [[ -n "$session_id" ]] && printf 'session_id=%s\n' "'$session_id'" >> "$state_file"
+  [[ -n "$session_id" ]] && append_state_lines "session_id='$session_id'"
 fi
 
-{
-  printf 'ended_at=%s\n' "'$(date -u +"%Y-%m-%dT%H:%M:%SZ")'"
-  printf 'exit_code=%s\n' "'$exit_code'"
-} >> "$state_file"
+append_state_lines "ended_at='$(date -u +"%Y-%m-%dT%H:%M:%SZ")'" "exit_code='$exit_code'"
 
 if [[ "$exit_code" -ne 0 ]]; then
   body="exec agentの実行が失敗しました。agent=${agent_id} kind=${kind} ref=${ref} exit=${exit_code}。"

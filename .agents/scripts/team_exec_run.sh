@@ -118,7 +118,8 @@ pid="$(
   printf 'log=%s\n' "$(shell_quote "$log_file")"
   printf 'last_message_file=%s\n' "$(shell_quote "$last_message_file")"
   printf 'started_at=%s\n' "$(shell_quote "$started_at")"
-} > "$state_file"
+} > "$state_file.tmp.$$"
+mv "$state_file.tmp.$$" "$state_file"
 
 printf 'agent_id=%s\n' "$agent_id"
 printf 'pid=%s\n' "$pid"

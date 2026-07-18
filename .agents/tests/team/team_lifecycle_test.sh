@@ -1042,6 +1042,12 @@ grep -q "Task commits: $express_commit" <<<"$lead_inbox_raw"
 # status regressed to dispatched, which both state-update and a retried
 # express-fix then rejected.
 express_exec_env="$TMP_ROOT/.agents/queue/state/exec/express-worker-1.env"
+for _attempt in $(seq 1 50); do
+  grep -q '^session_id=' "$express_exec_env" 2>/dev/null && break
+  /bin/sleep 0.1
+done
+grep -q '^session_id=' "$express_exec_env" \
+  || fail "express exec did not record its session id before the fix test"
 cp "$express_exec_env" "$TMP_BASE/express-exec-env.backup"
 grep -v '^session_id=' "$TMP_BASE/express-exec-env.backup" > "$express_exec_env"
 if as_agent lead "$TMP_ROOT/.agents/scripts/team_express_fix.sh" T-E-001 "Refine the express output." \
