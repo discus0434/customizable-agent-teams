@@ -130,14 +130,15 @@ if [[ -n "$invalid_allowed" ]]; then
     "$task_file line $invalid_line starts with '$invalid_bullet', which is not a path" \
     "write path bullets as '- path/to/file optional note', '- src/**/*.py optional note', or '- \`path/to/file\` optional note'"
 fi
+# Do not modifyは自由記述のbulletを許す(「上記以外のtree全体」のような契約が書ける)。
+# ただし機械可読でないbulletは保護として効かないので、typoの取りこぼしに気づけるよう警告する
 if [[ -n "$invalid_protected" ]]; then
-  first_invalid="$(printf '%s\n' "$invalid_protected" | sed -n '1p')"
-  invalid_line="${first_invalid%%:*}"
-  invalid_bullet="${first_invalid#*:}"
-  die_rule \
-    "task Do not modify has an unreadable path bullet" \
-    "$task_file line $invalid_line starts with '$invalid_bullet', which is not a path" \
-    "write path bullets as '- path/to/file optional note', '- src/**/*.py optional note', or '- \`path/to/file\` optional note'"
+  while IFS= read -r first_invalid; do
+    [[ -n "$first_invalid" ]] || continue
+    invalid_line="${first_invalid%%:*}"
+    invalid_bullet="${first_invalid#*:}"
+    warn "Do not modify bullet is not machine-readable and is treated as prose: line $invalid_line '$invalid_bullet'"
+  done <<<"$invalid_protected"
 fi
 
 [[ "${#allowed_paths[@]}" -gt 0 ]] || die_rule \
@@ -176,19 +177,26 @@ for allowed in "${allowed_paths[@]}"; do
     done
   fi
 
+  # 片方向の包含は「広い保護の中に狭い許可を置く」例外契約として許す。
+  # 両方向に一致する場合だけ、同じ境界を許可と保護が同時に主張する矛盾として弾く
   for protected in "${protected_paths[@]}"; do
     if team_path_matches_contract_path "$allowed" "$protected" \
-      || team_path_matches_contract_path "$protected" "$allowed"; then
+      && team_path_matches_contract_path "$protected" "$allowed"; then
       die_rule \
-        "task path ownership patterns overlap: $allowed and $protected" \
-        "Allowed paths and Do not modify both claim the same path boundary" \
-        "rewrite the task contract with non-overlapping ownership paths before dispatch"
+        "task path ownership patterns conflict: $allowed and $protected" \
+        "Allowed paths and Do not modify claim the same path boundary; the more specific path wins only when one contains the other" \
+        "keep the broad protection and the narrow exception, or remove one of the equal paths"
     fi
   done
 
-  if git -C "$TEAM_ROOT" check-ignore -q "$allowed" 2>/dev/null; then
-    warn "allowed path is ignored by git: $allowed"
-  fi
+  case "$allowed" in
+    /*) ;;  # team root外(外部repo)のpathはteam rootのgit ignore判定の対象外
+    *)
+      if git -C "$TEAM_ROOT" check-ignore -q "$allowed" 2>/dev/null; then
+        warn "allowed path is ignored by git: $allowed"
+      fi
+      ;;
+  esac
 done
 
 printf 'task_lint=%s ok\n' "$task_id"

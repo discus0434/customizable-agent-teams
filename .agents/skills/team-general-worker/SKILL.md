@@ -8,7 +8,7 @@ description: General Workerがtask_assigned、supervision_feedback、supervision
 ## 責務
 
 - 担当taskの`Goal`、`Acceptance`、`Constraints`を満たす実装を行う。
-- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。
+- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。両方に合致するpathは狭い指定が勝つ。
 - blocker、不確実な判断、低い自信、技術上の疑問、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
 - ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
 - `STATE.md`と`MEMORY.md`を編集しない。
@@ -33,7 +33,7 @@ make team-send TO=<supervisor_id> TYPE=supervision_checkpoint TASK=<task_id> BOD
 
 `team-verify`に従い、task固有の検証、`make post-change`、`make smoke`を実行する。
 
-taskが所有する変更をcommitし、reportを作る。
+taskが所有する変更をcommitし、reportを作る。`Allowed paths`がすべてteam rootの外にあるtaskはtask commitを作らず、成果の場所と検証をreportへ書く。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"

@@ -55,8 +55,9 @@ Leadの`intake`から依存関係を明示する。
 - 固定Supervisorは`dispatch`が設定ファイルから解決する。
 - `Acceptance`には外部から観測できる成功条件を書く。
 - `Allowed paths`にはtaskがcommitできるpathを明示する。
-- `Do not modify`には、個別に保護する必要があるpathだけを書く。
-- `Allowed paths`と`Do not modify`を重複させない。
+- `Do not modify`には保護するpathを書く。機械可読なpathでないbulletは注記として扱われる。
+- 同じ境界を`Allowed paths`と`Do not modify`の両方に書かない。片方が他方を含む場合は狭い方が勝つため、「広い保護の中の狭い許可」(例: 許可`docs/kb/index.md`、保護`docs/**`)という例外契約は書ける。
+- `Allowed paths`がすべてteam rootの外にあるtask(外部repo作業)は、task commitなしのreport(`Task commits: none`)で完了できる。証拠fileをteam rootへ作らせない。
 - pathの箇条書きには、path patternと、後ろに説明を添えたpathを使える。
 - frontendとbackendを同じSupervisorが判断できない場合は、所有するpathを分けて別taskにする。
 

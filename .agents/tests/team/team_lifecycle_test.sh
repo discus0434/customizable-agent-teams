@@ -267,14 +267,22 @@ grep -q '"worker":"general-worker-1"' "$general_state"
 grep -q '"supervisor":"general-reviewer-1"' "$general_state"
 grep -q '^Supervisor: general-reviewer-1$' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 
+# A narrow allowed path inside a broad protection is the natural exception
+# contract ("this one file is OK, the rest of the tree is frozen") and passes.
 cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-CONFLICT.md"
 perl -0pi -e 's/T-XXX/T-CONFLICT/g; s#\x60path/to/file\x60#\x60conflict-output.txt\x60#; s#- \x60\.agents/state/STATE\.md\x60#- \x60*.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-CONFLICT.md"
+team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-CONFLICT >/dev/null \
+  || fail "task lint rejected a narrow allowed path inside a broad protection"
+
+# Claiming the very same boundary from both sections stays a contradiction.
+perl -0pi -e 's#- \x60\*\.txt\x60#- \x60conflict-output.txt\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-CONFLICT.md"
 if team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-CONFLICT \
   > /dev/null 2> "$TMP_BASE/path-conflict.err"; then
-  fail "task lint accepted overlapping ownership patterns"
+  fail "task lint accepted the same boundary as allowed and protected"
 fi
-grep -q '^error: task path ownership patterns overlap: conflict-output.txt and \*.txt$' "$TMP_BASE/path-conflict.err"
+grep -q '^error: task path ownership patterns conflict: conflict-output.txt and conflict-output.txt$' "$TMP_BASE/path-conflict.err"
 
 cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-BUSY.md"
 perl -0pi -e 's/T-XXX/T-BUSY/g; s#\x60path/to/file\x60#\x60busy-output.txt\x60#' \
@@ -313,17 +321,20 @@ git -C "$TMP_ROOT" commit -qm "Concurrent task result"
 concurrent_commit="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 
 printf '%s\n' "general change" > "$TMP_ROOT/general-output.txt"
-perl -0pi -e 's/(## Do not modify\n\n)/$1- `*.txt`\n/' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
+# The same boundary claimed by both sections fails before any commit is made.
+perl -0pi -e 's/(## Do not modify\n\n)/$1- `general-output.txt`\n/' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 head_before_conflict="$(git -C "$TMP_ROOT" rev-parse HEAD)"
 if TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \
   make -s -C "$TMP_ROOT" task-commit TASK=T-GENERAL MESSAGE="add output" \
   > /dev/null 2> "$TMP_BASE/commit-path-conflict.err"; then
-  fail "task commit accepted overlapping ownership patterns"
+  fail "task commit accepted the same boundary as allowed and protected"
 fi
-grep -q '^error: task path ownership patterns overlap: general-output.txt and \*.txt$' "$TMP_BASE/commit-path-conflict.err"
+grep -q '^error: task path ownership conflict: general-output.txt and general-output.txt are the same file$' "$TMP_BASE/commit-path-conflict.err"
 [[ "$(git -C "$TMP_ROOT" rev-parse HEAD)" == "$head_before_conflict" ]] \
   || fail "task commit created a partial commit after path validation failed"
-perl -0pi -e 's/- `\*\.txt`\n//' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
+# Keep a broad protection around the narrow allowed path: the later successful
+# commits must select general-output.txt as the exception that wins.
+perl -0pi -e 's/(## Do not modify\n\n)- `general-output\.txt`\n/$1- `*.txt`\n/' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 
 printf '%s\n' "staged elsewhere" > "$TMP_ROOT/staged-elsewhere.txt"
 git -C "$TMP_ROOT" add staged-elsewhere.txt
@@ -335,6 +346,13 @@ fi
 grep -q '^error: Git index contains changes outside task T-GENERAL$' "$TMP_BASE/staged-elsewhere.err"
 git -C "$TMP_ROOT" restore --staged staged-elsewhere.txt
 rm "$TMP_ROOT/staged-elsewhere.txt"
+
+# A SIGKILLed lock holder cannot run its trap, so its lock dir stays behind.
+# A lock whose recorded holder pid is dead must be reclaimed, not waited on.
+/bin/sleep 0 & stale_lock_pid=$!
+wait "$stale_lock_pid" 2>/dev/null || true
+mkdir -p "$TMP_ROOT/.agents/queue/state/locks/git-commit.lock"
+printf '%s\n' "$stale_lock_pid" > "$TMP_ROOT/.agents/queue/state/locks/git-commit.lock/pid"
 
 general_commit_output="$(
   TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=general-worker-1 \
@@ -781,6 +799,65 @@ team "$TMP_ROOT/.agents/scripts/team_send.sh" \
   lead "Fix feedback is applied." >/dev/null
 team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done >/dev/null
 grep -q '"status":"done"' "$express_state"
+
+# External-repo task: when every allowed path lives outside the team root,
+# the report accepts zero task commits and records them as none, so no
+# ceremony evidence file in the team repository is needed.
+external_dir="$TMP_BASE/external-repo"
+mkdir -p "$external_dir"
+cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-003.md"
+perl -0pi -e 's/T-E-XXX/T-E-003/g; s#\x60path/to/file\x60#\x60'"$external_dir"'/**\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-E-003.md"
+team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner lead T-E-003 >/dev/null
+printf '%s\n' "external work" > "$external_dir/notes.md"
+external_report="$(as_agent express-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-E-003 ready_for_lead)"
+grep -q '^Task commits: none$' "$external_report" \
+  || fail "external task report did not record its commits as none"
+grep -q 'none (all allowed paths are outside the team repository)' "$external_report" \
+  || fail "external task report commits section is missing the none marker"
+external_base="$(state_field task T-E-003 base_commit)"
+cat > "$external_report" <<REPORT
+# Report: T-E-003 by express-worker-1
+
+Status: ready_for_lead
+Base commit: $external_base
+Task commits: none
+
+## Summary
+
+- Reorganized the external knowledge base.
+
+## Files changed
+
+- $external_dir/notes.md
+
+## Commits
+
+- none (all allowed paths are outside the team repository)
+
+## Verification
+
+- External content assertion passed.
+
+## Post-change
+
+- make post-change passed.
+
+## Smoke
+
+- make smoke passed.
+
+## Blockers And Questions
+
+- None.
+
+## Memory Proposals
+
+- None.
+REPORT
+team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-003 done >/dev/null
+[[ "$(state_field task T-E-003 status)" == "done" ]] \
+  || fail "external express task did not reach done without a team-root commit"
 
 if team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-GENERAL ready_for_lead \
   > /dev/null 2> "$TMP_BASE/express-status.err"; then

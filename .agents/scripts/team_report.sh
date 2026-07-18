@@ -78,10 +78,17 @@ fi
 
 team_require_task_paths_clean "$task_id"
 task_commits="$(team_task_commits "$task_id" "$base_commit" | paste -sd ' ' -)"
-[[ -n "$task_commits" ]] || die_rule \
-  "task has no recorded commits: $task_id" \
-  "review requires commits created for this task after dispatch base $base_commit" \
-  "commit the implementation with make task-commit TASK=$task_id MESSAGE='<summary>'"
+if [[ -z "$task_commits" ]]; then
+  # 外部repoで完結するtaskはteam rootにcommitを作らない。証拠はreport本文が持つ
+  if team_task_allowed_paths_all_external "$TEAM_QUEUE_DIR/tasks/$task_id.md"; then
+    task_commits="none"
+  else
+    die_rule \
+      "task has no recorded commits: $task_id" \
+      "review requires commits created for this task after dispatch base $base_commit" \
+      "commit the implementation with make task-commit TASK=$task_id MESSAGE='<summary>'"
+  fi
+fi
 
 if [[ ! -f "$report_file" ]]; then
   {
@@ -175,9 +182,13 @@ else
 fi
 
 commits_file="$(mktemp)"
-for commit in $task_commits; do
-  printf -- '- %s\n' "$(git -C "$TEAM_ROOT" show -s --format='%H %s' "$commit")" >> "$commits_file"
-done
+if [[ "$task_commits" == "none" ]]; then
+  printf -- '- none (all allowed paths are outside the team repository)\n' >> "$commits_file"
+else
+  for commit in $task_commits; do
+    printf -- '- %s\n' "$(git -C "$TEAM_ROOT" show -s --format='%H %s' "$commit")" >> "$commits_file"
+  done
+fi
 team_replace_markdown_section "$report_file" "Commits" "$commits_file"
 rm -f "$commits_file"
 

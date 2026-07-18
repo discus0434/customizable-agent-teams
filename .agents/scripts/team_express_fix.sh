@@ -74,8 +74,6 @@ session_id="$(sed -n "s/^session_id='\{0,1\}\([0-9a-f-]*\)'\{0,1\}$/\1/p" "$exec
   "the last exec run of $worker left no recorded codex session id" \
   "mark the task blocked, delete its state, and dispatch it again as a new express or normal task"
 
-"$SCRIPT_DIR/team_send.sh" --from "$lead_id" --type request --task "$task_id" "$worker" "$feedback" >/dev/null
-
 team_write_task_state \
   "$task_id" "$owner" "$worker" "" "dispatched" \
   "$base_commit" "$task_commits" "$report_file" "" \
@@ -103,5 +101,13 @@ if ! "$SCRIPT_DIR/team_exec_run.sh" --resume "$session_id" --kind task --ref "$t
     "$worker could not start a codex exec run; task status was restored to $status" \
     "inspect .agents/queue/state/exec/${worker}.err, then run make express-fix again"
 fi
+
+# feedbackのinbox messageは最後に送る。この送信がlead側のexpress_readyを
+# 処理済みにするため、express-fix全体が成功したときだけ消費が起きる。
+# feedback本文はresume promptにも含まれており、送信失敗でも実行内容は欠けない
+"$SCRIPT_DIR/team_send.sh" --from "$lead_id" --type request --task "$task_id" "$worker" "$feedback" >/dev/null || die_rule \
+  "express fix feedback message was not queued: $task_id" \
+  "the resume run is already started and carries the same feedback in its prompt" \
+  "wait for express_ready; no retry is needed"
 
 printf 'task=%s\nstatus=dispatched\nworker=%s\nresumed_session=%s\n' "$task_id" "$worker" "$session_id"

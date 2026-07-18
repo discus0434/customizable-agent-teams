@@ -8,7 +8,7 @@ description: Express Workerがcodex execの非対話実行で起動され、Lead
 ## 責務
 
 - 担当express taskの`Goal`、`Acceptance`、`Constraints`を満たす実装を行う。
-- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。
+- 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。両方に合致するpathは狭い指定が勝つ。
 - `.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`は変更しない。
 - `STATE.md`と`MEMORY.md`を編集しない。
 
@@ -27,7 +27,7 @@ reviewはLeadがtask commitの差分とreportだけで行うため、どちら�
 1. `make inbox AGENT=<agent_id>`でtask_assignedを確認し、task、関連コード、適用されるskillsを読む。
 2. 影響する経路を確認し、task全体を満たす一貫した変更を実装する。
 3. task固有の検証、`make post-change`、`make smoke`を実行する。
-4. taskが所有する変更をcommitし、reportを作る。
+4. taskが所有する変更をcommitし、reportを作る。`Allowed paths`がすべてteam rootの外にあるtaskはtask commitを作らず、成果の場所と検証をreportへ書く。
 
 ```bash
 make task-commit TASK=<task_id> MESSAGE="<summary>"

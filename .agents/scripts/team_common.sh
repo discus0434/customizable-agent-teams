@@ -385,11 +385,24 @@ acquire_team_lock() {
   ensure_team_dirs
   TEAM_LOCK_DIR="$TEAM_STATE_DIR/locks/$name.lock"
 
-  local attempt
+  local attempt holder_pid
   for attempt in $(seq 1 100); do
     if mkdir "$TEAM_LOCK_DIR" 2>/dev/null; then
+      printf '%s\n' "$$" > "$TEAM_LOCK_DIR/pid"
       trap 'release_team_lock' EXIT INT TERM
       return 0
+    fi
+    # trapはSIGKILLに効かない。保持processが死んでいる残骸lockは回収する
+    holder_pid="$(cat "$TEAM_LOCK_DIR/pid" 2>/dev/null || true)"
+    if [[ -n "$holder_pid" ]]; then
+      if ! kill -0 "$holder_pid" 2>/dev/null; then
+        rm -rf "$TEAM_LOCK_DIR" 2>/dev/null || true
+        continue
+      fi
+    elif [[ -n "$(find "$TEAM_LOCK_DIR" -maxdepth 0 -mmin +1 2>/dev/null)" ]]; then
+      # pidを記録する前に死んだ残骸。1分以上残っていれば回収する
+      rm -rf "$TEAM_LOCK_DIR" 2>/dev/null || true
+      continue
     fi
     sleep 0.1
   done
@@ -399,7 +412,7 @@ acquire_team_lock() {
 
 release_team_lock() {
   if [[ -n "${TEAM_LOCK_DIR:-}" && -d "$TEAM_LOCK_DIR" ]]; then
-    rmdir "$TEAM_LOCK_DIR"
+    rm -rf "$TEAM_LOCK_DIR"
     TEAM_LOCK_DIR=""
   fi
   trap - EXIT INT TERM
@@ -605,19 +618,81 @@ team_git_changed_paths_except() {
   done < <(team_git_changed_paths)
 }
 
+# Allowed pathsがすべてteam rootの外(絶対path)のtaskは、team rootにcommitを作らない。
+# その場合reportはtask commitなしで受け付け、成果の場所と検証は本文が持つ
+team_task_allowed_paths_all_external() {
+  local task_file="$1"
+  local entry expanded found=0
+
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] || continue
+    found=1
+    expanded="$(team_expand_path "$entry")"
+    case "$expanded" in
+      "$TEAM_ROOT"/*|"$TEAM_ROOT") return 1 ;;
+      /*) ;;
+      *) return 1 ;;
+    esac
+  done < <(team_task_markdown_section_paths "$task_file" "Allowed paths")
+  [[ "$found" == "1" ]]
+}
+
 team_task_changed_allowed_paths() {
   local task_id="$1"
   local task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
-  local path
+  local path entry a b allowed_specific protected_specific
+  local -a allowed_entries protected_entries matched_allowed matched_protected
 
   [[ -f "$task_file" ]] || die "task file not found: $task_id"
+  allowed_entries=()
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && allowed_entries+=("$entry")
+  done < <(team_task_markdown_section_paths "$task_file" "Allowed paths")
+  protected_entries=()
+  while IFS= read -r entry; do
+    [[ -n "$entry" ]] && protected_entries+=("$entry")
+  done < <(team_task_markdown_section_paths "$task_file" "Do not modify")
+
   while IFS= read -r path; do
-    team_path_matches_task_section "$task_file" "Allowed paths" "$path" || continue
-    if team_path_matches_task_section "$task_file" "Do not modify" "$path"; then
-      die_rule \
-        "task path is both allowed and protected: $path" \
-        "$task_file assigns conflicting ownership to the same changed path" \
-        "correct Allowed paths and Do not modify before committing"
+    matched_allowed=()
+    for a in "${allowed_entries[@]}"; do
+      if team_path_matches_contract_path "$path" "$a"; then
+        matched_allowed+=("$a")
+      fi
+    done
+    [[ "${#matched_allowed[@]}" -gt 0 ]] || continue
+
+    matched_protected=()
+    for b in "${protected_entries[@]}"; do
+      if team_path_matches_contract_path "$path" "$b"; then
+        matched_protected+=("$b")
+      fi
+    done
+
+    if [[ "${#matched_protected[@]}" -gt 0 ]]; then
+      # 例外契約: 変更pathが両sectionに合致する場合、包含関係にあれば狭い方の主張が勝つ
+      allowed_specific=0
+      protected_specific=0
+      for a in "${matched_allowed[@]}"; do
+        for b in "${matched_protected[@]}"; do
+          if team_path_matches_contract_path "$a" "$b"; then
+            allowed_specific=1
+          fi
+          if team_path_matches_contract_path "$b" "$a"; then
+            protected_specific=1
+          fi
+        done
+      done
+      if [[ "$allowed_specific" == "1" && "$protected_specific" == "0" ]]; then
+        : # 広い保護の中の狭い許可。taskが所有する
+      elif [[ "$protected_specific" == "1" && "$allowed_specific" == "0" ]]; then
+        continue # 広い許可の中の狭い保護。taskは所有しない
+      else
+        die_rule \
+          "task path is both allowed and protected: $path" \
+          "$task_file assigns conflicting ownership to the same changed path, and neither contract path contains the other" \
+          "make one of the overlapping contract paths strictly narrower than the other"
+      fi
     fi
     printf '%s\n' "$path"
   done < <(team_git_changed_paths)
@@ -1094,6 +1169,10 @@ team_require_report_matches_task_state() {
   team_require_report_field "$report_file" "Task commits" "$task_commits"
   team_require_task_paths_clean "$task_id"
   current_task_commits="$(team_task_commits "$task_id" "$base_commit" | paste -sd ' ' -)"
+  # 外部repoのtaskはtask_commits='none'で記録される。現在もcommitが無ければ一致とみなす
+  if [[ "$task_commits" == "none" && -z "$current_task_commits" ]]; then
+    current_task_commits="none"
+  fi
   [[ "$current_task_commits" == "$task_commits" ]] || die_rule \
     "task report is stale: $task_id" \
     "task state records '${task_commits:-no commits}', but current task commits are '${current_task_commits:-no commits}'" \
