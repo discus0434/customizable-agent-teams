@@ -430,8 +430,12 @@ cp "$TMP_ROOT/.agents/queue/tasks/GENERAL_TEMPLATE.md" "$TMP_ROOT/.agents/queue/
 perl -0pi -e 's/T-XXX/T-GENERAL/g; s#\x60path/to/file\x60#\x60general-output.txt\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-GENERAL >/dev/null
-general_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-GENERAL)"
+general_state="$(team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-GENERAL 2> "$TMP_BASE/dispatch-next.err")"
 grep -q '"worker":"general-worker-1"' "$general_state"
+# Dispatch is where the batch habit and forgotten research pre-orders happen,
+# so its stderr carries the option reminder while stdout stays a state path.
+grep -q 'next: 並列にdispatchできるtask' "$TMP_BASE/dispatch-next.err" \
+  || fail "dispatch output did not carry the parallel/research reminder"
 grep -q '"supervisor":"general-reviewer-1"' "$general_state"
 grep -q '^Supervisor: general-reviewer-1$' "$TMP_ROOT/.agents/queue/tasks/T-GENERAL.md"
 
@@ -551,6 +555,14 @@ general_report="$(as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_repo
 general_commits="$(state_field task T-GENERAL task_commits)"
 [[ "$general_commits" == "$general_commit" ]] || fail "report did not isolate the task commit"
 [[ "$general_commits" != *"$concurrent_commit"* ]] || fail "report included a concurrent commit"
+
+# Declaring blocked is where prose-waiting starts, so the blocked report must
+# remind the worker to convert the blocker into a pending-creating message.
+as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-GENERAL blocked \
+  > /dev/null 2> "$TMP_BASE/blocked-next.err"
+grep -q 'next: blockerを解く相手へ' "$TMP_BASE/blocked-next.err" \
+  || fail "blocked report did not carry the pending-message reminder"
+as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_report.sh" T-GENERAL needs_supervision >/dev/null
 
 printf '%s\n' "general change refined" > "$TMP_ROOT/general-output.txt"
 general_fix_output="$(as_agent general-worker-1 "$TMP_ROOT/.agents/scripts/team_task_commit.sh" T-GENERAL "refine output")"
@@ -978,8 +990,9 @@ team "$TMP_ROOT/.agents/scripts/team_send.sh" \
   --from express-worker-1 --type express_ready --task T-E-001 \
   lead "Fix feedback is applied." >/dev/null
 # The dispatch barrier habit forms at the moment done is written, so the done
-# output must carry the re-evaluation reminder for the owner.
-express_done_output="$(team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done)"
+# output must carry the re-evaluation reminder for the owner (on stderr, so
+# stdout stays a machine-readable state file path).
+express_done_output="$(team "$TMP_ROOT/.agents/scripts/team_state_update.sh" update T-E-001 done 2>&1)"
 grep -q 'next: このdoneで依存が解けたtask' <<<"$express_done_output" \
   || fail "done output did not remind the owner to re-evaluate dispatchable tasks"
 grep -q '"status":"done"' "$express_state"

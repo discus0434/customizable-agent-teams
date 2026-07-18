@@ -195,3 +195,7 @@ else
 fi
 
 printf '%s\n' "$state_file"
+# 選択肢は判断の瞬間に想起されなければ存在しないのと同じ。batch癖と
+# research先行発注の失念が起きるのはこの瞬間なので、ここへ1行置く。
+# stdoutはstate file pathの契約なので、助言はstderrへ出す
+printf 'next: 並列にdispatchできるtaskが他に残っていないか、次のphaseのresearch先行発注が要るかを確認する。\n' >&2

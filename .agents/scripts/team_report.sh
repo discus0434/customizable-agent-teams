@@ -211,3 +211,8 @@ team_write_task_state \
 
 team_mark_inbox_processed "$agent_id" "$task_id"
 printf '%s\n' "$report_file"
+# 散文の待機宣言はどの照合にも映らない。blockedを宣言する瞬間に、
+# pendingが立つmessageへの変換を想起させる(stdoutはreport pathの契約)
+if [[ "$status" == "blocked" ]]; then
+  printf 'next: blockerを解く相手へ、pendingが立つmessage(questionなど)を送ったか確認する。散文の待機宣言は誰にも届かない。\n' >&2
+fi
