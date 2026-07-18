@@ -72,26 +72,51 @@ team_tmux_content_is_own_payload() {
   [[ -z "$content" ]]
 }
 
+# composerに人間が実際に打った文字があるかを、内容とcursor位置で判定する。
+# 予測入力やplaceholderは文字としてcomposerに描画されるが、cursorは内容の
+# 先頭(prompt直後)に留まる。人間が打った文字はcursorを内容の側へ進める。
+# 描画色ではなくcursorで見分けるのは、装飾はUIのversionやthemeで変わるが、
+# 「候補は入力位置を進めない」はUXの構造だからである。
+# 成功時はTEAM_TMUX_COMPOSER_CONTENTに内容を返す
+team_tmux_composer_real_input() {
+  local pane="$1"
+  local visible line_no line content cursor cursor_x cursor_y
+
+  TEAM_TMUX_COMPOSER_CONTENT=""
+  visible="$(tmux capture-pane -t "$pane" -p)"
+  line_no="$(printf '%s\n' "$visible" | grep -nE "^(❯${TEAM_TMUX_NBSP}|›( |${TEAM_TMUX_NBSP}))" | tail -n 1 | cut -d: -f1 || true)"
+  [[ -n "$line_no" ]] || return 1
+  line="$(printf '%s\n' "$visible" | sed -n "${line_no}p")"
+  content="${line:1}"
+  content="${content#"${TEAM_TMUX_NBSP}"}"
+  content="${content# }"
+  content="${content#"${content%%[![:space:]]*}"}"
+  [[ -n "$content" ]] || return 1
+  cursor="$(tmux display-message -p -t "$pane" '#{cursor_x},#{cursor_y}' 2>/dev/null || true)"
+  cursor_x="${cursor%%,*}"
+  cursor_y="${cursor##*,}"
+  if [[ -n "$cursor_x" && -n "$cursor_y" ]] \
+    && [[ "$cursor_y" == "$((line_no - 1))" ]] \
+    && [[ "$cursor_x" -le 2 ]]; then
+    # cursorが内容の先頭に居る: 描画された候補であり、入力ではない
+    return 1
+  fi
+  TEAM_TMUX_COMPOSER_CONTENT="$content"
+  return 0
+}
+
 team_tmux_input_is_pending() {
   local pane="$1"
   local cli="$2"
   local own_payload="${3:-}"
-  local input_line
-  local content
 
   # 人間が入力するpaneはclaudeのLeadだけという設計を前提に、
   # placeholderの語彙が固定できないcodex paneは判定しない。
   [[ "$cli" == "claude" ]] || return 1
 
-  input_line="$(team_tmux_capture_pane "$pane" | grep -E "^❯${TEAM_TMUX_NBSP}" | tail -n 1 || true)"
-  [[ -n "$input_line" ]] || return 1
-  content="${input_line#❯"${TEAM_TMUX_NBSP}"}"
-  content="${content#"${content%%[![:space:]]*}"}"
-  [[ -n "$content" ]] || return 1
-  case "$content" in
-    'Try "'*) return 1 ;;
-  esac
-  if [[ -n "$own_payload" ]] && team_tmux_content_is_own_payload "$content" "$own_payload"; then
+  team_tmux_composer_real_input "$pane" || return 1
+  if [[ -n "$own_payload" ]] \
+    && team_tmux_content_is_own_payload "$TEAM_TMUX_COMPOSER_CONTENT" "$own_payload"; then
     return 1
   fi
   return 0
@@ -190,10 +215,16 @@ team_tmux_send_text() {
   marker="${marker:0:16}"
 
   for paste_attempt in 1 2 3; do
-    # 既に自分のpayloadがcomposerに載っているなら貼らない。composerの
-    # clearはTUIによっては効かず、貼り直しが追記になって注入を二重化する
+    # 既に自分のpayloadが実入力としてcomposerに載っているなら貼らない。
+    # composerのclearはTUIによっては効かず、貼り直しが追記になって注入を
+    # 二重化する。逆に、人間の実入力が載っているなら上書きせず退く。
+    # 描画された候補(実入力でない文字)は、貼り付けで消えるので貼ってよい
     composer="$(team_tmux_composer_line "$pane")"
-    if [[ "$composer" != *"$marker"* ]]; then
+    if team_tmux_composer_real_input "$pane" && [[ "$composer" != *"$marker"* ]]; then
+      warn "composer holds human input; not delivering to pane $pane"
+      return 1
+    fi
+    if ! { team_tmux_composer_real_input "$pane" && [[ "$composer" == *"$marker"* ]]; }; then
       team_tmux_prepare_input "$pane"
       buffer_name="agent-team-$$_$RANDOM"
       tmux set-buffer -b "$buffer_name" -- "$text"

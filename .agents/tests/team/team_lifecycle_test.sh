@@ -93,6 +93,22 @@ case "$1" in
       printf 'agent-team\n'
     elif [[ "$*" == *"#{pane_id}"* ]]; then
       printf '%%fake\n'
+    elif [[ "$*" == *"#{cursor_x},#{cursor_y}"* ]]; then
+      # 実UIに合わせる: 予測やplaceholder(ghost:)はcursorを内容の先頭に
+      # 残し、人間が打った文字はcursorを内容の末尾へ進める
+      row=1
+      [[ -n "${TEAM_FAKE_TMUX_TRANSCRIPT_FILE:-}" && -f "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE" ]] && row=2
+      content=""
+      if [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
+        content="$(head -n 1 "$TEAM_FAKE_TMUX_INPUT_FILE")"
+      elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
+        content="$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+      fi
+      case "$content" in
+        ghost:*) printf '2,%s\n' "$row" ;;
+        "") printf '2,%s\n' "$row" ;;
+        *) printf '%s,%s\n' "$(( 2 + ${#content} ))" "$row" ;;
+      esac
     fi
     ;;
   capture-pane)
@@ -106,7 +122,8 @@ case "$1" in
         printf '❯ %s\n' "$(cat "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE")"
       fi
       if [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
-        printf '❯\xc2\xa0%s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
+        input_render="$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
+        printf '❯\xc2\xa0%s\n' "${input_render#ghost:}"
       elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
         if [[ -n "${TEAM_FAKE_TMUX_PASTE_LAG:-}" && -s "$TEAM_FAKE_TMUX_PASTE_LAG" ]] \
           && [[ "$(cat "$TEAM_FAKE_TMUX_PASTE_LAG")" -gt 0 ]]; then
@@ -114,7 +131,8 @@ case "$1" in
           printf '%s\n' "$(( $(cat "$TEAM_FAKE_TMUX_PASTE_LAG") - 1 ))" > "$TEAM_FAKE_TMUX_PASTE_LAG"
           printf '%s\xc2\xa0\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}"
         else
-          printf '%s\xc2\xa0%s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+          composer_render="$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+          printf '%s\xc2\xa0%s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "${composer_render#ghost:}"
         fi
       fi
     fi
@@ -288,7 +306,7 @@ PATH="$TMP_BASE/bin:$PATH" \
 grep -q '^\[team\] queued nudge for lead; pane is busy or holds unsent input$' "$TMP_BASE/input-nudge.err"
 [[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
   || fail "unsent human input was clobbered by an immediate nudge"
-printf '%s\n' 'Try "fix lint errors"' > "$input_file"
+printf '%s\n' 'ghost:Try "fix lint errors"' > "$input_file"
 for _attempt in $(seq 1 30); do
   paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
   [[ "$paste_count_after" -gt "$paste_count_before" ]] && break
@@ -455,6 +473,33 @@ paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
 [[ ! -s "$composer_file" ]] \
   || fail "send_text left the laggy composer holding unsent text"
 rm -f "$lag_file"
+
+# Regression (history prediction): the composer can render a predicted command
+# from input history as ghost text. It reads like typed input, but the cursor
+# stays at the head of the content, while typed input moves the cursor along.
+# Detection must read predictions as empty input and deliver by pasting over
+# them, whatever the predicted text happens to be.
+printf '%s\n' '{"id":"msg_prediction","from":"manager","to":"lead","type":"request","requires_attention":"true","created_at":"2026-01-01T00:00:03Z","body":"prediction"}' \
+  >> "$TMP_ROOT/.agents/queue/inbox/lead.jsonl"
+for predicted in 'inbox lead' '過去に打った長いdirectiveの再提示'; do
+  rm -f "$composer_file.buffer"
+  printf 'ghost:%s\n' "$predicted" > "$composer_file"
+  paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+  PATH="$TMP_BASE/bin:$PATH" \
+    TEAM_ROOT="$TMP_ROOT" \
+    TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+    TEAM_DISABLE_NUDGE=0 \
+    TEAM_FAKE_TMUX_HAS_SESSION=1 \
+    TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+    "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/prediction-nudge.err"
+  if grep -q 'queued nudge' "$TMP_BASE/prediction-nudge.err"; then
+    fail "a rendered prediction starved the nudge ($predicted)"
+  fi
+  [[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" -gt "$paste_count_before" ]] \
+    || fail "the nudge did not paste over the prediction ($predicted)"
+  [[ ! -s "$composer_file" ]] \
+    || fail "the nudge left the prediction composer unsent ($predicted)"
+done
 
 # Regression (invisible stall): a worker that closes its turn without leaving
 # any pending message holds an obligation recorded only in task state. The
