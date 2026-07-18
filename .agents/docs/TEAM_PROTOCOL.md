@@ -161,6 +161,17 @@ Managerは、人間の判断が必要な内容をLeadへ上げる。
 
 Leadは人間と確認し、Managerへ判断を返す。
 
+## 並列実行
+
+dispatchの既定は並列とする。直列にするのは、次のいずれかを特定できたときだけとする。
+
+- 他taskの成果物を入力にする依存。
+- `Allowed paths`の交差、または同じ可変資源(lock、単一worktree、稼働中process)の取り合い。
+
+着手可能なtaskとidle workerがあるのに直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
+
+HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体を止めない。
+
 ## 待機
 
 返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。

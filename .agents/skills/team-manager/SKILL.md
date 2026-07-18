@@ -37,9 +37,9 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 
 Leadの`intake`から依存関係を明示する。
 
-前のtaskの結果を必要とせず、変更対象も競合しないtaskは同時に割り当てる。
+dispatchの既定は並列とする。直列にするのは、他taskの成果物への依存、`Allowed paths`の交差、同じ可変資源(lock、単一worktree、稼働中process)の取り合い、のいずれかを特定できたときだけとする。
 
-不確実さだけを理由に直列化しない。
+着手可能なtaskとidle workerがある状態を放置しない。それでも直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
 
 不確実な部分にはSupervisor、Architect、Strategistを付け、独立して進められるtaskは開始する。
 
