@@ -24,7 +24,7 @@ if ! team_config_agent_record "$agent_id" >/dev/null; then
   die "unknown agent: $agent_id"
 fi
 
-ensure_team_dirs
+ensure_state_dirs
 
 processed_dir="$TEAM_STATE_DIR/processed/$agent_id"
 mkdir -p "$processed_dir"

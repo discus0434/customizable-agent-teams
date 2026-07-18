@@ -30,7 +30,7 @@ team_config_agent_record "$critic_id" >/dev/null || die "unknown critic: $critic
 critic_role="$(team_config_agent_field "$critic_id" role)"
 [[ "$critic_role" == "frontend-critic" ]] || die "$critic_id is not a frontend-critic"
 
-ensure_team_dirs
+ensure_state_dirs
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 

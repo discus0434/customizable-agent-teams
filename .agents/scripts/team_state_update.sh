@@ -17,7 +17,7 @@ command="${1:-}"
 
 case "$command" in
   show)
-    ensure_team_dirs
+    ensure_state_dirs
     state_file="$(team_state_file)"
     [[ -f "$state_file" ]] || die "STATE.md not found: $state_file"
     cat "$state_file"

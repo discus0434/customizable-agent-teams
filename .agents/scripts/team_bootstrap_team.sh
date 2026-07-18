@@ -7,7 +7,7 @@ source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
 main() {
-  ensure_team_dirs
+  ensure_state_dirs
 
   managers="$(team_config_role_agent_ids manager)"
   manager_count="$(printf '%s\n' "$managers" | sed '/^$/d' | wc -l | tr -d ' ')"

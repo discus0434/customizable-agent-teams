@@ -140,7 +140,7 @@ agent_launch_command() {
 
 main() {
   require_command tmux
-  ensure_team_dirs
+  ensure_state_dirs
   team_config_validate
 
   local session

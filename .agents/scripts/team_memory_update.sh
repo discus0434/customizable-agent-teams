@@ -130,12 +130,12 @@ command="${1:-}"
 
 case "$command" in
   list)
-    ensure_team_dirs
+    ensure_state_dirs
     find "$TEAM_QUEUE_DIR/memory_proposals" -maxdepth 1 -type f -name '*.md' | sort
     ;;
   append)
     [[ $# -eq 2 ]] || { usage; exit 2; }
-    ensure_team_dirs
+    ensure_state_dirs
     proposal_file="$(resolve_proposal_file "$2")"
     [[ -f "$proposal_file" ]] || die "proposal file not found: $proposal_file"
     memory_file="$(team_memory_file)"

@@ -44,7 +44,7 @@ to="$1"
 shift
 body="${*:-}"
 
-ensure_team_dirs
+ensure_state_dirs
 team_config_validate
 
 if [[ -z "$from" ]]; then

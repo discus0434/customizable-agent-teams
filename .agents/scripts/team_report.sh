@@ -45,7 +45,7 @@ else
   esac
 fi
 
-ensure_team_dirs
+ensure_state_dirs
 report_file="$TEAM_QUEUE_DIR/reports/${task_id}_${agent_id}.md"
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"

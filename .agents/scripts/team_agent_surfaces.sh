@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/team_common.sh"
 
-ensure_team_dirs
+ensure_state_dirs
 
 printf 'Repository: %s\n' "$TEAM_ROOT"
 printf 'HEAD: '

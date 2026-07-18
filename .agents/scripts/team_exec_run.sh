@@ -39,7 +39,7 @@ esac
 [[ -n "$notify" ]] || die "exec notify target is required"
 team_config_agent_record "$notify" >/dev/null || die "unknown exec notify target: $notify"
 
-ensure_team_dirs
+ensure_state_dirs
 team_config_agent_record "$agent_id" >/dev/null || die "unknown exec agent: $agent_id"
 role="$(team_config_agent_field "$agent_id" role)"
 team_config_role_is_exec "$role" || die_rule \

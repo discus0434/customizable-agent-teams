@@ -268,7 +268,7 @@ team_send_with_body_file() {
   local body_file
   local status
 
-  ensure_team_dirs
+  ensure_state_dirs
   body_file="$(mktemp "$TEAM_STATE_DIR/tmp/message-body.XXXXXX")"
   printf '%s\n' "$body" > "$body_file"
 
@@ -357,21 +357,10 @@ team_tmux_wait_for_ready() {
   die "tmux pane did not become ready for input: $pane"
 }
 
-ensure_team_dirs() {
+# queue以下の成果物dirはtracked .gitkeepがcheckoutで保証する。
+# ここで作るのは、gitignoreされたruntime state dirだけ。
+ensure_state_dirs() {
   mkdir -p \
-    "$TEAM_MEMORY_DIR" \
-    "$TEAM_QUEUE_DIR/tasks" \
-    "$TEAM_QUEUE_DIR/inbox" \
-    "$TEAM_QUEUE_DIR/reports" \
-    "$TEAM_QUEUE_DIR/reviews" \
-    "$TEAM_QUEUE_DIR/critiques" \
-    "$TEAM_QUEUE_DIR/direction-critiques" \
-    "$TEAM_QUEUE_DIR/visuals" \
-    "$TEAM_QUEUE_DIR/research" \
-    "$TEAM_QUEUE_DIR/strategy" \
-    "$TEAM_QUEUE_DIR/architecture" \
-    "$TEAM_QUEUE_DIR/memory_proposals" \
-    "$TEAM_QUEUE_DIR/skill_proposals" \
     "$TEAM_STATE_DIR/agents" \
     "$TEAM_STATE_DIR/exec" \
     "$TEAM_STATE_DIR/locks" \
@@ -511,7 +500,7 @@ TEAM_LOCK_DIR=""
 
 acquire_team_lock() {
   local name="$1"
-  ensure_team_dirs
+  ensure_state_dirs
   TEAM_LOCK_DIR="$TEAM_STATE_DIR/locks/$name.lock"
 
   local attempt holder_pid

@@ -25,7 +25,7 @@ manager_role="$(team_config_agent_field "$manager_id" role)"
   "$manager_id has role $manager_role" \
   "run make state-commit from the Manager pane"
 
-ensure_team_dirs
+ensure_state_dirs
 
 inbox_file="$TEAM_QUEUE_DIR/inbox/$manager_id.jsonl"
 processed_dir="$TEAM_STATE_DIR/processed/$manager_id"

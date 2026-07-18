@@ -32,7 +32,7 @@ case "$supervisor_role" in
   *) die "$supervisor_id is not an implementation supervisor" ;;
 esac
 
-ensure_team_dirs
+ensure_state_dirs
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 

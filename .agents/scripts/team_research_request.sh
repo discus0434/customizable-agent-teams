@@ -22,7 +22,7 @@ done
 body="$1"
 [[ -n "$body" ]] || die_rule "research request body is empty" "research workers need a concrete question" "describe what must be learned and why"
 
-ensure_team_dirs
+ensure_state_dirs
 team_config_validate
 team_config_agent_record "$from" >/dev/null || die "unknown research caller: $from"
 case "$(team_config_agent_field "$from" role)" in

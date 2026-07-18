@@ -20,7 +20,7 @@ case "$task_id" in
   T-E-*) lane="express" ;;
 esac
 
-ensure_team_dirs
+ensure_state_dirs
 
 [[ -f "$task_file" ]] || die_rule \
   "task file not found: $task_id" \

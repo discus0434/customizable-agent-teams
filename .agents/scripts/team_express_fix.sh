@@ -29,7 +29,7 @@ lead_id="$TEAM_AGENT_ID"
   "express tasks are reviewed and returned by Lead" \
   "run make express-fix from the lead pane"
 
-ensure_team_dirs
+ensure_state_dirs
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$state_file" ]] || die "task is not dispatched: $task_id"
 

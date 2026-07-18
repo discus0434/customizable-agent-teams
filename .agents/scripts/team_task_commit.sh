@@ -35,7 +35,7 @@ case "$agent_role" in
     "run the command from the assigned implementation worker pane" ;;
 esac
 
-ensure_team_dirs
+ensure_state_dirs
 task_file="$TEAM_QUEUE_DIR/tasks/$task_id.md"
 state_file="$(team_task_state_file "$task_id")"
 [[ -f "$task_file" && -f "$state_file" ]] || die_rule \

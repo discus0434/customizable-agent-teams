@@ -18,7 +18,7 @@ if [[ "${1:-}" == "--once" ]]; then
 fi
 
 require_command tmux
-ensure_team_dirs
+ensure_state_dirs
 session="$(team_config_session)"
 
 sweep() {

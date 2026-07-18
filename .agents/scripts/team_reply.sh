@@ -43,7 +43,7 @@ if [[ -z "$from" ]]; then
   from="$TEAM_AGENT_ID"
 fi
 
-ensure_team_dirs
+ensure_state_dirs
 team_config_agent_record "$from" >/dev/null || die "unknown reply sender: $from"
 
 if [[ -n "$body_file" ]]; then
