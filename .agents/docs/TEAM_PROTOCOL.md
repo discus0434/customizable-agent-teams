@@ -174,7 +174,7 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 ## 待機
 
-返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
+返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。nudgeが失われても、常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
 
 待ちに入る前に、次を済ませる。
 

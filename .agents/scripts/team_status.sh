@@ -148,7 +148,7 @@ done < <(find "$TEAM_STATE_DIR/research" -maxdepth 1 -type f -name '*.json' | so
 echo
 
 echo "Inbox:"
-while IFS='|' read -r id _role _cli _model _effort _window _supervisor; do
+while IFS='|' read -r id agent_role _cli _model _effort _window _supervisor; do
   [[ -n "$id" ]] || continue
   inbox_file="$TEAM_QUEUE_DIR/inbox/$id.jsonl"
   total=0
@@ -167,6 +167,22 @@ while IFS='|' read -r id _role _cli _model _effort _window _supervisor; do
   fi
   printf '  %s pending=%s total=%s' "$id" "$pending" "$total"
   [[ -n "$latest" ]] && printf ' latest=%s' "$latest"
+  # pendingを抱えたままidleのpaneは、wakeupが消えた停滞の徴候なので警告する
+  if [[ "$pending" -gt 0 && "$session_running" -eq 1 ]] && ! team_config_role_is_exec "$agent_role"; then
+    stalled="$(
+      pane=""
+      cli=""
+      # shellcheck disable=SC1090
+      source "$TEAM_STATE_DIR/agents/$id.env" 2>/dev/null || exit 0
+      if [[ -n "$pane" ]] && team_tmux_pane_in_session "$pane" "$(team_config_session)" \
+        && ! team_tmux_pane_is_busy "$pane" && ! team_tmux_input_is_pending "$pane" "$cli"; then
+        printf 'stalled'
+      fi
+    )"
+    if [[ "$stalled" == "stalled" ]]; then
+      printf ' WARN: idle with pending'
+    fi
+  fi
   printf '\n'
 done < <(team_config_agents)
 echo

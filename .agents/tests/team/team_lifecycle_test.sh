@@ -243,6 +243,19 @@ done
   || fail "deferred nudge was not delivered after the input became a placeholder"
 rm "$input_file"
 
+# Regression (lost wakeup): nudge delivery is a one-shot edge trigger, so a
+# lost nudge leaves a pane idle with pending messages and the whole team can
+# stall. The team_watch sweep re-nudges exactly that state.
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+[[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" -gt "$paste_count_before" ]] \
+  || fail "team_watch did not wake an idle pane with pending messages"
+
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' > "$message_body"

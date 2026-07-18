@@ -225,6 +225,18 @@ main() {
     fi
   done < <(team_config_agents)
 
+  # 消えたwakeupを回収する照合loopを常駐させる(多重起動はpidで防ぐ)
+  local watch_pid_file="$TEAM_STATE_DIR/watch.pid"
+  local watch_pid
+  watch_pid="$(cat "$watch_pid_file" 2>/dev/null || true)"
+  if [[ -z "$watch_pid" ]] || ! kill -0 "$watch_pid" 2>/dev/null; then
+    watch_pid="$(
+      TEAM_ROOT="$TEAM_ROOT" TEAM_CONFIG_FILE="$TEAM_CONFIG_FILE" \
+        bash -c 'set -m; nohup "$1" >/dev/null 2>&1 & echo $!' _ "$SCRIPT_DIR/team_watch.sh"
+    )"
+    printf '%s\n' "$watch_pid" > "$watch_pid_file"
+  fi
+
   echo "started tmux session: $session"
   echo "attach with: make team-attach"
 }
