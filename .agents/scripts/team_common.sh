@@ -56,9 +56,26 @@ team_tmux_pane_is_busy() {
 # そのpane宛のwakeが永久に配送されなくなる
 TEAM_TMUX_NBSP=$'\xc2\xa0'
 
+# composerの内容が、これから注入するtext(の1回以上の繰り返し)と一致するかを
+# 判定する。一致するなら、それは人間のdraftではなく過去の注入の残骸である。
+# 残骸を人間の入力として尊重すると、自分の失敗痕に遠慮して配送が永久に
+# 止まる自己deadlockになる
+team_tmux_content_is_own_payload() {
+  local content="$1"
+  local payload="$2"
+
+  [[ -n "$content" && -n "$payload" ]] || return 1
+  while [[ "$content" == "$payload"* ]]; do
+    content="${content#"$payload"}"
+    content="${content#"${content%%[![:space:]]*}"}"
+  done
+  [[ -z "$content" ]]
+}
+
 team_tmux_input_is_pending() {
   local pane="$1"
   local cli="$2"
+  local own_payload="${3:-}"
   local input_line
   local content
 
@@ -74,6 +91,9 @@ team_tmux_input_is_pending() {
   case "$content" in
     'Try "'*) return 1 ;;
   esac
+  if [[ -n "$own_payload" ]] && team_tmux_content_is_own_payload "$content" "$own_payload"; then
+    return 1
+  fi
   return 0
 }
 
@@ -164,26 +184,35 @@ team_tmux_submit_verified() {
 team_tmux_send_text() {
   local pane="$1"
   local text="$2"
-  local buffer_name marker composer paste_attempt enter_attempt
+  local buffer_name marker composer confirm_attempt paste_attempt enter_attempt
 
   marker="${text%%$'\n'*}"
   marker="${marker:0:16}"
 
   for paste_attempt in 1 2 3; do
-    team_tmux_prepare_input "$pane"
-    buffer_name="agent-team-$$_$RANDOM"
-    tmux set-buffer -b "$buffer_name" -- "$text"
-    tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
-    sleep 0.3
+    # 既に自分のpayloadがcomposerに載っているなら貼らない。composerの
+    # clearはTUIによっては効かず、貼り直しが追記になって注入を二重化する
     composer="$(team_tmux_composer_line "$pane")"
-    if [[ -z "$composer" ]]; then
-      # composerが観測できないpaneでは検証できないので一発送信に落とす
-      team_tmux_submit "$pane"
-      return 0
-    fi
     if [[ "$composer" != *"$marker"* ]]; then
-      # 貼り付けが反映されていない。composerを空にして貼り直す
-      continue
+      team_tmux_prepare_input "$pane"
+      buffer_name="agent-team-$$_$RANDOM"
+      tmux set-buffer -b "$buffer_name" -- "$text"
+      tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
+      # 貼り付けの反映は描画に遅れることがある。1回の観測で貼り直しを
+      # 決めず、反映を数回待ってから判断する
+      for confirm_attempt in 1 2 3 4 5; do
+        sleep 0.3
+        composer="$(team_tmux_composer_line "$pane")"
+        [[ "$composer" == *"$marker"* ]] && break
+      done
+      if [[ -z "$composer" ]]; then
+        # composerが観測できないpaneでは検証できないので一発送信に落とす
+        team_tmux_submit "$pane"
+        return 0
+      fi
+      if [[ "$composer" != *"$marker"* ]]; then
+        continue
+      fi
     fi
     for enter_attempt in 1 2 3 4; do
       team_tmux_submit "$pane"

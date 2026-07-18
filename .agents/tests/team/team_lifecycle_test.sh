@@ -108,7 +108,14 @@ case "$1" in
       if [[ -n "${TEAM_FAKE_TMUX_INPUT_FILE:-}" && -f "$TEAM_FAKE_TMUX_INPUT_FILE" ]]; then
         printf '❯\xc2\xa0%s\n' "$(cat "$TEAM_FAKE_TMUX_INPUT_FILE")"
       elif [[ -n "${TEAM_FAKE_TMUX_COMPOSER:-}" && -f "$TEAM_FAKE_TMUX_COMPOSER" ]]; then
-        printf '%s\xc2\xa0%s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+        if [[ -n "${TEAM_FAKE_TMUX_PASTE_LAG:-}" && -s "$TEAM_FAKE_TMUX_PASTE_LAG" ]] \
+          && [[ "$(cat "$TEAM_FAKE_TMUX_PASTE_LAG")" -gt 0 ]]; then
+          # 貼り付けのechoが描画に遅れるpaneを再現する: 残count回はcomposerを空で見せる
+          printf '%s\n' "$(( $(cat "$TEAM_FAKE_TMUX_PASTE_LAG") - 1 ))" > "$TEAM_FAKE_TMUX_PASTE_LAG"
+          printf '%s\xc2\xa0\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}"
+        else
+          printf '%s\xc2\xa0%s\n' "${TEAM_FAKE_TMUX_PROMPT:-❯}" "$(head -n 1 "$TEAM_FAKE_TMUX_COMPOSER")"
+        fi
       fi
     fi
     ;;
@@ -358,6 +365,96 @@ cm_after="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FA
 [[ "$((cm_after - cm_before))" -ge 1 ]] \
   || fail "nudge did not deliver on a transcript-polluted pane"
 rm -f "$transcript_file"
+
+# Regression (self-deadlock on own residue): a half-delivered injection can
+# leave its own text sitting unsent in the composer. Treating that residue as
+# human input makes every later nudge defer to it, so the pane starves on the
+# machinery's own failure. The nudge must recognize repetitions of its own
+# payload, skip the repaste (a repaste appends and doubles the injection when
+# the composer's clear key is a no-op), and drive the residue to submission.
+printf '%s\n' '{"id":"msg_residue","from":"manager","to":"lead","type":"request","requires_attention":"true","created_at":"2026-01-01T00:00:02Z","body":"residue"}' \
+  >> "$TMP_ROOT/.agents/queue/inbox/lead.jsonl"
+rm -f "$composer_file.buffer"
+printf '%s\n' 'inbox leadinbox lead' > "$composer_file"
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+cm_before="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/residue-nudge.err"
+if grep -q 'queued nudge' "$TMP_BASE/residue-nudge.err"; then
+  fail "the nudge deferred to its own stuck payload"
+fi
+[[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
+  || fail "own residue was repasted into a doubled injection"
+[[ ! -s "$composer_file" ]] \
+  || fail "own residue was not driven to submission"
+cm_after="$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")"
+[[ "$((cm_after - cm_before))" -ge 1 ]] \
+  || fail "own residue was left without a submit"
+
+# The residue exception must not weaken the human-draft protection: content
+# that starts with the payload but continues as a human draft still defers.
+# Drain the previous deferral's waiter first: a live waiter lock makes this
+# nudge skip spawning its own waiter, and the old waiter exits after its own
+# delivery, leaving the new deferral unwatched.
+for _attempt in $(seq 1 100); do
+  [[ -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] || break
+  /bin/sleep 0.1
+done
+[[ ! -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] \
+  || fail "input-test waiter did not release its lock before the draft test"
+printf '%s\n' 'inbox lead のあとに人間の下書きが続いている' > "$composer_file"
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_DISABLE_NUDGE=0 \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_REAL_SLEEP=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  "$TMP_ROOT/.agents/scripts/team_nudge.sh" lead > /dev/null 2> "$TMP_BASE/draft-nudge.err"
+grep -q '^\[team\] queued nudge for lead; pane is busy or holds unsent input$' "$TMP_BASE/draft-nudge.err"
+[[ "$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)" == "$paste_count_before" ]] \
+  || fail "a human draft containing the payload prefix was clobbered"
+: > "$composer_file"
+for _attempt in $(seq 1 100); do
+  paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+  [[ "$paste_count_after" -gt "$paste_count_before" ]] && break
+  /bin/sleep 0.1
+done
+[[ "${paste_count_after:-0}" -gt "$paste_count_before" ]] \
+  || fail "deferred nudge was not delivered after the draft was cleared"
+for _attempt in $(seq 1 100); do
+  [[ -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] || break
+  /bin/sleep 0.1
+done
+[[ ! -d "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] \
+  || fail "draft-test waiter did not release its lock"
+
+# Regression (laggy paste echo): the composer can render a paste later than
+# the first observation. Concluding a paste miss from a single read caused a
+# repaste, which appends a second copy on composers whose clear key is a
+# no-op. The sender must confirm over a window before deciding to repaste.
+lag_file="$TMP_BASE/pane.paste-lag"
+printf '%s\n' '3' > "$lag_file"
+rm -f "$composer_file.buffer"
+: > "$composer_file"
+paste_count_before="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 \
+  TEAM_FAKE_TMUX_COMPOSER="$composer_file" \
+  TEAM_FAKE_TMUX_PASTE_LAG="$lag_file" \
+  bash -c 'source "$1/.agents/scripts/team_common.sh"; team_tmux_send_text %fake "inbox lead"' _ "$TMP_ROOT"
+paste_count_after="$(grep -c '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" || true)"
+[[ "$((paste_count_after - paste_count_before))" == "1" ]] \
+  || fail "a laggy paste echo caused a repaste"
+[[ ! -s "$composer_file" ]] \
+  || fail "send_text left the laggy composer holding unsent text"
+rm -f "$lag_file"
 
 # Regression (invisible stall): a worker that closes its turn without leaving
 # any pending message holds an obligation recorded only in task state. The
