@@ -100,6 +100,8 @@ make dispatch TASK=<task_id>
 
 ## 完了
 
+intakeがphaseやmilestoneを定義している場合、節目のtaskがすべて`done`になったら、`REQUIRES_ATTENTION=1`の`note`でLeadへ報告する。`completion_ready`まで人間への進捗報告を途切れさせない。
+
 taskを`done`にする前に、次の情報を確認する。
 
 - Supervisorのdecisionが`OK`である。

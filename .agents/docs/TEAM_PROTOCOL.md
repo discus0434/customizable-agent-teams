@@ -176,6 +176,8 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。nudgeが失われても、常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
 
+ただし`note`は記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
+
 待ちに入る前に、次を済ませる。
 
 - 判断に必要な証拠をfile(report、成果物、log)へ保全する。
@@ -183,6 +185,12 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 - 何を待っていて、届いたら何をするかを、reportまたは相談messageに書き残す。
 
 ## 完了
+
+`completion_ready`が発火するのはintake全体の完了時だけなので、それより前の進捗は節目で報告する。intakeがphaseやmilestoneを定義している場合、Managerは節目のtaskがすべて`done`になった時点でLeadへ報告し、Leadは人間へ進捗を伝える。
+
+```bash
+make team-send TO=lead TYPE=note REQUIRES_ATTENTION=1 BODY="<節目の完了報告>"
+```
 
 intakeの成功条件を満たすtaskがすべて`done`になったら、Managerは対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
 

@@ -97,6 +97,8 @@ taskの範囲や成功条件が動く場合はexpressを中止し、通常task�
 
 ## 受け入れと完了報告
 
+Managerから節目(phase、milestone)の完了報告を受けたら、人間へ進捗を伝える。
+
 `completion_ready`は、送信の時点でHEADの`make post-change`と`make smoke`が実行され、通った場合だけ届く。
 
 Managerから`completion_ready`を受けたら、Leadが受け入れ検証をする。

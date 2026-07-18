@@ -31,15 +31,15 @@ team-send:
 	fi
 	@if [ -n "$(BODY_FILE)" ]; then \
 		if [ -n "$(FROM)" ]; then \
-			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
+			./.agents/scripts/team_send.sh $(if $(REQUIRES_ATTENTION),--requires-attention )--from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
 		else \
-			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
+			./.agents/scripts/team_send.sh $(if $(REQUIRES_ATTENTION),--requires-attention )--type "$(TYPE)" --task "$(TASK)" --body-file "$(BODY_FILE)" "$(TO)"; \
 		fi; \
 	else \
 		if [ -n "$(FROM)" ]; then \
-			./.agents/scripts/team_send.sh --from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
+			./.agents/scripts/team_send.sh $(if $(REQUIRES_ATTENTION),--requires-attention )--from "$(FROM)" --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 		else \
-			./.agents/scripts/team_send.sh --type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
+			./.agents/scripts/team_send.sh $(if $(REQUIRES_ATTENTION),--requires-attention )--type "$(TYPE)" --task "$(TASK)" "$(TO)" "$(BODY)"; \
 		fi; \
 	fi
 
