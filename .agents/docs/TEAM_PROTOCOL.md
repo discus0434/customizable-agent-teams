@@ -55,6 +55,8 @@ Supervisorが`OK`を記録すると、`done_recommendation=true`がManagerへ送
 
 Managerはtask state、report、Supervisorの判断、必要な専門家の成果物を確認して`done`を決める。
 
+実装中に`Allowed paths`へ無い随伴file(変更したcodeを検証するtest、それを説明するdocs)が必要になった場合、Workerは自taskの`Allowed paths`へ`declared during implementation`の注記付きで追記してよい。追記できるのは、他のin-flight taskの契約と交差せず、自taskの`Do not modify`にもgovernance path(`.agents/`、`AGENTS.md`、`CLAUDE.md`、`Makefile`)にも当たらないpathだけとする。追記はreportへも記録し、Supervisorがreviewで妥当性を確認する。交差する場合や迷う場合は固定Supervisorへ相談する。express taskは対象外とする。
+
 Frontend taskでは、主要なUI実装より前に画面方針を確認する。
 
 ```text

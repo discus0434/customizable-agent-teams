@@ -191,6 +191,7 @@ for allowed in "${allowed_paths[@]}"; do
 
   case "$allowed" in
     /*) ;;  # team root外(外部repo)のpathはteam rootのgit ignore判定の対象外
+    .agents/queue/state/*) ;;  # 実行時領域はcommit対象にならないので警告しない
     *)
       if git -C "$TEAM_ROOT" check-ignore -q "$allowed" 2>/dev/null; then
         warn "allowed path is ignored by git: $allowed"

@@ -9,6 +9,7 @@ description: Hard Task Workerがtask_assigned、supervision_feedback、supervisi
 
 - 担当taskの`Goal`、`Acceptance`、`Constraints`を満たす調査と実装を行う。
 - 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。両方に合致するpathは狭い指定が勝つ。
+- 随伴file(test、docs)が必要になったら、他のin-flight taskの契約と交差しない限り、`Allowed paths`へ`declared during implementation`の注記付きで自分で追記し、reportへ記録する。交差する場合や迷う場合はGeneral Reviewerへ相談する。
 - blocker、不確実な判断、低い自信、技術方針、対象範囲を変える必要が生じた場合は、固定General Reviewerへ相談する。
 - ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
 - 返答を待つ間は、lockを解放しturnを閉じて待機する。messageの裏付けが無い待ち(他taskの完了など)は、相手へmessageを送って返答待ちに変えてから閉じる。担当taskの途中で待機に入らない。

@@ -10,6 +10,7 @@ description: Frontend Workerがtask_assigned、view_direction_result、supervisi
 - 担当taskのfrontendと、それを直接支えるclient-side codeを実装する。
 - 画面方針、表示品質、操作、accessibility、不確実な判断、対象範囲について、固定Frontend Criticへ相談する。
 - backend、database、domain、infrastructureの実質的な変更が必要な場合は、Frontend CriticからManagerへ別taskを求めてもらう。
+- 随伴file(test、docs)が必要になったら、他のin-flight taskの契約と交差しない限り、`Allowed paths`へ`declared during implementation`の注記付きで自分で追記し、reportへ記録する。交差する場合や迷う場合はFrontend Criticへ相談する。
 - `STATE.md`と`MEMORY.md`を編集しない。
 
 ## 画面方針

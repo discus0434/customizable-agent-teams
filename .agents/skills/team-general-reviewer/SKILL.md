@@ -30,6 +30,8 @@ Workerが記録したtask固有の検証、`make post-change`、`make smoke`が�
 
 Workerの検証をすべて再実行するかどうかは、変更の不確実さと影響から判断する。
 
+契約に`declared during implementation`注記の追記がある場合は、随伴として妥当か、他のin-flight taskの契約と交差していないかを確認する。
+
 有効な指摘を見つけた場合は記録し、問題がなければ指摘を作らず`OK`を返す。
 
 `supervision_checkpoint`は、実装中に方針を修正できる相談として扱う。読むだけでは処理済みにならない。`supervision_feedback`を返すか、対応が不要なら`make inbox AGENT=<自分のid> MARK=<message_id>`で処理済みにする。どちらもしないままturnを閉じると、nudgeが続く。
