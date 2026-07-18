@@ -161,6 +161,16 @@ Managerは、人間の判断が必要な内容をLeadへ上げる。
 
 Leadは人間と確認し、Managerへ判断を返す。
 
+## 待機
+
+返答、判断、他taskの完了を待つ状態になったら、turnを閉じて待つ。messageが届けばnudgeで起こされる。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
+
+待ちに入る前に、次を済ませる。
+
+- 判断に必要な証拠をfile(report、成果物、log)へ保全する。
+- lockと共有資源を解放する。検証環境の保全を理由に、共有資源を握ったまま待たない。
+- 何を待っていて、届いたら何をするかを、reportまたは相談messageに書き残す。
+
 ## 完了
 
 intakeの成功条件を満たすtaskがすべて`done`になったら、Managerは対象taskと成果物を列挙してLeadへ`completion_ready`を送る。
