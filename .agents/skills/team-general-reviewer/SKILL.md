@@ -32,7 +32,7 @@ Workerの検証をすべて再実行するかどうかは、変更の不確実�
 
 有効な指摘を見つけた場合は記録し、問題がなければ指摘を作らず`OK`を返す。
 
-`supervision_checkpoint`は、実装中に方針を修正できる相談として扱う。
+`supervision_checkpoint`は、実装中に方針を修正できる相談として扱う。読むだけでは処理済みにならない。`supervision_feedback`を返すか、対応が不要なら`make inbox AGENT=<自分のid> MARK=<message_id>`で処理済みにする。どちらもしないままturnを閉じると、nudgeが続く。
 
 Workerの対応が必要な場合に限り、`supervision_feedback`を送る。
 

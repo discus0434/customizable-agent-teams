@@ -389,16 +389,22 @@ checkpoint_output="$(
     general-reviewer-1 "Parser boundary is ready."
 )"
 checkpoint_id="$(printf '%s\n' "$checkpoint_output" | sed -n 's/^message_id=//p')"
-reviewer_inbox="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-1)"
-grep -q 'processed_on_read: true' <<<"$reviewer_inbox"
-[[ -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-1/$checkpoint_id" ]] \
-  || fail "supervision checkpoint did not close on read"
+# Regression (read-then-idle): a checkpoint demands a response, so reading it
+# must NOT mark it processed. Otherwise a reviewer that reads and idles drops
+# the obligation from the pending state and team_watch can never recover it.
+team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-1 >/dev/null
+[[ ! -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-1/$checkpoint_id" ]] \
+  || fail "supervision checkpoint was auto-processed on read"
 
 strategy_request_output="$(
   team "$TMP_ROOT/.agents/scripts/team_send.sh" \
     --from general-reviewer-1 --task T-GENERAL strategist "Compare the parser boundary options."
 )"
 grep -q '^cc_to=manager$' <<<"$strategy_request_output"
+# A task-scoped responding action processes the checkpoint through the
+# existing send-time mark; no separate acknowledgement mechanism exists.
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-1/$checkpoint_id" ]] \
+  || fail "the reviewer's task-scoped action did not process the checkpoint"
 strategy_result_output="$(
   team "$TMP_ROOT/.agents/scripts/team_send.sh" \
     --from strategist --type strategy_result --task T-GENERAL \
@@ -594,9 +600,15 @@ hard_checkpoint_output="$(
 )"
 hard_checkpoint_id="$(printf '%s\n' "$hard_checkpoint_output" | sed -n 's/^message_id=//p')"
 hard_reviewer_inbox="$(team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-4)"
-grep -q 'processed_on_read: true' <<<"$hard_reviewer_inbox"
-[[ -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-4/$hard_checkpoint_id" ]] \
+grep -q "$hard_checkpoint_id" <<<"$hard_reviewer_inbox" \
   || fail "hard task checkpoint did not reach its fixed reviewer"
+# Reading alone must not process a checkpoint; the explicit MARK is the
+# no-response acknowledgement path.
+[[ ! -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-4/$hard_checkpoint_id" ]] \
+  || fail "hard task checkpoint was auto-processed on read"
+team "$TMP_ROOT/.agents/scripts/team_inbox.sh" general-reviewer-4 --mark "$hard_checkpoint_id" >/dev/null
+[[ -f "$TMP_ROOT/.agents/queue/state/processed/general-reviewer-4/$hard_checkpoint_id" ]] \
+  || fail "explicit MARK did not process the checkpoint"
 
 # Frontend direction and critic lifecycle.
 cp "$TMP_ROOT/.agents/queue/tasks/FRONTEND_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-FRONTEND.md"

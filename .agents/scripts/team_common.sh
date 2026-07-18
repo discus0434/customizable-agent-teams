@@ -845,10 +845,15 @@ team_task_progress_file() {
   printf '%s/task_progress/%s.jsonl\n' "$TEAM_STATE_DIR" "$task_id"
 }
 
+# 処理済みは、messageが作る義務の完了を記録する。閲覧を記録しない。
+# 判断を要求するmessage(supervision_checkpointなど)をここに入れると、
+# 読んで応答せず閉じた瞬間に応答義務が状態から消え、team_watchでも
+# 回収できなくなる。応答command(feedback、report)か明示のMARKだけが
+# 処理済みにする
 team_message_auto_process_on_read() {
   local message_type="$1"
   case "$message_type" in
-    supervision_checkpoint|supervision_assigned|research_cancelled)
+    supervision_assigned|research_cancelled)
       return 0
       ;;
     *)

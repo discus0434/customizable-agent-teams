@@ -180,6 +180,8 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 ただし`note`は記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
 
+判断を要求するmessageは、読んだだけでは処理済みにならない。応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。処理済みは義務の完了の記録であり、閲覧の記録ではない。
+
 待ちに入る前に、次を済ませる。
 
 - 判断に必要な証拠をfile(report、成果物、log)へ保全する。
