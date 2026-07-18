@@ -186,6 +186,8 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 義務はmessageの他にtask stateにも記録される。`team_watch`は、活きたstatusのtaskがどのinboxにも映らず止まっている場合、statusから義務を負うagentを決めて起こす。
 
+pendingを保留の印として抱えたまま待機しない。完了できない義務は、いま答えられる形(条件と、後続をどのeventで行うかの約束)へ変換して処理済みにし、後続は自分に届くeventで駆動する。抱えたままのpendingは、照合の督促を毎周期呼び込み、起きては何もせず閉じる空転になる。
+
 ## 待機
 
 turnを閉じて待ってよいのは、自分宛のmessageで起こされる待ちだけとする。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
