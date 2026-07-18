@@ -4,7 +4,6 @@
     "skipDangerousModePermissionPrompt": true
   },
   "env": {
-    "DISABLE_TELEMETRY": "1",
     "DISABLE_ERROR_REPORTING": "1",
     "DISABLE_FEEDBACK_COMMAND": "1",
 
