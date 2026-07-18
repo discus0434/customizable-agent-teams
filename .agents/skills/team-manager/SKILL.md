@@ -21,13 +21,7 @@ description: ManagerがLeadからintakeを受けたとき、taskの進捗やSupe
 
 microな変更を含める進行中のtaskがない場合は、目的と検証が一つにまとまる単独taskとして扱う。
 
-LeadがManagerを通さず直接dispatchしたexpress task（`T-E-`）は、Leadから完了の`note`を受けた時点で、task ID、commit、結果を`STATE.md`へ記帳する。
-
-技術方針が決まらなければtaskを分けられない場合はArchitectへ相談する。
-
-原因調査や選択肢の比較が必要な場合はStrategistへ相談する。
-
-codebaseの事実、実現可能性、外部情報はResearch Workerへ依頼する。
+research依頼は次のcommandで送る。
 
 ```bash
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
@@ -89,6 +83,7 @@ make dispatch TASK=<task_id>
 - taskを割り当てた後。
 - Supervisorの判断を受けた後。
 - taskを`done`にした後。
+- Leadからexpress task(`T-E-`)完了のnoteを受けた後。task ID、commit、結果を記帳する。
 - エスカレーションを解決した後。
 - `completion_ready`を送る前。
 

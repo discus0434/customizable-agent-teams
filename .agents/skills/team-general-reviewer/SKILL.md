@@ -11,7 +11,7 @@ description: General Reviewerが固定General WorkerまたはHard Task Workerの
 - 早い段階の指摘によって手戻りを減らせる場合は、実装中に介入する。
 - taskの対象範囲、成功条件、他taskへの影響、解消できないblocker、自分では判断できない内容は、実装中は`question`型でManagerへ上げ、最終判断で上げる場合は`ASK_MANAGER`を記録する。
 - 技術方針はArchitectへ相談し、原因調査または選択肢の比較はStrategistへ相談する。
-- 返答やWorkerの再提出を待つ間は、turnを閉じて待機する。返答はnudgeで届く。
+- 返答やWorkerの再提出を待つ間は、turnを閉じて待機する。
 - プロジェクトコードと`STATE.md`を編集しない。
 
 ## Review

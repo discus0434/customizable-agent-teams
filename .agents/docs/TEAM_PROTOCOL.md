@@ -174,17 +174,21 @@ dispatchはbatchではなくeventで駆動する。taskの完了は、それ単�
 
 HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体を止めない。
 
+## Messageと処理済み
+
+送信されたmessageは受信側のpendingになり、nudgeが受信paneを起こす。nudgeが失われても、常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。汎用の型は`note`、`intake`、`approval`、`decision`、`question`、`answer`、`request`で、専用型は送信scriptが検証する。
+
+`note`だけは記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
+
+処理済みは、messageが作る義務の完了の記録であり、閲覧の記録ではない。判断を要求するmessageは読んだだけでは処理済みにならず、応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。
+
+義務はmessageの他にtask stateにも記録される。`team_watch`は、活きたstatusのtaskがどのinboxにも映らず止まっている場合、statusから義務を負うagentを決めて起こす。
+
 ## 待機
 
-turnを閉じて待ってよいのは、自分宛のmessageで起こされる待ちだけとする。messageが届けばnudgeで起こされ、nudgeが失われても常駐の照合(`team_watch`)がpendingを抱えたidle paneを定期的に起こす。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
+turnを閉じて待ってよいのは、自分宛のmessageで起こされる待ちだけとする。paneを開いたままsleepやpollingで監視を続けない。開いたturnはtokenを消費し続け、その間はinboxのmessageも読めない。
 
 messageの裏付けが無いもの(他taskの完了、散文で宣言した指示待ち)を待ちたい場合は、待つ相手へmessageを送り、返答待ちに変えてから閉じる。担当taskの作業途中は待機ではない。続きは自分で再開する。
-
-ただし`note`は記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
-
-判断を要求するmessageは、読んだだけでは処理済みにならない。応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。処理済みは義務の完了の記録であり、閲覧の記録ではない。
-
-`team_watch`は、活きたstatusのtaskがどのinboxにも映らず止まっている場合、statusから義務を負うagentを決めて起こす。
 
 待ちに入る前に、次を済ませる。
 
