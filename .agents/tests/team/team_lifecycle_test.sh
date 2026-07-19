@@ -269,6 +269,28 @@ grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
 grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
   || fail "boot prompt did not use bracketed paste"
 
+# A pane that never becomes ready (slow machines hit this as a startup race)
+# must not abort team-start mid-loop: the start still registers the agent and
+# reports the missed nudge at the end, instead of leaving the team half-started.
+slow_busy_file="$TMP_BASE/slow-start.busy"
+: > "$slow_busy_file"
+if PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=0 \
+  TEAM_BOOT_NUDGE=1 \
+  TEAM_BOOT_NUDGE_READY_TIMEOUT=2 \
+  TEAM_FAKE_TMUX_BUSY_FILE="$slow_busy_file" \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only \
+  > "$TMP_BASE/slow-start.out" 2> "$TMP_BASE/slow-start.err"; then
+  fail "team-start reported success although a boot nudge was never confirmed"
+fi
+grep -q 'boot nudge was not confirmed for: lead' "$TMP_BASE/slow-start.err" \
+  || fail "team-start did not report the missed boot nudge"
+grep -q '^agent_id=lead$' "$TMP_ROOT/.agents/queue/state/agents/lead.env" \
+  || fail "missed boot nudge prevented agent registration"
+rm "$slow_busy_file"
+
 # Busy panes receive one deferred nudge without interrupting current work.
 busy_file="$TMP_BASE/pane.busy"
 : > "$busy_file"

@@ -103,16 +103,27 @@ send_boot_nudge() {
   local id="$2"
   local role="$3"
   local cli="$4"
+  local _attempt
 
   if [[ "${TEAM_BOOT_NUDGE:-1}" == "0" ]]; then
     return 0
   fi
 
   sleep "${TEAM_BOOT_NUDGE_DELAY:-1}"
-  if [[ "$role" == "lead" ]]; then
-    team_tmux_wait_for_ready "$pane" "$cli" 30
-  fi
-  team_tmux_send_text "$pane" "AGENTS.mdを読み、role=${role}、agent_id=${id}としてinbox ${id}で待機してください。"
+  # 起動の遅いmachineではTUIの準備前に貼り付けが始まり、送信確認が失敗する。
+  # roleを問わずreadyを待つ。待つのは実際の起動時間だけで、間に合わない
+  # 場合も致命傷にしない(paneは動いていて、promptは後から渡し直せる)
+  for _attempt in $(seq 1 "${TEAM_BOOT_NUDGE_READY_TIMEOUT:-60}"); do
+    if team_tmux_content_is_ready "$(team_tmux_capture_pane "$pane")" "$cli"; then
+      if team_tmux_send_text "$pane" "AGENTS.mdを読み、role=${role}、agent_id=${id}としてinbox ${id}で待機してください。"; then
+        return 0
+      fi
+      return 1
+    fi
+    sleep 1
+  done
+  warn "pane did not become ready for the boot nudge: $id ($pane)"
+  return 1
 }
 
 agent_launch_command() {
@@ -168,6 +179,7 @@ main() {
 
   local first=1
   [[ "$session_exists" -eq 1 ]] && first=0
+  local -a unconfirmed_nudges=()
   while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
     if team_config_role_is_exec "$role"; then
@@ -203,7 +215,10 @@ main() {
     set_pane_metadata "$pane" "$id" "$role" "$model"
     team_tmux_accept_startup_prompt "$pane" "$cli" 10
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
-    send_boot_nudge "$pane" "$id" "$role" "$cli"
+    # nudgeの不達はこのpaneだけの問題なので、残りのagentの起動を止めない
+    if ! send_boot_nudge "$pane" "$id" "$role" "$cli"; then
+      unconfirmed_nudges+=("$id")
+    fi
     team_tmux_require_pane "$id" "$pane" "$session" "$window"
     write_agent_state "$id" "$role" "$cli" "$model" "$effort" "$window" "$supervisor" "$command" "$pane" "$session"
   done < <(team_config_agents)
@@ -235,6 +250,13 @@ main() {
         bash -c 'set -m; nohup "$1" >/dev/null 2>&1 & echo $!' _ "$SCRIPT_DIR/team_watch.sh"
     )"
     printf '%s\n' "$watch_pid" > "$watch_pid_file"
+  fi
+
+  if [[ "${#unconfirmed_nudges[@]}" -gt 0 ]]; then
+    die_rule \
+      "boot nudge was not confirmed for: ${unconfirmed_nudges[*]}" \
+      "the panes are running, but their identity prompt could not be verified" \
+      "attach with make team-attach, check those panes, and paste the boot prompt manually if it is missing"
   fi
 
   echo "started tmux session: $session"
