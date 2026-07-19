@@ -14,6 +14,7 @@ description: General Workerがtask_assigned、supervision_feedback、supervision
 - ArchitectまたはStrategistの判断が必要な場合は、General Reviewerから依頼してもらう。
 - 返答を待つ間は、lockを解放しturnを閉じて待機する。messageの裏付けが無い待ち(他taskの完了など)は、相手へmessageを送って返答待ちに変えてから閉じる。担当taskの途中で待機に入らない。
 - `STATE.md`と`MEMORY.md`を編集しない。
+- `blocked` taskを保持したまま別のnormal taskを担当している場合、blocked taskのblocker解消を自分で検知してresumeまたはtask選択をしない。Managerのswitch指示を待ち、現在のactive taskはtask commitとreportという自然な区切りまで続ける。preemptionは行わない。
 
 ## 実装
 

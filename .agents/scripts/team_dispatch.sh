@@ -101,25 +101,149 @@ if [[ "$lane" == "express" ]]; then
   done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name 'T-E-*.json' | sort)
 fi
 
-if busy_task="$(team_task_worker_is_busy "$worker_id")"; then
-  die_rule \
-    "implementation worker is busy: $worker_id" \
-    "$worker_id is still assigned to $busy_task" \
-    "wait for the current task to finish or choose another implementation worker"
-fi
+dispatch_validate_allowed_paths() {
+  local task_file="$1"
+  local invalid_paths
+  local allowed_paths
+
+  [[ -f "$task_file" ]] || die_rule \
+    "task contract is unreadable: $task_file" \
+    "blocked-task dispatch cannot inspect its Allowed paths" \
+    "restore the task file and rerun dispatch"
+  grep -Fxq '## Allowed paths' "$task_file" || die_rule \
+    "task contract is unreadable: $task_file" \
+    "the Allowed paths section is missing" \
+    "restore a machine-readable task contract before dispatch"
+
+  invalid_paths="$(team_task_markdown_section_invalid_path_bullets "$task_file" "Allowed paths")"
+  [[ -z "$invalid_paths" ]] || die_rule \
+    "task contract is unreadable: $task_file" \
+    "Allowed paths contains a non-machine-readable entry: $invalid_paths" \
+    "use the existing task-contract path syntax"
+  allowed_paths="$(team_task_markdown_section_paths "$task_file" "Allowed paths")"
+  [[ -n "$allowed_paths" ]] || die_rule \
+    "task contract is unreadable: $task_file" \
+    "Allowed paths contains no machine-readable path" \
+    "restore at least one explicit Allowed path before dispatch"
+}
+
+dispatch_contract_path_is_exact() {
+  local path="$1"
+  case "$path" in
+    *'*'*|*'?'*|*'['*|*']'*) return 1 ;;
+  esac
+  return 0
+}
+
+dispatch_contracts_contain_each_other() {
+  local left="$1"
+  local right="$2"
+  local left_expanded
+  local right_expanded
+
+  left_expanded="$(team_expand_path "$left")"
+  right_expanded="$(team_expand_path "$right")"
+  [[ -n "$left_expanded" && -n "$right_expanded" ]] || return 2
+
+  # Reuse the repository's established matcher for exact files, trees, and
+  # its shell-pattern semantics; no new glob dialect is introduced here.
+  if team_path_matches_contract_path "$left_expanded" "$right_expanded"; then
+    return 0
+  fi
+  if team_path_matches_contract_path "$right_expanded" "$left_expanded"; then
+    return 0
+  fi
+  return 1
+}
+
+dispatch_assert_disjoint_allowed_paths() {
+  local candidate_task_file="$1"
+  local blocked_task_id="$2"
+  local blocked_task_file="$TEAM_QUEUE_DIR/tasks/$blocked_task_id.md"
+  local candidate_path blocked_path
+  local candidate_paths blocked_paths
+
+  dispatch_validate_allowed_paths "$candidate_task_file"
+  dispatch_validate_allowed_paths "$blocked_task_file"
+  candidate_paths="$(team_task_markdown_section_paths "$candidate_task_file" "Allowed paths")"
+  blocked_paths="$(team_task_markdown_section_paths "$blocked_task_file" "Allowed paths")"
+
+  while IFS= read -r candidate_path; do
+    [[ -n "$candidate_path" ]] || continue
+    while IFS= read -r blocked_path; do
+      [[ -n "$blocked_path" ]] || continue
+      if ! dispatch_contract_path_is_exact "$candidate_path" \
+        || ! dispatch_contract_path_is_exact "$blocked_path"; then
+        die_rule \
+          "task path contracts cannot be proven disjoint: $task_id and $blocked_task_id" \
+          "a wildcard Allowed path requires a contract intersection proof, which dispatch does not infer" \
+          "replace the wildcard with explicit paths or have Manager resolve the conflict"
+      fi
+      if dispatch_contracts_contain_each_other "$candidate_path" "$blocked_path"; then
+        die_rule \
+          "task path contracts overlap: $task_id and $blocked_task_id" \
+          "candidate path '$candidate_path' intersects blocked path '$blocked_path'" \
+          "dispatch only a candidate whose Allowed paths are disjoint from every retained blocked task"
+      else
+        case "$?" in
+          2) die_rule \
+            "task path contracts are unreadable: $task_id and $blocked_task_id" \
+            "an Allowed path expanded to an empty contract" \
+            "restore explicit machine-readable paths before dispatch" ;;
+        esac
+      fi
+    done <<< "$blocked_paths"
+  done <<< "$candidate_paths"
+}
+
+dispatch_retained_blocked_tasks=()
+dispatch_scan_assignment_states() {
+  local match_field="$1"
+  local match_value="$2"
+  local state_file existing_task state_status state_value
+
+  while IFS= read -r state_file; do
+    state_value="$(extract_json_field "$match_field" < "$state_file")"
+    [[ "$state_value" == "$match_value" ]] || continue
+    existing_task="$(basename "$state_file" .json)"
+    state_status="$(extract_json_field status < "$state_file")"
+    case "$state_status" in
+      done)
+        continue
+        ;;
+      blocked)
+        dispatch_retained_blocked_tasks+=("$existing_task")
+        ;;
+      *)
+        if [[ "$match_field" == worker ]]; then
+          die_rule \
+            "implementation worker is busy: $match_value" \
+            "$match_value is still assigned to $existing_task with status ${state_status:-unknown}" \
+            "wait for the active task to finish or choose another implementation worker"
+        fi
+        die_rule \
+          "implementation supervisor is busy: $match_value" \
+          "$match_value is still assigned to $existing_task with status ${state_status:-unknown}" \
+          "wait for the active task to finish or choose another fixed supervisor"
+        ;;
+    esac
+  done < <(find "$TEAM_STATE_DIR/tasks" -maxdepth 1 -type f -name '*.json' | sort)
+}
 
 if [[ "$lane" == "express" ]]; then
+  if busy_task="$(team_task_worker_is_busy "$worker_id")"; then
+    die_rule \
+      "implementation worker is busy: $worker_id" \
+      "$worker_id is still assigned to $busy_task" \
+      "wait for the current task to finish or choose another express worker"
+  fi
   supervisor_id=""
   direction_status="not_applicable"
 else
+  dispatch_scan_assignment_states worker "$worker_id"
   supervisor_id="$(team_config_agent_field "$worker_id" supervisor)"
   supervisor_role="$(team_config_agent_field "$supervisor_id" role)"
-  if busy_task="$(team_task_supervisor_is_busy "$supervisor_id")"; then
-    die_rule \
-      "implementation supervisor is busy: $supervisor_id" \
-      "$supervisor_id is still assigned to $busy_task" \
-      "wait for Manager to mark $busy_task done or choose another fixed worker pair"
-  fi
+  dispatch_scan_assignment_states supervisor "$supervisor_id"
 
   case "$worker_role:$supervisor_role" in
     general-worker:general-reviewer|hard-task-worker:general-reviewer)
@@ -137,6 +261,15 @@ else
         "fix the supervisor pairing in $TEAM_CONFIG_FILE"
       ;;
   esac
+fi
+
+if [[ "$lane" != "express" ]]; then
+  declare -A dispatch_seen_blocked_tasks=()
+  for blocked_task_id in "${dispatch_retained_blocked_tasks[@]}"; do
+    [[ -n "${dispatch_seen_blocked_tasks[$blocked_task_id]+x}" ]] && continue
+    dispatch_seen_blocked_tasks["$blocked_task_id"]=1
+    dispatch_assert_disjoint_allowed_paths "$task_file" "$blocked_task_id"
+  done
 fi
 
 git -C "$TEAM_ROOT" rev-parse --verify HEAD >/dev/null 2>&1 || die_rule \

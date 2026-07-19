@@ -24,7 +24,7 @@ Frontend Workerには、固定されたFrontend Criticが付く。
 
 この二種類をまとめてSupervisorと呼ぶ。
 
-Implementation Workerは、Managerがtaskを`done`にするまで次のtaskを持たない。
+Implementation Workerが同時にactiveに実装するnormal taskは常に一件とする。保有taskが`blocked`の間だけ、Managerは、同じWorkerと固定Supervisorが保持するすべてのblocked taskについてAllowed paths、保全WIPのexact paths、宣言済み共有資源を確認し、candidateとの非交差の根拠とresume順序を`STATE.md`へ記録したうえで、candidateをdispatchできる。`done`は保有終了、`blocked`だけはactive implementationに数えない。他のstatusが残る場合、またはpath・WIP・resourceの交差／不明がある場合はdispatchしない。blocked taskのresumeはManagerだけが決め、Workerは現在のactive taskのtask commitとreportという自然な区切りまで続け、preemptionしない。Worker側の自動resumeやtask選択は行わない。express taskにはこの例外を適用しない。
 
 Research WorkerにはSupervisorを付けず、プロジェクトコードも編集させない。
 

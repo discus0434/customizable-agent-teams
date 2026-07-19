@@ -47,7 +47,9 @@ dispatchはeventで駆動する。taskをdoneにしたturnの中で、そのdone
 - Frontend Workerには`FRONTEND_TEMPLATE.md`を使う。
 - Workerは、空き状況、変更対象の所有、直前まで扱っていた領域を考慮して選ぶ。
 - Hard Task Workerは、hardの条件に当たるtaskだけに使い、通常taskの空き枠として使わない。
-- 一人のImplementation Workerが同時に持つtaskは一つとする。
+- Implementation Workerが同時にactiveに実装するnormal taskは常に一つとする。`done`は保有終了、`blocked`だけはactive implementationに数えない。他のstatusが残るWorkerまたは固定Supervisorへはdispatchしない。
+- `blocked` taskを保有するWorker／固定Supervisorへ別のnormal taskをdispatchする例外はManagerだけが判断する。candidateと同じpairが保持する全blocked taskのAllowed paths、保全WIPのexact paths、宣言済み共有資源を事前に確認し、candidateとの非交差の根拠とblocked taskのresume順序を`STATE.md`へ記録する。path、WIP、resourceのいずれかが不明または交差する場合はdispatchしない。dispatch toolingはAllowed pathsのmachine-readableな非交差だけをfail closedで検証し、WIP／resourceを推測しない。
+- blocked taskのblockerが解消しても自動resume、Worker側のtask選択、preemptionは行わない。Managerが指示し、Workerは現在のactive taskのtask commitとreportという自然な区切りで切り替える。
 - 固定Supervisorは`dispatch`が設定ファイルから解決する。
 - `Acceptance`には外部から観測できる成功条件を書く。
 - `Allowed paths`にはtaskがcommitできるpathを明示する。production pathを許可するtaskには、それを検証するtestと随伴docsのpathを最初から狭く列挙する。
