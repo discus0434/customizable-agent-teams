@@ -155,6 +155,7 @@ case "$1" in
   list-panes)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
     printf '%s\n' '  %fake lead agent=lead role=lead model=claude-opus-4-8'
+    printf '%s\n' '  %fake strategist agent=strategist role=strategist model=gpt-5.6-sol'
     ;;
   set-buffer)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
@@ -207,6 +208,16 @@ fi
 exit 0
 SH
 chmod +x "$TMP_BASE/bin/sleep"
+
+cat > "$TMP_BASE/bin/date" <<'SH'
+#!/usr/bin/env bash
+if [[ "$1" == "+%s" && -n "$TEAM_FAKE_WATCH_EPOCH" ]]; then
+  printf '%s\n' "$TEAM_FAKE_WATCH_EPOCH"
+  exit 0
+fi
+exec /bin/date "$@"
+SH
+chmod +x "$TMP_BASE/bin/date"
 
 cat > "$TMP_BASE/bin/codex" <<'SH'
 #!/usr/bin/env bash
@@ -639,6 +650,91 @@ PATH="$TMP_BASE/bin:$PATH" \
   || fail "the stall alarm did not record its firing time for the cooldown"
 rm -f "$TMP_ROOT/.agents/queue/state/tasks/T-STALL.json" \
   "$TMP_ROOT/.agents/queue/state/watch/stall-alarm.at"
+
+# 根拠: T-071 Acceptanceは初見non-done taskのfirst_seen、strict 7200秒の発火、
+# strict 3600秒のcooldown、busy時のlast_alarm保持、done時のmarker削除を要求する。
+# 実物とfake: 実物team_watch --once、task state、marker、atomic sendを動かし、
+# epoch、Strategist pane、tmux capture/sendだけをfakeにする。
+# risk: mtime推測、blocked除外、閾値緩和、送信失敗時のalarm消費、done cleanupを検出する。
+# 非対象: task内容分析、Strategist note、watcher置換、template publishはこのtestの責任外とする。
+# 内部変更: marker helperや走査順が変わってもbytesとpane summonが同じなら成功する。
+TEAM_FAKE_WATCH_EPOCH=10000
+export TEAM_FAKE_WATCH_EPOCH
+age_composer="$TMP_BASE/task-age.composer"
+age_busy="$TMP_BASE/task-age.busy"
+age_marker_dir="$TMP_ROOT/.agents/queue/state/watch/task-age"
+age_marker="$age_marker_dir/T-AGE.marker"
+mkdir -p "$age_marker_dir"
+cat > "$TMP_ROOT/.agents/queue/state/agents/strategist.env" <<'ENV'
+agent_id='strategist'
+role='strategist'
+cli='codex'
+session='agent-team'
+pane='%fake'
+ENV
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
+  'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-AGE manager general-worker-1 general-reviewer-1 blocked base "" "" "" "" false false "" not_applicable ""' \
+  _ "$TMP_ROOT"
+: > "$age_composer"
+: > "$TEAM_FAKE_TMUX_LOG"
+printf 'task_id=T-AGE\nfirst_seen=2000\nlast_alarm=0\n' > "$age_marker"
+TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+grep -q 'set-buffer .*長生きtask確認: T-AGEが開始から約2時間生存している。' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "old blocked task did not summon Strategist with exact hours"
+grep -q '^last_alarm=10000$' "$age_marker" \
+  || fail "successful summon did not publish last_alarm atomically"
+
+# 初見taskはmarkerだけを作り、そのsweepで召喚しない。
+rm -f "$age_marker"
+: > "$TEAM_FAKE_TMUX_LOG"
+TEAM_FAKE_WATCH_EPOCH=20000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+grep -q '^first_seen=20000$' "$age_marker" || fail "first observation did not publish first_seen"
+grep -q '^last_alarm=0$' "$age_marker" || fail "first observation alarmed"
+if grep -q '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG"; then fail "first observation summoned"; fi
+
+# 前回alarmから3600秒以内は再発火しない。strict greater-than境界を確認する。
+printf 'task_id=T-AGE\nfirst_seen=10000\nlast_alarm=16400\n' > "$age_marker"
+: > "$TEAM_FAKE_TMUX_LOG"
+TEAM_FAKE_WATCH_EPOCH=20000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+if grep -q '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG"; then fail "cooldown fired at 3600 seconds"; fi
+grep -q '^last_alarm=16400$' "$age_marker" || fail "cooldown changed last_alarm"
+
+# busy paneは送信とlast_alarmを消費せず、次周期のidleで一度だけ配送する。
+printf 'task_id=T-AGE\nfirst_seen=10000\nlast_alarm=0\n' > "$age_marker"
+: > "$age_busy"; : > "$TEAM_FAKE_TMUX_LOG"
+TEAM_FAKE_WATCH_EPOCH=30000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" TEAM_FAKE_TMUX_BUSY_FILE="$age_busy" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+if grep -q '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG"; then fail "busy pane received summon"; fi
+grep -q '^last_alarm=0$' "$age_marker" || fail "busy pane consumed last_alarm"
+rm "$age_busy"; : > "$TEAM_FAKE_TMUX_LOG"
+TEAM_FAKE_WATCH_EPOCH=30000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+[[ "$(grep -c '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG" || true)" -eq 1 ]] || fail "idle pane did not receive summon"
+grep -q '^last_alarm=30000$' "$age_marker" || fail "idle summon did not publish last_alarm"
+
+# invalid markerはwarningでfail closedし、done遷移だけはexact markerを掃除する。
+printf 'task_id=T-AGE\nfirst_seen=not-decimal\nlast_alarm=0\n' > "$age_marker"
+: > "$TEAM_FAKE_TMUX_LOG"
+TEAM_FAKE_WATCH_EPOCH=40000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once 2> "$TMP_BASE/task-age-invalid.err"
+grep -q 'invalid task-age marker; suppressing alarm: T-AGE' "$TMP_BASE/task-age-invalid.err" || fail "invalid marker did not fail closed"
+if grep -q '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG"; then fail "invalid marker summoned"; fi
+TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
+  'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-AGE manager general-worker-1 general-reviewer-1 done base "" "" "" "" false false "" not_applicable ""' \
+  _ "$TMP_ROOT"
+TEAM_FAKE_WATCH_EPOCH=40000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" \
+  "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
+[[ ! -e "$age_marker" ]] || fail "done task did not remove marker"
 
 # Make wrappers preserve multiline and quoted message bodies.
 message_body="$TMP_BASE/message.md"

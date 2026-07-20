@@ -34,6 +34,7 @@ sweep() {
   done < <(team_config_agents)
   sweep_task_obligations
   stall_alarm_check
+  sweep_task_ages
 }
 
 # taskの生きたpendingがどこかのinboxにあれば、義務はmessage系の照合が担っている
@@ -79,6 +80,28 @@ nudge_idle_pane_with_text() {
   )
 }
 
+# Long-lived task review uses the same positive pane checks as ordinary nudges,
+# but must distinguish a successful send from a blocked or unavailable pane.
+send_idle_pane_with_text() {
+  local id="$1"
+  local text="$2"
+  (
+    pane=""
+    session=""
+    cli=""
+    state_file="$TEAM_STATE_DIR/agents/$id.env"
+    [[ -f "$state_file" ]] || exit 1
+    # shellcheck disable=SC1090
+    source "$state_file"
+    [[ -n "${pane:-}" && -n "${session:-}" && -n "${cli:-}" ]] || exit 1
+    tmux has-session -t "$session" 2>/dev/null || exit 1
+    team_tmux_pane_in_session "$pane" "$session" || exit 1
+    team_tmux_pane_is_busy "$pane" && exit 1
+    team_tmux_input_is_pending "$pane" "$cli" && exit 1
+    team_tmux_send_text "$pane" "$text"
+  )
+}
+
 # 義務はinboxとtask stateの2箇所に記録される。散文の待機宣言や自己再開の
 # 放棄は、task stateにだけ義務が残り、どのinboxにも映らない停滞になる。
 # statusから義務を負うagentを決め、そのpaneがidleでtaskのpendingも無ければ起こす
@@ -108,6 +131,114 @@ sweep_task_obligations() {
     fi
     nudge_idle_pane_with_text "$target" \
       "task ${task_id} が status=${status} のまま、どのinboxにも義務が映っていません。担当はあなた(${target})です。作業を再開するか、待つ相手へpendingが立つmessageを送ってください。"
+  done
+}
+
+task_age_marker_root="$TEAM_STATE_DIR/watch/task-age"
+task_age_first_seen=""
+task_age_last_alarm=""
+
+task_age_marker_path() {
+  local task_id="$1"
+  [[ "$task_id" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || return 1
+  printf '%s/%s.marker\n' "$task_age_marker_root" "$task_id"
+}
+
+task_age_marker_write() {
+  local task_id="$1"
+  local first_seen="$2"
+  local last_alarm="$3"
+  local marker tmp
+  marker="$(task_age_marker_path "$task_id")" || return 1
+  tmp="$(mktemp "$task_age_marker_root/.${task_id}.XXXXXX")" || return 1
+  if ! {
+    printf 'task_id=%s\n' "$task_id"
+    printf 'first_seen=%s\n' "$first_seen"
+    printf 'last_alarm=%s\n' "$last_alarm"
+  } > "$tmp"; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+  if ! mv -f -- "$tmp" "$marker"; then
+    rm -f -- "$tmp"
+    return 1
+  fi
+}
+
+task_age_marker_read() {
+  local task_id="$1"
+  local marker="$2"
+  local -a lines=()
+  task_age_marker_path "$task_id" >/dev/null || return 1
+  mapfile -t lines < "$marker" || return 1
+  [[ "${#lines[@]}" -eq 3 ]] || return 1
+  [[ "${lines[0]}" == "task_id=$task_id" ]] || return 1
+  [[ "${lines[1]}" == first_seen=* ]] || return 1
+  [[ "${lines[2]}" == last_alarm=* ]] || return 1
+  task_age_first_seen="${lines[1]#first_seen=}"
+  task_age_last_alarm="${lines[2]#last_alarm=}"
+  [[ "$task_age_first_seen" =~ ^[0-9]+$ ]] || return 1
+  [[ "$task_age_last_alarm" =~ ^[0-9]+$ ]] || return 1
+  [[ "$task_age_first_seen" -le "$task_age_now" ]] || return 1
+  [[ "$task_age_last_alarm" -le "$task_age_now" ]] || return 1
+}
+
+task_age_strategist_id() {
+  local -a strategist_ids=()
+  mapfile -t strategist_ids < <(team_config_role_agent_ids strategist)
+  [[ "${#strategist_ids[@]}" -eq 1 && -n "${strategist_ids[0]}" ]] || return 1
+  printf '%s\n' "${strategist_ids[0]}"
+}
+
+sweep_task_ages() {
+  local state_json task_id status marker elapsed hours summon strategist_id
+  task_age_now="$(date +%s)"
+  [[ "$task_age_now" =~ ^[0-9]+$ ]] || {
+    warn "task-age sweep has invalid current epoch: $task_age_now"
+    return 0
+  }
+  mkdir -p "$task_age_marker_root"
+  strategist_id="$(task_age_strategist_id 2>/dev/null || true)"
+
+  for state_json in "$TEAM_STATE_DIR"/tasks/*.json; do
+    [[ -f "$state_json" ]] || continue
+    task_id="$(basename "$state_json" .json)"
+    marker="$(task_age_marker_path "$task_id" 2>/dev/null || true)"
+    [[ -n "$marker" ]] || {
+      warn "task-age marker suppressed for invalid task id: $task_id"
+      continue
+    }
+    status="$(team_task_state_field "$task_id" status)"
+    if [[ "$status" == "done" ]]; then
+      if [[ -e "$marker" || -L "$marker" ]]; then
+        rm -f -- "$marker" || warn "could not remove completed task-age marker: $task_id"
+      fi
+      continue
+    fi
+    if [[ ! -e "$marker" ]]; then
+      task_age_marker_write "$task_id" "$task_age_now" 0 \
+        || warn "could not publish first task-age marker: $task_id"
+      continue
+    fi
+    if ! task_age_marker_read "$task_id" "$marker"; then
+      warn "invalid task-age marker; suppressing alarm: $task_id"
+      continue
+    fi
+    elapsed=$(( task_age_now - task_age_first_seen ))
+    (( elapsed > 7200 )) || continue
+    if (( task_age_last_alarm != 0 && task_age_now - task_age_last_alarm <= 3600 )); then
+      continue
+    fi
+    if [[ -z "$strategist_id" ]]; then
+      warn "strategist pane is not uniquely configured; suppressing task-age alarm: $task_id"
+      continue
+    fi
+    hours=$(( elapsed / 3600 ))
+    summon="長生きtask確認: ${task_id}が開始から約${hours}時間生存している。taskの内容と直近の進捗を調べたうえで、やりたいことから逆算した場合に、Manager・Worker・Reviewerが取り組んでいるこのtaskにもっとreasonableなやり方がないのか、単純なことを複雑に考えていないか、を熟考すること。もっと良いやり方があると判断した場合は、具体的な提案をManagerへnoteで送ること。taskが相応に難しいもので、時間がかかっていることが妥当だと判断した場合は、何もしなくてよい。"
+    if send_idle_pane_with_text "$strategist_id" "$summon"; then
+      task_age_marker_write "$task_id" "$task_age_first_seen" "$task_age_now" \
+        || warn "task-age alarm sent but last alarm marker failed: $task_id"
+    fi
   done
 }
 

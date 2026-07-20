@@ -14,6 +14,8 @@ description: StrategistがLead、Manager、Architect、General Reviewer、Fronte
 
 Supervisorから受けた依頼は、そのtask内の判断に必要な範囲で扱う。
 
+長生きtask確認の召喚を受けた場合は、taskの内容、直近のprogress、目的を調べ、やりたいことから逆算して具体的に簡素化できる場合だけManagerへ`note`を送る。現在の進め方がtaskの難しさに見合っている場合は、報告も成果物も作らず、その警報への対応を終える。1時間後の再警報でも判断が変わらなければ何もしない。
+
 他taskにも影響する事実を見つけた場合は、その影響を成果物に明記する。
 
 Architectから受けた依頼では、Architectが技術方針へ組み込める分析を返す。
