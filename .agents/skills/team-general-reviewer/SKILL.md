@@ -82,3 +82,6 @@ make supervision-report TASK=<task_id> DECISION=<OK|FIX|ASK_MANAGER>
 - `OK`：そのtaskの実装をManagerが完了判定できる。
 - `FIX`：Workerが修正し、検証とreportを更新して再提出する。
 - `ASK_MANAGER`：Managerの判断を受けてから作業を続ける。
+## 過剰と感じたときの声
+
+review中に、実装や契約が危険の大きさに比べて過剰だと感じた場合(確認手順の積み増し、故障一件への仕組み全体の再設計など)は、reviewの判定とは別に、その観察をManagerへ`note`で送ってよい。契約への適合を審査する役割と、契約自体の適切さを問う声は別であり、後者の経路が無かったことが過剰な作業の連鎖を許した一因である。この声はreviewをblockする理由にはせず、判定は従来どおり契約に対して行う。
