@@ -37,7 +37,7 @@ make direction-report TASK=<task_id> DECISION=<PROCEED|REVISE|ASK_MANAGER>
 
 表示が大きく変わる時点で実画面を確認する。
 
-Workerが方針を変える必要がある場合は、`supervision_feedback`で具体的な修正を返す。`supervision_checkpoint`は読むだけでは処理済みにならないため、返信しない場合は`make inbox AGENT=<自分のid> MARK=<message_id>`で処理済みにする。
+`supervision_checkpoint`には、必ず`supervision_feedback`で返信する。方針を変える必要があれば具体的な修正を、無ければ「追加feedbackなし。続行してよい」を明示して返す。返信せずMARKだけで処理済みにして黙ることを禁じる。Workerは返信を待って止まっており、沈黙は「feedback未着」と区別できない。
 
 projectのvisual verificationとtaskの確認対象を使い、実際の状態が分かる証拠を求める。
 

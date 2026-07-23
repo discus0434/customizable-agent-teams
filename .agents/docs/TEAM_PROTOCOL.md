@@ -182,7 +182,7 @@ HOLDは、対象taskと資源を名指しした範囲でだけ発行し、全体
 
 `note`だけは記録専用で、受信側を起こさずpendingにもならない。相手の行動や受領を待つ内容を`note`で送らない。読ませたい記録は`REQUIRES_ATTENTION=1`を付けて送る。
 
-処理済みは、messageが作る義務の完了の記録であり、閲覧の記録ではない。判断を要求するmessageは読んだだけでは処理済みにならず、応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。
+処理済みは、messageが作る義務の完了の記録であり、閲覧の記録ではない。判断を要求するmessageは読んだだけでは処理済みにならず、応答のcommand(`supervision_feedback`、supervision-reportなど)か、対応不要と判断した場合の明示のMARKだけが処理済みにする。明示のMARKを使えるのは、送信者が返答を待たずに進めるmessageだけとする。返答を待って止まる相手(checkpointを送ったWorkerなど)には、対応不要でもその旨を返信で伝える。沈黙は相手から「未着」と区別できない。
 
 義務はmessageの他にtask stateにも記録される。`team_watch`は、活きたstatusのtaskがどのinboxにも映らず止まっている場合、statusから義務を負うagentを決めて起こす。
 

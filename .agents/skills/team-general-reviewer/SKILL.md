@@ -34,9 +34,9 @@ Workerの検証をすべて再実行するかどうかは、変更の不確実�
 
 有効な指摘を見つけた場合は記録し、問題がなければ指摘を作らず`OK`を返す。
 
-`supervision_checkpoint`は、実装中に方針を修正できる相談として扱う。読むだけでは処理済みにならない。`supervision_feedback`を返すか、対応が不要なら`make inbox AGENT=<自分のid> MARK=<message_id>`で処理済みにする。どちらもしないままturnを閉じると、nudgeが続く。
+`supervision_checkpoint`には、必ず`supervision_feedback`で返信する。Workerはこの返信を待って止まっているので、修正が不要な場合も「追加feedbackなし。続行してよい」を明示して返す。返信せずMARKだけで処理済みにして黙ることを禁じる。Workerから見た沈黙は「feedback未着」と区別できず、待機がdeadlockになる。返信は送信の時点でpendingを処理済みにするので、MARKは要らない。
 
-Workerの対応が必要な場合に限り、`supervision_feedback`を送る。
+checkpoint以外で実装中のWorkerへ`supervision_feedback`を送るのは、Workerの対応が必要な場合に限る。
 
 ```bash
 make team-send TO=<worker_id> TYPE=supervision_feedback TASK=<task_id> BODY_FILE=.agents/queue/state/tmp/feedback.md
