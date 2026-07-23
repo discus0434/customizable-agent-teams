@@ -114,6 +114,7 @@ send_boot_nudge() {
   # roleを問わずreadyを待つ。待つのは実際の起動時間だけで、間に合わない
   # 場合も致命傷にしない(paneは動いていて、promptは後から渡し直せる)
   for _attempt in $(seq 1 "${TEAM_BOOT_NUDGE_READY_TIMEOUT:-60}"); do
+    team_tmux_pane_exists "$pane" || return 1
     if team_tmux_content_is_ready "$(team_tmux_capture_pane "$pane")" "$cli"; then
       if team_tmux_send_text "$pane" "AGENTS.mdを読み、role=${role}、agent_id=${id}としてinbox ${id}で待機してください。"; then
         return 0
@@ -180,6 +181,7 @@ main() {
   local first=1
   [[ "$session_exists" -eq 1 ]] && first=0
   local -a unconfirmed_nudges=()
+  local -a dead_agents=()
   while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
     if team_config_role_is_exec "$role"; then
@@ -204,22 +206,29 @@ main() {
       tmux new-window -d -t "$session:" -n "$window" -c "$TEAM_ROOT" "$launch_command"
     fi
 
+    # paneの死亡もnudgeの不達も、そのagentだけの問題として収集し、
+    # 残りのagentの起動を止めない。死んだagentのstateは書かないので、
+    # 後のteam-start --complete-existingが欠けたagentだけを作り直せる
     local pane
-    if ! pane="$(tmux display-message -p -t "$session:$window.0" '#{pane_id}')"; then
-      die_rule \
-        "tmux pane is not running for agent $id" \
-        "the configured window $window in session $session exited or could not be found" \
-        "fix the agent command in $TEAM_CONFIG_FILE, then run make team-start again"
+    if ! pane="$(tmux display-message -p -t "$session:$window.0" '#{pane_id}' 2>/dev/null)"; then
+      warn "pane exited during startup: $id"
+      dead_agents+=("$id")
+      continue
     fi
-    team_tmux_require_pane "$id" "$pane" "$session" "$window"
     set_pane_metadata "$pane" "$id" "$role" "$model"
     team_tmux_accept_startup_prompt "$pane" "$cli" 10
-    team_tmux_require_pane "$id" "$pane" "$session" "$window"
-    # nudgeの不達はこのpaneだけの問題なので、残りのagentの起動を止めない
+    local nudge_ok=1
     if ! send_boot_nudge "$pane" "$id" "$role" "$cli"; then
+      nudge_ok=0
+    fi
+    if ! team_tmux_pane_in_session "$pane" "$session"; then
+      warn "pane exited during startup: $id"
+      dead_agents+=("$id")
+      continue
+    fi
+    if [[ "$nudge_ok" -eq 0 ]]; then
       unconfirmed_nudges+=("$id")
     fi
-    team_tmux_require_pane "$id" "$pane" "$session" "$window"
     write_agent_state "$id" "$role" "$cli" "$model" "$effort" "$window" "$supervisor" "$command" "$pane" "$session"
   done < <(team_config_agents)
 
@@ -252,11 +261,15 @@ main() {
     printf '%s\n' "$watch_pid" > "$watch_pid_file"
   fi
 
-  if [[ "${#unconfirmed_nudges[@]}" -gt 0 ]]; then
+  if [[ "${#dead_agents[@]}" -gt 0 || "${#unconfirmed_nudges[@]}" -gt 0 ]]; then
+    [[ "${#dead_agents[@]}" -eq 0 ]] || \
+      warn "agent panes exited during startup: ${dead_agents[*]}"
+    [[ "${#unconfirmed_nudges[@]}" -eq 0 ]] || \
+      warn "boot nudge was not confirmed for: ${unconfirmed_nudges[*]}"
     die_rule \
-      "boot nudge was not confirmed for: ${unconfirmed_nudges[*]}" \
-      "the panes are running, but their identity prompt could not be verified" \
-      "attach with make team-attach, check those panes, and paste the boot prompt manually if it is missing"
+      "team start finished with unhealthy agents" \
+      "the warnings above name each agent and its failure" \
+      "recreate exited panes with make team-start --complete-existing (fix the agent command in $TEAM_CONFIG_FILE if the exit repeats); for unconfirmed nudges, attach with make team-attach and paste the boot prompt manually if it is missing"
   fi
 
   echo "started tmux session: $session"

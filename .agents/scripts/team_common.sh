@@ -156,6 +156,11 @@ team_tmux_pane_in_session() {
   [[ "$actual_session" == "$expected_session" ]]
 }
 
+# paneの生存だけを見る。session照合を伴う判定はteam_tmux_pane_in_sessionを使う
+team_tmux_pane_exists() {
+  tmux display-message -p -t "$1" '#{pane_id}' >/dev/null 2>&1
+}
+
 team_tmux_require_pane() {
   local agent_id="$1"
   local pane="$2"
@@ -315,6 +320,8 @@ team_tmux_accept_startup_prompt() {
   local _attempt
 
   for _attempt in $(seq 1 "$timeout_seconds"); do
+    # 死んだpaneへcaptureを繰り返さない。死の扱いは呼び出し側が決める
+    team_tmux_pane_exists "$pane" || return 0
     content="$(team_tmux_capture_pane "$pane")"
     # Bypass Permissionsの確認は既定が「No, exit」なので、素のEnterを送ると
     # paneごと終了する。先に「Yes, I accept」の番号へ選択を移す

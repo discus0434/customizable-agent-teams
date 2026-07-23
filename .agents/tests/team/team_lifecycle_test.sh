@@ -102,6 +102,10 @@ case "$1" in
     [[ "${TEAM_FAKE_TMUX_HAS_SESSION:-0}" == "1" ]]
     ;;
   display-message)
+    if [[ -n "${TEAM_FAKE_TMUX_PANE_GONE:-}" ]]; then
+      echo "can't find pane" >&2
+      exit 1
+    fi
     if [[ "$*" == *"#{pane_in_mode}"* ]]; then
       printf '0\n'
     elif [[ "$*" == *"#{session_name}"* ]]; then
@@ -301,6 +305,33 @@ grep -q 'boot nudge was not confirmed for: lead' "$TMP_BASE/slow-start.err" \
 grep -q '^agent_id=lead$' "$TMP_ROOT/.agents/queue/state/agents/lead.env" \
   || fail "missed boot nudge prevented agent registration"
 rm "$slow_busy_file"
+
+# An agent whose pane dies during startup is collected the same way: the loop
+# moves on, no agent state is registered for the dead pane (so a later
+# --complete-existing run recreates exactly the missing agents), and the
+# failure is reported at the end instead of aborting the start mid-loop.
+if PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=0 \
+  TEAM_BOOT_NUDGE=1 \
+  TEAM_FAKE_TMUX_PANE_GONE=1 \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only \
+  > "$TMP_BASE/dead-pane.out" 2> "$TMP_BASE/dead-pane.err"; then
+  fail "team-start reported success although an agent pane died"
+fi
+grep -q 'agent panes exited during startup: lead' "$TMP_BASE/dead-pane.err" \
+  || fail "team-start did not report the dead pane"
+[[ ! -f "$TMP_ROOT/.agents/queue/state/agents/lead.env" ]] \
+  || fail "a dead pane still registered agent state"
+
+# Restore the healthy started state that the tests below rely on.
+PATH="$TMP_BASE/bin:$PATH" \
+  TEAM_ROOT="$TMP_ROOT" \
+  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+  TEAM_FAKE_TMUX_HAS_SESSION=0 \
+  TEAM_BOOT_NUDGE=1 \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > /dev/null
 
 # Busy panes receive one deferred nudge without interrupting current work.
 busy_file="$TMP_BASE/pane.busy"
