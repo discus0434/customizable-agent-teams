@@ -29,11 +29,11 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 
 ## 依存関係と並列実行
 
-Leadの`intake`から依存関係を明示する。
+並列度はdispatchの時点ではなく、task分解の時点でほぼ決まる。intakeを分解するときは、同時に動かせるtask数を上げることを設計目標に含める。分解した結果が直列の鎖になったら、そのまま確定せず、pathの所有と成果物の受け渡し境界を切り直して並列にできないか先に探す。依存関係は`intake`から明示する。
 
 dispatchの既定は並列とする。直列にするのは、他taskの成果物への依存、`Allowed paths`の交差、同じ可変資源(lock、単一worktree、稼働中process)の取り合い、のいずれかを特定できたときだけとする。
 
-着手可能なtaskとidle workerがある状態を放置しない。それでも直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
+着手可能なtaskとidle workerがある状態を放置しない。idle workerが残り続けるのは、分解が粗すぎるか依存を広く宣言しすぎている合図なので、分解と依存を見直す。それでも直列にする場合は、競合する資源を名指しした理由を`STATE.md`の`Execution`へ書く。「同じrepoだから」「慎重を期して」のような範囲の広い理由で直列にしない。
 
 dispatchはeventで駆動する。taskをdoneにしたturnの中で、そのdoneで依存が解けたtaskを再判定し、dispatchできるものは即dispatchする。同時に投げた他のtaskの完了を待たない。
 
