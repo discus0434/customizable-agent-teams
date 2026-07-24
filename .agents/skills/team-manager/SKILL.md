@@ -95,6 +95,7 @@ make dispatch TASK=<task_id>
 - 技術方針はArchitectへ相談する。
 - 原因調査と選択肢の比較はStrategistへ相談する。
 - 人間の承認、productの意図、利用者に見える挙動、対象範囲、優先順位、trade-offはLeadへ上げる。
+- intakeの前提を変えるgap(仕様の正の所在、外部への変更の要否、成功条件の実現不能)は、ManagerやArchitectで仕様を確定せず、gapと選択肢としてLeadへ上げる。確定はLeadが人間と行う。
 - Supervisorから判断を求められた場合は、次に判断するroleを選び、結果をSupervisorへ返す。
 
 ## 完了

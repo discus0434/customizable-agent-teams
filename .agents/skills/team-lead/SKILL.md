@@ -1,6 +1,6 @@
 ---
 name: team-lead
-description: Leadが人間から依頼や判断を受けたとき、またはManagerから相談やcompletion_readyを受け、人間との擦り合わせ、STATEのIntent、Managerへの依頼、express taskの直接dispatch、完了報告、memoryとskillの提案審査を行うときに使う。
+description: Leadが人間から依頼や判断を受けたとき、またはManagerから相談やcompletion_readyを受け、人間との擦り合わせ、intake前の仕様固め、STATEのIntent、Managerへの依頼、express taskの直接dispatch、完了報告、memoryとskillの提案審査を行うときに使う。
 ---
 
 # team-lead
@@ -10,6 +10,7 @@ description: Leadが人間から依頼や判断を受けたとき、またはMan
 - 人間と対話する唯一のroleを担う。
 - 停滞警報(`team_watch`からの召喚)を受けたら、`make team-status`、各paneの実態、直近のtask progressの順に調べ、原因を特定して介入する。
 - 人間の目的、成功条件、制約、好み、承認を明確にする。
+- intakeの前提となる事実、実現可能性、粗い仕様を、専門家を使って固め切る。
 - 人間から得た内容を`.agents/state/STATE.md`の`Intent`へ反映する。
 - Managerへ`intake`、`approval`、`decision`を送る。
 - 小さく境界が明確な依頼は、express taskとしてexpress workerへ直接dispatchする。
@@ -33,11 +34,21 @@ repository、既存文書、人間の依頼から確定できる内容は質問�
 - 検証方法。
 - 人間への再確認が必要になる条件。
 
-codebaseの事実、実現可能性、現在の外部情報が必要な場合はResearch Workerへ依頼する。
+## Intake前の仕様固め
+
+人間の意図だけでなく、intakeの前提もLeadが固め切ってから渡す。前提を変えうるgap(事実の正の所在、実現可能性、外部への変更の要否、方式の選択)を残したままintakeへ流さない。残したgapは下流が埋めることになり、仕様の確定がLeadと人間の手を離れる。
+
+- codebaseの事実、実現可能性、現在の外部情報は、Research Workerへ依頼する。
+- 粗い設計の成立性と技術方針は、Architectへ相談する。
+- 選択肢の比較が判断を分ける場合は、Strategistへ相談する。
 
 ```bash
 make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-request.md
+make team-send TO=architect BODY_FILE=.agents/queue/state/tmp/architecture-request.md
+make team-send TO=strategist BODY_FILE=.agents/queue/state/tmp/strategy-request.md
 ```
+
+専門家の回答は材料であり、確定はLeadが人間と行う。固めるのは粗い仕様(対象、成功条件、採用する方式、外部への変更の要否)までとし、実装の詳細設計はManagerとtaskに任せる。
 
 ## Managerへの依頼
 
@@ -49,7 +60,7 @@ make team-send TO=research-worker BODY_FILE=.agents/queue/state/tmp/research-req
 - 人間がすでに決めた内容。
 - Managerが追加承認なしで進められる範囲。
 - Leadへ判断を戻す条件。
-- 先に必要な調査または専門家の判断。
+- task内で先に必要な調査。intakeの前提を変えうる調査と設計判断は、仕様固めで解消してから送る。
 
 `intake`は、記載した範囲でManagerが計画とtask割り当てを始めてよいことを示す。
 
@@ -92,8 +103,6 @@ taskの範囲や成功条件が動く場合はexpressを中止し、通常task�
 - 対象範囲または優先順位。
 - 既存情報だけでは決められないtrade-off。
 
-人間との擦り合わせに技術方針または比較分析が必要な場合は、LeadからArchitectまたはStrategistへ相談できる。
-
 実行中のtaskに関する技術判断は、ManagerまたはSupervisorからArchitectまたはStrategistへ相談する。
 
 ## 受け入れと完了報告
@@ -118,7 +127,7 @@ Managerから`completion_ready`を受けたら、Leadが受け入れ検証をす
 
 `.agents/queue/backlog/`は、次にやりたい意図をカードとして積む置き場で、積むのも消費するのもLeadだけとする。人間から「後でやりたい」と受けた依頼と、作業中に見つけた次の意図をカードにする。カードは意図の受け皿であり、契約は従来どおり`intake`で確定する。
 
-擦り合わせは、カードを引く瞬間に縛らない。人間が求めたら、進行中のintakeがあってもopenカードの擦り合わせを始めてよい。要領は人間との擦り合わせと同じで、カード本文とrepositoryから確定できる内容は質問せず、目的と成功条件が確定するまで一度に一つの質問を重ねる。確定した内容は`## Spec`節としてカード本文へ書き込む。終わったら今始めるかを人間に確認し、始めるならそのままintake化し、待つならspecを書いたカードをopenのまま置く。
+擦り合わせは、カードを引く瞬間に縛らない。人間が求めたら、進行中のintakeがあってもopenカードの擦り合わせを始めてよい。要領は人間との擦り合わせと同じで、カード本文とrepositoryから確定できる内容は質問せず、目的と成功条件が確定するまで一度に一つの質問を重ねる。実現可能性や方式のgapは、Intake前の仕様固めと同じく専門家で閉じる。確定した内容は`## Spec`節としてカード本文へ書き込む。終わったら今始めるかを人間に確認し、始めるならそのままintake化し、待つならspecを書いたカードをopenのまま置く。
 
 `completion_ack`を送った後と、活きたintakeが無いままidleになったとき、backlogを確認する。`## Spec`が確定済みのカード(一覧で`/spec`が付く)は、擦り合わせを繰り返さずそのままintake化する。無ければ先頭のopenカードを引き、擦り合わせて確定してからintake化する。
 
