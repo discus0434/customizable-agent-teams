@@ -175,7 +175,7 @@ while IFS='|' read -r id agent_role _cli _model _effort _window _supervisor; do
       # shellcheck disable=SC1090
       source "$TEAM_STATE_DIR/agents/$id.env" 2>/dev/null || exit 0
       if [[ -n "$pane" ]] && team_tmux_pane_in_session "$pane" "$(team_config_session)" \
-        && ! team_tmux_pane_is_busy "$pane" && ! team_tmux_input_is_pending "$pane" "$cli"; then
+        && ! team_tmux_pane_is_busy "$pane" "$cli" && ! team_tmux_input_is_pending "$pane" "$cli"; then
         printf 'stalled'
       fi
     )"

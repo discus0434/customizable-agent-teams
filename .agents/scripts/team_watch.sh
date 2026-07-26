@@ -73,7 +73,7 @@ nudge_idle_pane_with_text() {
     [[ -n "${pane:-}" && -n "${session:-}" ]] || exit 0
     tmux has-session -t "$session" 2>/dev/null || exit 0
     team_tmux_pane_in_session "$pane" "$session" || exit 0
-    if team_tmux_pane_is_busy "$pane" || team_tmux_input_is_pending "$pane" "${cli:-}"; then
+    if team_tmux_pane_is_busy "$pane" "${cli:-}" || team_tmux_input_is_pending "$pane" "${cli:-}"; then
       exit 0
     fi
     team_tmux_send_text "$pane" "$text" || true
@@ -96,7 +96,7 @@ send_idle_pane_with_text() {
     [[ -n "${pane:-}" && -n "${session:-}" && -n "${cli:-}" ]] || exit 1
     tmux has-session -t "$session" 2>/dev/null || exit 1
     team_tmux_pane_in_session "$pane" "$session" || exit 1
-    team_tmux_pane_is_busy "$pane" && exit 1
+    team_tmux_pane_is_busy "$pane" "${cli:-}" && exit 1
     team_tmux_input_is_pending "$pane" "$cli" && exit 1
     team_tmux_send_text "$pane" "$text"
   )
@@ -282,12 +282,13 @@ stall_alarm_check() {
     fi
     if (
       pane=""
+      cli=""
       state_file="$TEAM_STATE_DIR/agents/$id.env"
       [[ -f "$state_file" ]] || exit 1
       # shellcheck disable=SC1090
       source "$state_file"
       [[ -n "${pane:-}" ]] || exit 1
-      team_tmux_pane_is_busy "$pane"
+      team_tmux_pane_is_busy "$pane" "${cli:-}"
     ); then
       busy_found=1
       break

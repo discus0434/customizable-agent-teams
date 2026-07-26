@@ -44,10 +44,33 @@ team_tmux_capture_pane() {
   tmux capture-pane -t "$pane" -p -S -80
 }
 
+# 実行中を示すTUI chromeは、CLIごとに固有の形で描かれる。
+#   codex : 「Working (27s • esc to interrupt)」
+#   claude: 「⏵⏵ bypass permissions on (…) · esc to interrupt · ← for agents」
+# agentがtmux capture-paneで他paneを覗くと、相手CLIのchromeが自分のtranscriptへ
+# そのまま焼き付く。文言だけで判定すると、その残骸を自分のbusyと誤認し続ける。
+# 残骸を押し流すには新しい出力が要るが、busy扱いの間はwakeが届かず出力もできない。
+# よって判定は「自分のCLIの形」かつ「live chromeが必ず居る画面末尾」に限定する。
+TEAM_TMUX_BUSY_TAIL_LINES=10
+
 team_tmux_pane_is_busy() {
   local pane="$1"
+  local cli="${2:-}"
+  local visible busy_re
 
-  team_tmux_capture_pane "$pane" | tail -n 20 | grep -Fq 'esc to interrupt'
+  # command substitutionが末尾の空行を落とすので、後段のtailは画面の物理末尾ではなく
+  # 「実内容の末尾」を見る。paneの下側が埋まっていない状態でも窓がずれない
+  visible="$(team_tmux_capture_pane "$pane")"
+
+  # 区切り文字まで含めて一致させる。codexは中黒「•」、claudeは中点「·」を使うので、
+  # 一方の残骸がもう一方のpaneで誤爆しない。cliが不明なときだけ従来通り広く採る
+  case "$cli" in
+    codex) busy_re='Working \([^)]*esc to interrupt' ;;
+    claude) busy_re='·[[:space:]]*esc to interrupt|esc to interrupt[[:space:]]*·' ;;
+    *) busy_re='esc to interrupt' ;;
+  esac
+
+  printf '%s\n' "$visible" | tail -n "$TEAM_TMUX_BUSY_TAIL_LINES" | grep -qE "$busy_re"
 }
 
 # Claude Codeのcomposerは「❯ + non-breaking space(U+00A0)」で描画され、

@@ -53,7 +53,7 @@ if ! team_tmux_pane_in_session "$pane" "$session"; then
   exit 1
 fi
 
-if team_tmux_pane_is_busy "$pane" || team_tmux_input_is_pending "$pane" "${cli:-}" "inbox $agent_id"; then
+if team_tmux_pane_is_busy "$pane" "${cli:-}" || team_tmux_input_is_pending "$pane" "${cli:-}" "inbox $agent_id"; then
   waiter_lock="$TEAM_STATE_DIR/locks/nudge-$agent_id.lock"
   start_waiter="false"
   if mkdir "$waiter_lock" 2>/dev/null; then
