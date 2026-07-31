@@ -12,8 +12,8 @@ agents:
 
   - id: manager
     role: manager
-    cli: codex
-    model: gpt-5.6-sol
+    cli: claude
+    model: claude-fable-5
     effort: xhigh
     window: manager
 
@@ -26,8 +26,8 @@ agents:
 
   - id: architect
     role: architect
-    cli: codex
-    model: gpt-5.6-sol
+    cli: claude
+    model: claude-fable-5
     effort: xhigh
     window: architect
 
@@ -92,16 +92,16 @@ agents:
 
   - id: hard-task-worker-1
     role: hard-task-worker
-    cli: codex
-    model: gpt-5.6-sol
+    cli: claude
+    model: claude-fable-5
     effort: xhigh
     window: hard-task-worker-1
     supervisor: general-reviewer-4
 
   - id: hard-task-worker-2
     role: hard-task-worker
-    cli: codex
-    model: gpt-5.6-sol
+    cli: claude
+    model: claude-fable-5
     effort: xhigh
     window: hard-task-worker-2
     supervisor: general-reviewer-5
@@ -139,14 +139,14 @@ agents:
   - id: frontend-critic-1
     role: frontend-critic
     cli: claude
-    model: claude-opus-4-8
+    model: claude-fable-5
     effort: xhigh
     window: frontend-critic-1
 
   - id: frontend-worker-1
     role: frontend-worker
-    cli: codex
-    model: gpt-5.6-sol
+    cli: claude
+    model: claude-fable-5
     effort: xhigh
     window: frontend-worker-1
     supervisor: frontend-critic-1
