@@ -6,6 +6,9 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/team_common.sh"
 source "$SCRIPT_DIR/team_config.sh"
 
+# CLIが立ち上がるまでpaneを待つ上限。起動時の確認dialogもこの間に答える
+TEAM_STARTUP_TIMEOUT=10
+
 restart=0
 lead_only=0
 prompt=""
@@ -177,10 +180,9 @@ main() {
     reset_session_runtime_state
   fi
 
-  local first=1
-  [[ "$session_live" -eq 1 ]] && first=0
-  local -a started_agents=()
-  local -a dead_agents=()
+  # 何を何個作るのかを先に決める。paneごとにCLIの起動を待つので、進み具合を
+  # 出せないと、人間には固まったのか進んでいるのか見分けがつかない
+  local -a pending=()
   while IFS='|' read -r id role cli model effort window supervisor; do
     [[ -n "$id" ]] || continue
     if team_config_role_is_exec "$role"; then
@@ -193,6 +195,22 @@ main() {
     if agent_state_is_live "$id" "$session"; then
       continue
     fi
+    pending+=("$id|$role|$cli|$model|$effort|$window|$supervisor")
+  done < <(team_config_agents)
+
+  local total="${#pending[@]}"
+  if [[ "$total" -eq 0 ]]; then
+    echo "every configured agent is already running"
+  else
+    echo "starting $total agents; each one waits up to ${TEAM_STARTUP_TIMEOUT}s for its CLI to come up, so this takes a while"
+  fi
+
+  local first=1
+  [[ "$session_live" -eq 1 ]] && first=0
+  local index
+  local -a dead_agents=()
+  for ((index = 1; index <= total; index++)); do
+    IFS='|' read -r id role cli model effort window supervisor <<< "${pending[index - 1]}"
     [[ -n "$window" ]] || window="$id"
     command="$(team_config_agent_command "$id")"
 
@@ -213,13 +231,14 @@ main() {
     # 死んだagentのstateは書かないので、次のmake team-startが欠けたagentだけを
     # 作り直せる
     if ! set_pane_metadata "$pane" "$id" "$role" "$model" \
-      || ! team_tmux_accept_startup_prompt "$pane" "$cli" 10; then
+      || ! team_tmux_accept_startup_prompt "$pane" "$cli" "$TEAM_STARTUP_TIMEOUT"; then
+      printf '  [%d/%d] %s exited\n' "$index" "$total" "$id"
       dead_agents+=("$id")
       continue
     fi
-    started_agents+=("$id")
+    printf '  [%d/%d] %s ok\n' "$index" "$total" "$id"
     write_agent_state "$id" "$role" "$cli" "$model" "$effort" "$window" "$supervisor" "$command" "$pane" "$session"
-  done < <(team_config_agents)
+  done
 
   # 全paneが死ぬとwindowが尽き、tmuxはsessionごと畳む。session宛の操作は
   # そこで意味を失うので、生きているときだけ触る
@@ -255,8 +274,6 @@ main() {
       printf '%s\n' "$watch_pid" > "$watch_pid_file"
     fi
   fi
-
-  echo "started agents: ${started_agents[*]:-none}"
 
   if [[ "${#dead_agents[@]}" -gt 0 ]]; then
     die_rule \

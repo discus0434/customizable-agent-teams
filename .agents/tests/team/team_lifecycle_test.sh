@@ -337,7 +337,7 @@ start_team() {
 start_team fresh \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/team-start.out"
 grep -q "^tmux session: $TEAM_FAKE_TMUX_SESSION_NAME$" "$TMP_BASE/team-start.out"
-grep -q '^started agents: lead$' "$TMP_BASE/team-start.out"
+grep -q '^  \[1/1\] lead ok$' "$TMP_BASE/team-start.out"
 grep -q '^effort=xhigh$' "$TMP_ROOT/.agents/queue/state/agents/lead.env"
 grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
 
@@ -398,7 +398,7 @@ start_team fresh "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > /dev/nu
 : > "$TEAM_FAKE_TMUX_LOG"
 start_team existing \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/converge.out"
-grep -q '^started agents: none$' "$TMP_BASE/converge.out" \
+grep -q '^every configured agent is already running$' "$TMP_BASE/converge.out" \
   || fail "team-start rebuilt an agent that was already live"
 if grep -q '^kill-session' "$TEAM_FAKE_TMUX_LOG"; then
   fail "team-start killed a live session instead of converging"
@@ -413,7 +413,7 @@ start_team existing \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --restart --lead-only > "$TMP_BASE/restart.out"
 grep -q '^kill-session' "$TEAM_FAKE_TMUX_LOG" \
   || fail "--restart did not replace the live session"
-grep -q '^started agents: lead$' "$TMP_BASE/restart.out" \
+grep -q '^  \[1/1\] lead ok$' "$TMP_BASE/restart.out" \
   || fail "--restart did not rebuild the agent"
 
 # The runtime state that only makes sense while a session lives must not
