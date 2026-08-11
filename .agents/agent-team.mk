@@ -1,4 +1,4 @@
-.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report state state-update state-commit memory-list memory-append backlog backlog-add backlog-pull
+.PHONY: bootstrap bootstrap-team team-attach team-identity team-start team-restart team-stop team-status team-send team-reply team-submit inbox agent-surfaces task-lint dispatch express-fix task-commit report direction-report supervision-report state state-update state-commit memory-list memory-append backlog backlog-add backlog-pull
 
 bootstrap:
 	direnv allow
@@ -15,6 +15,9 @@ team-identity:
 	./.agents/scripts/team_identity.sh
 
 team-start:
+	./.agents/scripts/team_start.sh
+
+team-restart:
 	./.agents/scripts/team_start.sh --restart
 
 team-stop:

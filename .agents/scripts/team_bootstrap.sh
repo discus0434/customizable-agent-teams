@@ -17,24 +17,6 @@ done < <(team_config_agents)
 
 [[ -n "$lead_id" ]] || die "no lead agent configured in $TEAM_CONFIG_FILE"
 
-TEAM_BOOT_NUDGE=0 "$SCRIPT_DIR/team_start.sh" --restart --lead-only
-
-state_file="$TEAM_STATE_DIR/agents/$lead_id.env"
-[[ -f "$state_file" ]] || die "no pane state for lead agent: $lead_id"
-
-# shellcheck disable=SC1090
-source "$state_file"
-
-if [[ -z "${pane:-}" || -z "${session:-}" || -z "${cli:-}" ]]; then
-  die "pane state for lead agent is incomplete: $lead_id"
-fi
-
-require_command tmux
-
-if ! tmux has-session -t "$session" 2>/dev/null; then
-  die "tmux session is not running: $session"
-fi
-
 prompt="$(cat <<PROMPT
 bootstrapを開始してください。
 role=lead、agent_id=${lead_id}としてAGENTS.mdに従ってください。
@@ -44,8 +26,6 @@ role=lead、agent_id=${lead_id}としてAGENTS.mdに従ってください。
 PROMPT
 )"
 
-team_tmux_wait_for_ready "$pane" "$cli" 30
-team_tmux_send_text "$pane" "$prompt"
+"$SCRIPT_DIR/team_start.sh" --restart --lead-only --prompt "$prompt"
 
-echo "started bootstrap in tmux session: $session"
-echo "attach with: make team-attach"
+echo "started bootstrap"

@@ -26,7 +26,7 @@ latest_task_progress_summary() {
   printf '\n'
 }
 
-session="$(team_config_session)"
+session="$(team_session_name)"
 session_running=0
 printf 'Team: %s\nSession: %s\n\n' "$(team_config_name)" "$session"
 
@@ -174,7 +174,7 @@ while IFS='|' read -r id agent_role _cli _model _effort _window _supervisor; do
       cli=""
       # shellcheck disable=SC1090
       source "$TEAM_STATE_DIR/agents/$id.env" 2>/dev/null || exit 0
-      if [[ -n "$pane" ]] && team_tmux_pane_in_session "$pane" "$(team_config_session)" \
+      if [[ -n "$pane" ]] && team_tmux_pane_in_session "$pane" "$(team_session_name)" \
         && ! team_tmux_pane_is_busy "$pane" "$cli" && ! team_tmux_input_is_pending "$pane" "$cli"; then
         printf 'stalled'
       fi

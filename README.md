@@ -112,13 +112,23 @@ sudo apt-get install -y gh ripgrep direnv tmux python3 nodejs npm
 
 ## Day-to-day operation
 
-Humans only need three commands.
-
 | Operation | Command |
 | --- | --- |
-| Start or restart the team | `make team-start`, then `make team-attach` |
+| Start the team, or bring back the agents that are missing | `make team-start`, then `make team-attach` |
 | Check the current state | `make team-status` |
 | Stop the team | `make team-stop` |
+| Throw the running team away and rebuild every agent | `make team-restart` |
+
+`make team-start` brings the session to the configured shape rather than
+replacing it: agents that are already running are left untouched, and only the
+missing ones are created. After the tmux session is lost — a reboot, a crash, a
+`tmux kill-session` — run it again to pick the team back up. An agent that fails
+to start is reported by name and left out of the team, so running it once more
+rebuilds exactly those agents.
+
+The tmux session name is derived from the checkout, so several projects can run
+their own teams side by side without touching each other. `make team-attach`
+finds the right one; `.agents/scripts/team_config.sh session` prints it.
 
 To detach from tmux, press `Ctrl-b` then `d`.
 

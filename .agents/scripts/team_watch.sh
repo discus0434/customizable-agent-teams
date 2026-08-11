@@ -19,7 +19,7 @@ fi
 
 require_command tmux
 ensure_state_dirs
-session="$(team_config_session)"
+session="$(team_session_name)"
 
 sweep() {
   local id role

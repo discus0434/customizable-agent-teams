@@ -24,10 +24,10 @@ fi
 
 require_command tmux
 state_file="$TEAM_STATE_DIR/agents/$agent_id.env"
-configured_session="$(team_config_session)"
+configured_session="$(team_session_name)"
 
 if [[ ! -f "$state_file" ]]; then
-  if [[ -n "$configured_session" ]] && ! tmux has-session -t "$configured_session" 2>/dev/null; then
+  if ! tmux has-session -t "$configured_session" 2>/dev/null; then
     echo "[team] queued for $agent_id; tmux session is not running yet" >&2
     exit 0
   fi

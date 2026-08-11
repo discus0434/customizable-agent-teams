@@ -1,6 +1,5 @@
 team:
   name: customizable-agent-teams
-  session: agent-team
 
 agents:
   - id: lead

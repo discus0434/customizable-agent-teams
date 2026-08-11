@@ -112,13 +112,22 @@ sudo apt-get install -y gh ripgrep direnv tmux python3 nodejs npm
 
 ## 日常操作
 
-人間が使うcommandは次の3つだけです。
-
 | 操作 | Command |
 | --- | --- |
-| チーム起動または再起動 | `make team-start`の後に`make team-attach` |
+| チーム起動、または欠けたagentの復旧 | `make team-start`の後に`make team-attach` |
 | 現在状態の確認 | `make team-status` |
 | チーム停止 | `make team-stop` |
+| 動いているチームを捨てて全agentを作り直す | `make team-restart` |
+
+`make team-start`はsessionを置き換えるのではなく、設定どおりの姿へ寄せます。
+既に動いているagentには触れず、欠けているagentだけを作ります。再起動、crash、
+`tmux kill-session`などでtmuxのsessionが消えた後も、同じcommandでチームを再開できます。
+起動に失敗したagentは名前で報告され、チームには加わりません。もう一度実行すれば、
+そのagentだけが作り直されます。
+
+tmuxのsession名はcheckoutから導かれるので、複数のprojectが互いに干渉せず
+それぞれのチームを動かせます。`make team-attach`は該当のsessionへ繋ぎ、
+`.agents/scripts/team_config.sh session`は名前を表示します。
 
 tmuxからのdetachは`Ctrl-b`の後に`d`です。
 

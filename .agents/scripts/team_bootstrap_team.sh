@@ -16,7 +16,7 @@ main() {
     "bootstrap team startup needs a manager to receive the lead intake" \
     "add a manager agent to $TEAM_CONFIG_FILE"
 
-  "$SCRIPT_DIR/team_start.sh" --complete-existing
+  "$SCRIPT_DIR/team_start.sh"
 }
 
 main "$@"

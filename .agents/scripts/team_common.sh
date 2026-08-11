@@ -145,13 +145,15 @@ team_tmux_input_is_pending() {
   return 0
 }
 
+# paneが消えていれば失敗を返す。tmuxの生の「can't find pane」を人間へ漏らすと、
+# どのagentの話なのか分からない診断になるので、判断は呼び出し側へ返す
 team_tmux_cancel_mode_if_needed() {
   local pane="$1"
   local pane_in_mode
 
-  pane_in_mode="$(tmux display-message -p -t "$pane" '#{pane_in_mode}')"
+  pane_in_mode="$(tmux display-message -p -t "$pane" '#{pane_in_mode}' 2>/dev/null)" || return 1
   if [[ "$pane_in_mode" == "1" ]]; then
-    tmux send-keys -t "$pane" -X cancel
+    tmux send-keys -t "$pane" -X cancel 2>/dev/null || return 1
   fi
 }
 
@@ -164,10 +166,10 @@ team_tmux_submit() {
 team_tmux_prepare_input() {
   local pane="$1"
 
-  team_tmux_cancel_mode_if_needed "$pane"
-  tmux send-keys -t "$pane" Escape
+  team_tmux_cancel_mode_if_needed "$pane" || return 1
+  tmux send-keys -t "$pane" Escape 2>/dev/null || return 1
   sleep 0.2
-  tmux send-keys -t "$pane" C-u
+  tmux send-keys -t "$pane" C-u 2>/dev/null || return 1
 }
 
 team_tmux_pane_in_session() {
@@ -233,7 +235,9 @@ team_tmux_submit_verified() {
 
 # textをpaneへ貼り、composerから消える(=送信された)ことを観測できるまで
 # 貼り直しとEnterの再送を行う。貼り付けと送信は開ループでは百発百中に
-# ならないので、pane状態の観測で閉ループにする
+# ならないので、pane状態の観測で閉ループにする。
+# 人間のdraftを踏まないかどうかは呼び出し側が決める。paneに人間が居るのは
+# 稼働中のLeadだけで、起動直後のpaneや督促waiterでは前提が違うからである
 team_tmux_send_text() {
   local pane="$1"
   local text="$2"
@@ -245,15 +249,10 @@ team_tmux_send_text() {
   for paste_attempt in 1 2 3; do
     # 既に自分のpayloadが実入力としてcomposerに載っているなら貼らない。
     # composerのclearはTUIによっては効かず、貼り直しが追記になって注入を
-    # 二重化する。逆に、人間の実入力が載っているなら上書きせず退く。
-    # 描画された候補(実入力でない文字)は、貼り付けで消えるので貼ってよい
+    # 二重化する。描画された候補(実入力でない文字)は、貼り付けで消えるので貼ってよい
     composer="$(team_tmux_composer_line "$pane")"
-    if team_tmux_composer_real_input "$pane" && [[ "$composer" != *"$marker"* ]]; then
-      warn "composer holds human input; not delivering to pane $pane"
-      return 1
-    fi
     if ! { team_tmux_composer_real_input "$pane" && [[ "$composer" == *"$marker"* ]]; }; then
-      team_tmux_prepare_input "$pane"
+      team_tmux_prepare_input "$pane" || return 1
       buffer_name="agent-team-$$_$RANDOM"
       tmux set-buffer -b "$buffer_name" -- "$text"
       tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
@@ -343,22 +342,22 @@ team_tmux_accept_startup_prompt() {
   local _attempt
 
   for _attempt in $(seq 1 "$timeout_seconds"); do
-    # 死んだpaneへcaptureを繰り返さない。死の扱いは呼び出し側が決める
-    team_tmux_pane_exists "$pane" || return 0
-    content="$(team_tmux_capture_pane "$pane")"
+    # 死んだpaneへcaptureを繰り返さない。死は失敗として返し、扱いは呼び出し側が決める
+    team_tmux_pane_exists "$pane" || return 1
+    content="$(team_tmux_capture_pane "$pane" 2>/dev/null)" || return 1
     # Bypass Permissionsの確認は既定が「No, exit」なので、素のEnterを送ると
     # paneごと終了する。先に「Yes, I accept」の番号へ選択を移す
     if printf '%s\n' "$content" | grep -q 'Yes, I accept'; then
       local accept_option
       accept_option="$(printf '%s\n' "$content" | grep -Eo '[0-9]+\. Yes, I accept' | head -1 | cut -d. -f1)"
-      team_tmux_cancel_mode_if_needed "$pane"
-      tmux send-keys -t "$pane" "${accept_option:-2}"
+      team_tmux_cancel_mode_if_needed "$pane" || return 1
+      tmux send-keys -t "$pane" "${accept_option:-2}" 2>/dev/null || return 1
       sleep 1
       continue
     fi
     if printf '%s\n' "$content" | grep -Eq 'Do you trust the contents of this directory|Press enter to continue|Quick safety check: Is this a project you created or one you trust|Enter to confirm'; then
-      team_tmux_cancel_mode_if_needed "$pane"
-      team_tmux_submit "$pane"
+      team_tmux_cancel_mode_if_needed "$pane" || return 1
+      team_tmux_submit "$pane" 2>/dev/null || return 1
       sleep 1
       return 0
     fi
@@ -367,24 +366,6 @@ team_tmux_accept_startup_prompt() {
     fi
     sleep 1
   done
-}
-
-team_tmux_wait_for_ready() {
-  local pane="$1"
-  local cli="$2"
-  local timeout_seconds="$3"
-  local content
-  local _attempt
-
-  for _attempt in $(seq 1 "$timeout_seconds"); do
-    content="$(team_tmux_capture_pane "$pane")"
-    if team_tmux_content_is_ready "$content" "$cli"; then
-      return 0
-    fi
-    sleep 1
-  done
-
-  die "tmux pane did not become ready for input: $pane"
 }
 
 # queue以下の成果物dirはtracked .gitkeepがcheckoutで保証する。
@@ -504,6 +485,19 @@ team_require_no_placeholders() {
 
 team_root_name() {
   basename "$TEAM_ROOT"
+}
+
+# tmuxのsession名はcheckoutごとに一意にする。同じmachineで複数のprojectが
+# このteamを動かすので、名前が重なるとattachもnudgeもkill-sessionも隣のproject
+# を掴む。名前だけでは同名dirの別checkoutで衝突するため、絶対pathの検査和を
+# 添える。tmuxのtarget記法と衝突する文字は使わない
+team_session_name() {
+  local root_name checksum
+
+  root_name="$(team_root_name)"
+  root_name="${root_name//[^A-Za-z0-9_-]/-}"
+  checksum="$(printf '%s' "$TEAM_ROOT" | cksum | cut -d' ' -f1)"
+  printf '%s-%s\n' "$root_name" "$checksum"
 }
 
 team_expand_path() {

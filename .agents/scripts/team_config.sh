@@ -9,10 +9,6 @@ team_config_name() {
   awk '/^  name:/ { sub(/^  name:[[:space:]]*/, ""); print; exit }' "$TEAM_CONFIG_FILE"
 }
 
-team_config_session() {
-  awk '/^  session:/ { sub(/^  session:[[:space:]]*/, ""); print; exit }' "$TEAM_CONFIG_FILE"
-}
-
 team_config_agents() {
   awk '
     function trim(value) {
@@ -140,7 +136,6 @@ team_config_agent_command() {
 
 team_config_validate() {
   local name
-  local session
   local agents
   local id
   local role
@@ -153,17 +148,12 @@ team_config_validate() {
   local expected_supervisor_role
 
   name="$(team_config_name)"
-  session="$(team_config_session)"
   agents="$(team_config_agents)"
 
   [[ -n "$name" ]] || die_rule \
     "team name is missing" \
     "$TEAM_CONFIG_FILE must define team.name" \
     "add '  name: <team-name>' under team"
-  [[ -n "$session" ]] || die_rule \
-    "tmux session is missing" \
-    "$TEAM_CONFIG_FILE must define team.session" \
-    "add '  session: <session-name>' under team"
   [[ -n "$agents" ]] || die_rule \
     "agent list is empty" \
     "$TEAM_CONFIG_FILE must define agents as a top-level list" \
@@ -271,7 +261,7 @@ team_config_main() {
   local command="${1:-}"
   case "$command" in
     name) team_config_name ;;
-    session) team_config_session ;;
+    session) team_session_name ;;
     agents) team_config_agents ;;
     validate) team_config_validate ;;
     agent)

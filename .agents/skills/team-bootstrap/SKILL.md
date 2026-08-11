@@ -64,7 +64,7 @@ templateの記述を、実際のprojectに合わせて更新する。
 - `AGENTS.md`：team共通ルールに加え、実際のstack、source directory、test、visual verificationの情報。
 - `Makefile`：projectの`post-change`と`smoke`。
 - package metadata：package名、version、description、entrypoint、build backend、lockfile。
-- `.agents/config/agent-team.yaml`：変更が必要な場合のteam名、session名、agent、CLI、model、effort、固定Supervisor。
+- `.agents/config/agent-team.yaml`：変更が必要な場合のteam名、agent、CLI、model、effort、固定Supervisor。
 
 選ばなかったstack、未使用のscaffold、templateのproject名、実際には使わないcommandを残さない。
 

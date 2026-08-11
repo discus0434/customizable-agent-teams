@@ -95,11 +95,20 @@ include .agents/agent-team.mk
 MAKE
 
 mkdir -p "$TMP_BASE/bin"
+export TEAM_FAKE_TMUX_SESSION_MARKER="$TMP_BASE/tmux.session"
+# The session name belongs to the checkout, so the fake must report the name
+# this temporary repository derives rather than a fixed one.
+TEAM_FAKE_TMUX_SESSION_NAME="$(
+  TEAM_ROOT="$TMP_ROOT" bash -c 'source "$1/.agents/scripts/team_common.sh"; team_session_name' _ "$TMP_ROOT"
+)"
+export TEAM_FAKE_TMUX_SESSION_NAME
 cat > "$TMP_BASE/bin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
   has-session)
-    [[ "${TEAM_FAKE_TMUX_HAS_SESSION:-0}" == "1" ]]
+    # sessionはnew-sessionで生まれ、kill-sessionで消える。paneが即死する設定では
+    # windowが尽きるので、tmuxと同じくsessionも生まれない
+    [[ "${TEAM_FAKE_TMUX_HAS_SESSION:-0}" == "1" || -f "$TEAM_FAKE_TMUX_SESSION_MARKER" ]]
     ;;
   display-message)
     if [[ -n "${TEAM_FAKE_TMUX_PANE_GONE:-}" ]]; then
@@ -109,7 +118,7 @@ case "$1" in
     if [[ "$*" == *"#{pane_in_mode}"* ]]; then
       printf '0\n'
     elif [[ "$*" == *"#{session_name}"* ]]; then
-      printf 'agent-team\n'
+      printf '%s\n' "$TEAM_FAKE_TMUX_SESSION_NAME"
     elif [[ "$*" == *"#{pane_id}"* ]]; then
       printf '%%fake\n'
     elif [[ "$*" == *"#{cursor_x},#{cursor_y}"* ]]; then
@@ -134,7 +143,12 @@ case "$1" in
     # 実UIに合わせる: transcriptの過去messageは「❯ + 通常space」、
     # composerは「prompt + non-breaking space」で、空でも表示される
     if [[ -n "${TEAM_FAKE_TMUX_BUSY_FILE:-}" && -f "$TEAM_FAKE_TMUX_BUSY_FILE" ]]; then
-      printf '%s\n' "Working (1s - esc to interrupt)"
+      # busy判定はpane自身のCLIの形を見るので、どのCLIのpaneを演じているかで
+      # live chromeを描き分ける。readyの語彙は混ぜない
+      case "${TEAM_FAKE_TMUX_BUSY_CLI:-claude}" in
+        codex) printf '%s\n' "Working (1s • esc to interrupt)" ;;
+        *) printf '%s\n' "✳ Thinking… · esc to interrupt" ;;
+      esac
     else
       printf '%s\n' "Claude Code"
       if [[ -n "${TEAM_FAKE_TMUX_TRANSCRIPT_FILE:-}" && -f "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE" ]]; then
@@ -193,8 +207,28 @@ case "$1" in
       esac
     fi
     ;;
-  set-option|new-session|new-window|kill-session)
+  set-option)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    # paneが作られた直後に死ぬ場合を再現する。sessionへのset-optionは通す
+    if [[ -n "${TEAM_FAKE_TMUX_SET_OPTION_GONE:-}" && "$*" == *" -p "* ]]; then
+      echo "can't find pane" >&2
+      exit 1
+    fi
+    ;;
+  new-session)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    if [[ -z "${TEAM_FAKE_TMUX_PANE_GONE:-}${TEAM_FAKE_TMUX_SET_OPTION_GONE:-}" ]]; then
+      : > "$TEAM_FAKE_TMUX_SESSION_MARKER"
+    fi
+    printf '%%fake\n'
+    ;;
+  kill-session)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    rm -f "$TEAM_FAKE_TMUX_SESSION_MARKER"
+    ;;
+  new-window)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    printf '%%fake\n'
     ;;
   *)
     printf 'unexpected tmux command: %s\n' "$*" >&2
@@ -250,9 +284,9 @@ critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command fronte
 [[ "$general_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "general worker lost Codex permission bypass"
 [[ "$general_command" == *"--model gpt-5.6-luna"* ]] || fail "general worker model is not gpt-5.6-luna"
 [[ "$general_command" == *'model_reasoning_effort=\"high\"'* ]] || fail "general worker effort is not high"
-[[ "$hard_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "hard task worker lost Codex permission bypass"
-[[ "$hard_command" == *"--model gpt-5.6-sol"* ]] || fail "hard task worker model is not gpt-5.6-sol"
-[[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
+[[ "$hard_command" == *"--dangerously-skip-permissions"* ]] || fail "hard task worker lost Claude permission bypass"
+[[ "$hard_command" == *"--model claude-fable-5"* ]] || fail "hard task worker model is not claude-fable-5"
+[[ "$hard_command" == *"--effort xhigh"* ]] || fail "hard task worker effort is not xhigh"
 [[ "$reviewer_command" == *"--model gpt-5.6-sol"* ]] || fail "general reviewer model is not gpt-5.6-sol"
 [[ "$reviewer_command" == *'model_reasoning_effort=\"low\"'* ]] || fail "general reviewer effort is not low"
 [[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
@@ -270,52 +304,68 @@ fi
 
 export TEAM_FAKE_TMUX_LOG="$TMP_BASE/tmux.log"
 : > "$TEAM_FAKE_TMUX_LOG"
-PATH="$TMP_BASE/bin:$PATH" \
-  TEAM_ROOT="$TMP_ROOT" \
-  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
-  TEAM_FAKE_TMUX_HAS_SESSION=0 \
-  TEAM_BOOT_NUDGE=1 \
+
+# team-start leaves a watch loop running for as long as its session lives. The
+# fake sleep returns instantly, so a loop left behind would spin through every
+# test below.
+stop_watch() {
+  local pid
+  pid="$(cat "$TMP_ROOT/.agents/queue/state/watch.pid" 2>/dev/null || true)"
+  if [[ -n "$pid" ]]; then
+    kill "$pid" 2>/dev/null || true
+  fi
+}
+
+# Each start below decides for itself whether a session is already there.
+start_team() {
+  local session_state="$1"
+  shift
+  if [[ "$session_state" == "fresh" ]]; then
+    rm -f "$TEAM_FAKE_TMUX_SESSION_MARKER"
+  else
+    : > "$TEAM_FAKE_TMUX_SESSION_MARKER"
+  fi
+  PATH="$TMP_BASE/bin:$PATH" \
+    TEAM_ROOT="$TMP_ROOT" \
+    TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
+    "$@"
+  local status=$?
+  stop_watch
+  return "$status"
+}
+
+start_team fresh \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/team-start.out"
-grep -q '^started tmux session: agent-team$' "$TMP_BASE/team-start.out"
+grep -q "^tmux session: $TEAM_FAKE_TMUX_SESSION_NAME$" "$TMP_BASE/team-start.out"
+grep -q '^started agents: lead$' "$TMP_BASE/team-start.out"
 grep -q '^effort=xhigh$' "$TMP_ROOT/.agents/queue/state/agents/lead.env"
 grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
-[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -eq 1 ]] \
-  || fail "boot prompt was not submitted exactly once"
-grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
-  || fail "boot prompt did not use bracketed paste"
 
-# A pane that never becomes ready (slow machines hit this as a startup race)
-# must not abort team-start mid-loop: the start still registers the agent and
-# reports the missed nudge at the end, instead of leaving the team half-started.
-slow_busy_file="$TMP_BASE/slow-start.busy"
-: > "$slow_busy_file"
-if PATH="$TMP_BASE/bin:$PATH" \
-  TEAM_ROOT="$TMP_ROOT" \
-  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
-  TEAM_FAKE_TMUX_HAS_SESSION=0 \
-  TEAM_BOOT_NUDGE=1 \
-  TEAM_BOOT_NUDGE_READY_TIMEOUT=2 \
-  TEAM_FAKE_TMUX_BUSY_FILE="$slow_busy_file" \
-  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only \
-  > "$TMP_BASE/slow-start.out" 2> "$TMP_BASE/slow-start.err"; then
-  fail "team-start reported success although a boot nudge was never confirmed"
+# The first thing an agent must do is carried by the CLI's own prompt argument,
+# so the boot prompt cannot be lost to how the TUI happens to be drawing itself.
+grep -q '^new-session .*AGENTS.md' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "the launch command did not carry the boot prompt"
+if grep -q '^paste-buffer' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "the boot prompt was pasted into the composer instead of being launched with it"
 fi
-grep -q 'boot nudge was not confirmed for: lead' "$TMP_BASE/slow-start.err" \
-  || fail "team-start did not report the missed boot nudge"
-grep -q '^agent_id=lead$' "$TMP_ROOT/.agents/queue/state/agents/lead.env" \
-  || fail "missed boot nudge prevented agent registration"
-rm "$slow_busy_file"
 
-# An agent whose pane dies during startup is collected the same way: the loop
+# A caller-supplied prompt replaces the default one; bootstrap uses this to hand
+# the lead its own first task without a second delivery mechanism.
+: > "$TEAM_FAKE_TMUX_LOG"
+start_team fresh \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only --prompt 'bootstrapを開始してください。' \
+  > /dev/null
+grep -q '^new-session .*bootstrapを開始してください。' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "--prompt did not reach the launch command"
+if grep -q 'AGENTS.md' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "--prompt did not replace the default boot prompt"
+fi
+
+# An agent whose pane dies during startup is collected on its own: the loop
 # moves on, no agent state is registered for the dead pane (so a later
-# --complete-existing run recreates exactly the missing agents), and the
-# failure is reported at the end instead of aborting the start mid-loop.
-if PATH="$TMP_BASE/bin:$PATH" \
-  TEAM_ROOT="$TMP_ROOT" \
-  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
-  TEAM_FAKE_TMUX_HAS_SESSION=0 \
-  TEAM_BOOT_NUDGE=1 \
-  TEAM_FAKE_TMUX_PANE_GONE=1 \
+# team-start recreates exactly the missing agents), and the failure is reported
+# at the end instead of aborting the start mid-loop.
+if TEAM_FAKE_TMUX_PANE_GONE=1 start_team fresh \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only \
   > "$TMP_BASE/dead-pane.out" 2> "$TMP_BASE/dead-pane.err"; then
   fail "team-start reported success although an agent pane died"
@@ -325,13 +375,60 @@ grep -q 'agent panes exited during startup: lead' "$TMP_BASE/dead-pane.err" \
 [[ ! -f "$TMP_ROOT/.agents/queue/state/agents/lead.env" ]] \
   || fail "a dead pane still registered agent state"
 
+# A pane can also die after its id is known. Every later tmux call then fails,
+# and letting one of those failures escape aborted the whole start with a raw
+# "can't find pane" and left the rest of the team uncreated.
+if TEAM_FAKE_TMUX_SET_OPTION_GONE=1 start_team fresh \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only \
+  > "$TMP_BASE/late-death.out" 2> "$TMP_BASE/late-death.err"; then
+  fail "team-start reported success although a pane died after it was created"
+fi
+grep -q 'agent panes exited during startup: lead' "$TMP_BASE/late-death.err" \
+  || fail "a pane that died after creation was not collected as a dead agent"
+if grep -q "can't find pane" "$TMP_BASE/late-death.err"; then
+  fail "the raw tmux error leaked instead of naming the agent"
+fi
+
 # Restore the healthy started state that the tests below rely on.
-PATH="$TMP_BASE/bin:$PATH" \
-  TEAM_ROOT="$TMP_ROOT" \
-  TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
-  TEAM_FAKE_TMUX_HAS_SESSION=0 \
-  TEAM_BOOT_NUDGE=1 \
+start_team fresh "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > /dev/null
+
+# Resuming a team whose tmux session survived must leave the live agents alone
+# and create only the missing ones. This is the path a human takes after a
+# crash or a reboot, so it must not throw running work away.
+: > "$TEAM_FAKE_TMUX_LOG"
+start_team existing \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/converge.out"
+grep -q '^started agents: none$' "$TMP_BASE/converge.out" \
+  || fail "team-start rebuilt an agent that was already live"
+if grep -q '^kill-session' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "team-start killed a live session instead of converging"
+fi
+if grep -qE '^(new-window|new-session)' "$TEAM_FAKE_TMUX_LOG"; then
+  fail "team-start created a pane for an agent that was already live"
+fi
+
+# --restart is the explicit way to throw a live team away.
+: > "$TEAM_FAKE_TMUX_LOG"
+start_team existing \
+  "$TMP_ROOT/.agents/scripts/team_start.sh" --restart --lead-only > "$TMP_BASE/restart.out"
+grep -q '^kill-session' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "--restart did not replace the live session"
+grep -q '^started agents: lead$' "$TMP_BASE/restart.out" \
+  || fail "--restart did not rebuild the agent"
+
+# The runtime state that only makes sense while a session lives must not
+# outlive it. After a reboot the recorded pids belong to whatever process
+# inherited them, so a nudge lock or a watch pid left behind would silently
+# swallow every later wake-up.
+mkdir -p "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock"
+printf '%s\n' "$$" > "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock/pid"
+printf '%s\n' "$$" > "$TMP_ROOT/.agents/queue/state/watch.pid"
+TEAM_DISABLE_NUDGE=1 start_team fresh \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > /dev/null
+[[ ! -e "$TMP_ROOT/.agents/queue/state/locks/nudge-lead.lock" ]] \
+  || fail "a nudge lock survived the session that owned it"
+[[ "$(cat "$TMP_ROOT/.agents/queue/state/watch.pid")" != "$$" ]] \
+  || fail "a watch pid survived the session that owned it"
 
 # Busy panes receive one deferred nudge without interrupting current work.
 busy_file="$TMP_BASE/pane.busy"
@@ -586,12 +683,12 @@ done
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
   'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-STALL manager general-worker-1 general-reviewer-1 dispatched base-commit "" "" "" "" false false "" not_applicable ""' \
   _ "$TMP_ROOT"
-cat > "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env" <<'ENV'
+cat > "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env" <<ENV
 agent_id='general-worker-1'
 role='general-worker'
 cli='codex'
 pane='%fake'
-session='agent-team'
+session='$TEAM_FAKE_TMUX_SESSION_NAME'
 ENV
 rm -f "$composer_file.buffer"
 : > "$composer_file"
@@ -696,11 +793,11 @@ age_busy="$TMP_BASE/task-age.busy"
 age_marker_dir="$TMP_ROOT/.agents/queue/state/watch/task-age"
 age_marker="$age_marker_dir/T-AGE.marker"
 mkdir -p "$age_marker_dir"
-cat > "$TMP_ROOT/.agents/queue/state/agents/strategist.env" <<'ENV'
+cat > "$TMP_ROOT/.agents/queue/state/agents/strategist.env" <<ENV
 agent_id='strategist'
 role='strategist'
 cli='codex'
-session='agent-team'
+session='$TEAM_FAKE_TMUX_SESSION_NAME'
 pane='%fake'
 ENV
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
@@ -741,6 +838,7 @@ printf 'task_id=T-AGE\nfirst_seen=10000\nlast_alarm=0\n' > "$age_marker"
 : > "$age_busy"; : > "$TEAM_FAKE_TMUX_LOG"
 TEAM_FAKE_WATCH_EPOCH=30000 TEAM_DISABLE_NUDGE=1 PATH="$TMP_BASE/bin:$PATH" TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" \
   TEAM_FAKE_TMUX_HAS_SESSION=1 TEAM_FAKE_TMUX_COMPOSER="$age_composer" TEAM_FAKE_TMUX_BUSY_FILE="$age_busy" \
+  TEAM_FAKE_TMUX_BUSY_CLI=codex \
   "$TMP_ROOT/.agents/scripts/team_watch.sh" --once
 if grep -q '長生きtask確認: T-AGE' "$TEAM_FAKE_TMUX_LOG"; then fail "busy pane received summon"; fi
 grep -q '^last_alarm=0$' "$age_marker" || fail "busy pane consumed last_alarm"
