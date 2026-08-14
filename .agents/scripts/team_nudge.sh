@@ -53,7 +53,7 @@ if ! team_tmux_pane_in_session "$pane" "$session"; then
   exit 1
 fi
 
-if team_tmux_pane_is_busy "$pane" "${cli:-}" || team_tmux_input_is_pending "$pane" "${cli:-}" "inbox $agent_id"; then
+queue_nudge_waiter() {
   waiter_lock="$TEAM_STATE_DIR/locks/nudge-$agent_id.lock"
   start_waiter="false"
   if mkdir "$waiter_lock" 2>/dev/null; then
@@ -72,8 +72,17 @@ if team_tmux_pane_is_busy "$pane" "${cli:-}" || team_tmux_input_is_pending "$pan
     nohup "$SCRIPT_DIR/team_nudge_wait.sh" "$agent_id" "$waiter_lock" >/dev/null 2>&1 &
     printf '%s\n' "$!" > "$waiter_lock/pid"
   fi
+}
+
+if team_tmux_pane_is_busy "$pane" "${cli:-}" || team_tmux_input_is_pending "$pane" "${cli:-}" "inbox $agent_id"; then
+  queue_nudge_waiter
   echo "[team] queued nudge for $agent_id; pane is busy or holds unsent input" >&2
   exit 0
 fi
 
-team_tmux_send_text "$pane" "inbox $agent_id"
+if team_tmux_send_text "$pane" "inbox $agent_id"; then
+  exit 0
+fi
+
+queue_nudge_waiter
+echo "[team] queued retry for $agent_id; immediate tmux delivery was not confirmed" >&2

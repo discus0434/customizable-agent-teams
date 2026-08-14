@@ -28,8 +28,9 @@ for _attempt in $(seq 1 7200); do
   team_tmux_pane_in_session "$pane" "$session" || exit 0
 
   if ! team_tmux_pane_is_busy "$pane" "${cli:-}" && ! team_tmux_input_is_pending "$pane" "${cli:-}" "inbox $agent_id"; then
-    team_tmux_send_text "$pane" "inbox $agent_id"
-    exit 0
+    if team_tmux_send_text "$pane" "inbox $agent_id"; then
+      exit 0
+    fi
   fi
   sleep 0.5
 done

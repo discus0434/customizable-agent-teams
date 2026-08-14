@@ -160,7 +160,7 @@ team_tmux_cancel_mode_if_needed() {
 team_tmux_submit() {
   local pane="$1"
 
-  tmux send-keys -t "$pane" C-m
+  tmux send-keys -t "$pane" C-m 2>/dev/null
 }
 
 team_tmux_prepare_input() {
@@ -254,8 +254,8 @@ team_tmux_send_text() {
     if ! { team_tmux_composer_real_input "$pane" && [[ "$composer" == *"$marker"* ]]; }; then
       team_tmux_prepare_input "$pane" || return 1
       buffer_name="agent-team-$$_$RANDOM"
-      tmux set-buffer -b "$buffer_name" -- "$text"
-      tmux paste-buffer -b "$buffer_name" -p -d -t "$pane"
+      tmux set-buffer -b "$buffer_name" -- "$text" 2>/dev/null || return 1
+      tmux paste-buffer -b "$buffer_name" -p -d -t "$pane" 2>/dev/null || return 1
       # 貼り付けの反映は描画に遅れることがある。1回の観測で貼り直しを
       # 決めず、反映を数回待ってから判断する
       for confirm_attempt in 1 2 3 4 5; do
@@ -265,7 +265,7 @@ team_tmux_send_text() {
       done
       if [[ -z "$composer" ]]; then
         # composerが観測できないpaneでは検証できないので一発送信に落とす
-        team_tmux_submit "$pane"
+        team_tmux_submit "$pane" || return 1
         return 0
       fi
       if [[ "$composer" != *"$marker"* ]]; then
@@ -273,7 +273,7 @@ team_tmux_send_text() {
       fi
     fi
     for enter_attempt in 1 2 3 4; do
-      team_tmux_submit "$pane"
+      team_tmux_submit "$pane" || return 1
       sleep 0.4
       composer="$(team_tmux_composer_line "$pane")"
       if [[ "$composer" != *"$marker"* ]]; then
