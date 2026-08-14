@@ -6,6 +6,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
 TMP_BASE="$(mktemp -d)"
 TMP_ROOT="$TMP_BASE/repo"
 TMP_CONFIG_FILE="$TMP_ROOT/.agents/config/agent-team.yaml"
+TMP_SESSION="$(basename "$TMP_ROOT")-$(printf '%s' "$TMP_ROOT" | cksum | cut -d' ' -f1)"
 trap 'rm -rf "$TMP_BASE"' EXIT
 
 fail() {
@@ -109,7 +110,10 @@ case "$1" in
     if [[ "$*" == *"#{pane_in_mode}"* ]]; then
       printf '0\n'
     elif [[ "$*" == *"#{session_name}"* ]]; then
-      printf 'agent-team\n'
+      session_root="${TEAM_ROOT##*/}"
+      session_root="${session_root//[^A-Za-z0-9_-]/-}"
+      session_checksum="$(printf '%s' "$TEAM_ROOT" | cksum | cut -d' ' -f1)"
+      printf '%s-%s\n' "$session_root" "$session_checksum"
     elif [[ "$*" == *"#{pane_id}"* ]]; then
       printf '%%fake\n'
     elif [[ "$*" == *"#{cursor_x},#{cursor_y}"* ]]; then
@@ -134,7 +138,7 @@ case "$1" in
     # 実UIに合わせる: transcriptの過去messageは「❯ + 通常space」、
     # composerは「prompt + non-breaking space」で、空でも表示される
     if [[ -n "${TEAM_FAKE_TMUX_BUSY_FILE:-}" && -f "$TEAM_FAKE_TMUX_BUSY_FILE" ]]; then
-      printf '%s\n' "Working (1s - esc to interrupt)"
+      printf '%s\n' "Working (1s · esc to interrupt)"
     else
       printf '%s\n' "Claude Code"
       if [[ -n "${TEAM_FAKE_TMUX_TRANSCRIPT_FILE:-}" && -f "$TEAM_FAKE_TMUX_TRANSCRIPT_FILE" ]]; then
@@ -197,8 +201,12 @@ case "$1" in
       esac
     fi
     ;;
-  set-option|new-session|new-window|kill-session)
+  set-option|kill-session)
     [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    ;;
+  new-session|new-window)
+    [[ -n "${TEAM_FAKE_TMUX_LOG:-}" ]] && printf '%s\n' "$*" >> "$TEAM_FAKE_TMUX_LOG"
+    printf '%%fake\n'
     ;;
   *)
     printf 'unexpected tmux command: %s\n' "$*" >&2
@@ -259,7 +267,9 @@ critic_command="$(team "$TMP_ROOT/.agents/scripts/team_config.sh" command fronte
 [[ "$hard_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "hard task worker effort is not xhigh"
 [[ "$reviewer_command" == *"--model gpt-5.6-sol"* ]] || fail "general reviewer model is not gpt-5.6-sol"
 [[ "$reviewer_command" == *'model_reasoning_effort=\"low\"'* ]] || fail "general reviewer effort is not low"
-[[ "$critic_command" == *"--dangerously-skip-permissions"* ]] || fail "frontend critic lost Claude permission bypass"
+[[ "$critic_command" == *"--dangerously-bypass-approvals-and-sandbox"* ]] || fail "frontend critic lost Codex permission bypass"
+[[ "$critic_command" == *"--model gpt-5.6-sol"* ]] || fail "frontend critic model is not gpt-5.6-sol"
+[[ "$critic_command" == *'model_reasoning_effort=\"xhigh\"'* ]] || fail "frontend critic effort is not xhigh"
 if team "$TMP_ROOT/.agents/scripts/team_config.sh" command research-worker-1 \
   > /dev/null 2> "$TMP_BASE/exec-launcher.err"; then
   fail "on-demand research worker offered a resident launcher"
@@ -280,17 +290,17 @@ PATH="$TMP_BASE/bin:$PATH" \
   TEAM_FAKE_TMUX_HAS_SESSION=0 \
   TEAM_BOOT_NUDGE=1 \
   "$TMP_ROOT/.agents/scripts/team_start.sh" --lead-only > "$TMP_BASE/team-start.out"
-grep -q '^started tmux session: agent-team$' "$TMP_BASE/team-start.out"
+grep -Eq '^tmux session: [A-Za-z0-9_-]+$' "$TMP_BASE/team-start.out"
 grep -q '^effort=xhigh$' "$TMP_ROOT/.agents/queue/state/agents/lead.env"
 grep -q -- '--dangerously-skip-permissions' "$TEAM_FAKE_TMUX_LOG"
-[[ "$(awk '{ count += gsub(/C-m/, "") } END { print count + 0 }' "$TEAM_FAKE_TMUX_LOG")" -eq 1 ]] \
-  || fail "boot prompt was not submitted exactly once"
-grep -q '^paste-buffer .* -p -d -t ' "$TEAM_FAKE_TMUX_LOG" \
-  || fail "boot prompt did not use bracketed paste"
+grep -q 'AGENTS.mdを読み、role=lead、agent_id=leadとしてinbox' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "boot prompt was not passed to the lead CLI"
+! grep -q '^paste-buffer ' "$TEAM_FAKE_TMUX_LOG" \
+  || fail "boot prompt was delivered through tmux paste instead of the CLI"
 
 # A pane that never becomes ready (slow machines hit this as a startup race)
-# must not abort team-start mid-loop: the start still registers the agent and
-# reports the missed nudge at the end, instead of leaving the team half-started.
+# is collected as a startup failure and reported at the end, instead of
+# aborting team-start mid-loop without the standard failure context.
 slow_busy_file="$TMP_BASE/slow-start.busy"
 : > "$slow_busy_file"
 if PATH="$TMP_BASE/bin:$PATH" \
@@ -304,10 +314,10 @@ if PATH="$TMP_BASE/bin:$PATH" \
   > "$TMP_BASE/slow-start.out" 2> "$TMP_BASE/slow-start.err"; then
   fail "team-start reported success although a boot nudge was never confirmed"
 fi
-grep -q 'boot nudge was not confirmed for: lead' "$TMP_BASE/slow-start.err" \
-  || fail "team-start did not report the missed boot nudge"
-grep -q '^agent_id=lead$' "$TMP_ROOT/.agents/queue/state/agents/lead.env" \
-  || fail "missed boot nudge prevented agent registration"
+grep -q 'agent panes exited during startup: lead' "$TMP_BASE/slow-start.err" \
+  || fail "team-start did not report the startup failure"
+[[ ! -f "$TMP_ROOT/.agents/queue/state/agents/lead.env" ]] \
+  || fail "a startup failure still registered agent state"
 rm "$slow_busy_file"
 
 # An agent whose pane dies during startup is collected the same way: the loop
@@ -631,12 +641,12 @@ done
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
   'source "$1/.agents/scripts/team_common.sh"; team_write_task_state T-STALL manager general-worker-1 general-reviewer-1 dispatched base-commit "" "" "" "" false false "" not_applicable ""' \
   _ "$TMP_ROOT"
-cat > "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env" <<'ENV'
+cat > "$TMP_ROOT/.agents/queue/state/agents/general-worker-1.env" <<ENV
 agent_id='general-worker-1'
 role='general-worker'
 cli='codex'
 pane='%fake'
-session='agent-team'
+session='$TMP_SESSION'
 ENV
 rm -f "$composer_file.buffer"
 : > "$composer_file"
@@ -741,11 +751,11 @@ age_busy="$TMP_BASE/task-age.busy"
 age_marker_dir="$TMP_ROOT/.agents/queue/state/watch/task-age"
 age_marker="$age_marker_dir/T-AGE.marker"
 mkdir -p "$age_marker_dir"
-cat > "$TMP_ROOT/.agents/queue/state/agents/strategist.env" <<'ENV'
+cat > "$TMP_ROOT/.agents/queue/state/agents/strategist.env" <<ENV
 agent_id='strategist'
 role='strategist'
 cli='codex'
-session='agent-team'
+session='$TMP_SESSION'
 pane='%fake'
 ENV
 TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" bash -c \
@@ -817,7 +827,7 @@ message_body="$TMP_BASE/message.md"
 printf '%s\n' 'line one' 'requires-python >=3.14 "quoted"' > "$message_body"
 message_output="$(
   TEAM_ROOT="$TMP_ROOT" TEAM_CONFIG_FILE="$TMP_CONFIG_FILE" TEAM_DISABLE_NUDGE=1 TEAM_AGENT_ID=lead \
-    make -s -C "$TMP_ROOT" team-send TO=manager TYPE=request BODY_FILE="$message_body"
+    make -s -C "$TMP_ROOT" team-send TO=manager TYPE=request BODY= BODY_FILE="$message_body"
 )"
 message_id="$(printf '%s\n' "$message_output" | sed -n 's/^message_id=//p')"
 [[ -n "$message_id" ]] || fail "make team-send returned no message id"
@@ -1254,13 +1264,18 @@ perl -0pi -e 's/T-E-XXX/T-E-001/g; s#\x60path/to/file\x60#\x60express-output.txt
 team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-001 >/dev/null
 
 cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-BAD.md"
-perl -0pi -e 's/T-E-XXX/T-E-BAD/g; s#\x60path/to/file\x60#\x60.agents/scripts/team_send.sh\x60#' \
+perl -0pi -e 's/T-E-XXX/T-E-BAD/g; s#\x60path/to/file\x60#\x60**\x60#' \
   "$TMP_ROOT/.agents/queue/tasks/T-E-BAD.md"
 if team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-BAD \
   > /dev/null 2> "$TMP_BASE/express-governance.err"; then
-  fail "express lint accepted a governance path"
+  fail "express lint accepted a wildcard path"
 fi
-grep -q 'express task cannot own a governance path' "$TMP_BASE/express-governance.err"
+grep -q 'express task cannot own a wildcard path' "$TMP_BASE/express-governance.err"
+
+cp "$TMP_ROOT/.agents/queue/tasks/EXPRESS_TEMPLATE.md" "$TMP_ROOT/.agents/queue/tasks/T-E-GOV.md"
+perl -0pi -e 's/T-E-XXX/T-E-GOV/g; s#\x60path/to/file\x60#\x60.agents/scripts/team_send.sh\x60#' \
+  "$TMP_ROOT/.agents/queue/tasks/T-E-GOV.md"
+team "$TMP_ROOT/.agents/scripts/team_task_lint.sh" T-E-GOV >/dev/null
 
 if team "$TMP_ROOT/.agents/scripts/team_dispatch.sh" --owner manager T-E-001 \
   > /dev/null 2> "$TMP_BASE/express-manager.err"; then

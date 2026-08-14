@@ -366,6 +366,7 @@ team_tmux_accept_startup_prompt() {
     fi
     sleep 1
   done
+  return 1
 }
 
 # queue以下の成果物dirはtracked .gitkeepがcheckoutで保証する。
