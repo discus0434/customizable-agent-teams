@@ -9,7 +9,6 @@ description: Express Workerがcodex execの非対話実行で起動され、Lead
 
 - 担当express taskの`Goal`、`Acceptance`、`Constraints`を満たす実装を行う。
 - 変更を`Allowed paths`内に収め、`Do not modify`にあるpathを変更しない。両方に合致するpathは狭い指定が勝つ。
-- `.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`は変更しない。
 - `STATE.md`と`MEMORY.md`を編集しない。
 
 ## 実行形態

@@ -91,7 +91,6 @@ express taskは次の制約を持つ。
 - 同時に1件だけ動かせる。
 - Supervisorは付かず、reviewはLeadが行う。
 - `Architecture required`は`false`とする。
-- `Allowed paths`に`.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`を含められない。
 
 express taskは次の順序で進む。
 

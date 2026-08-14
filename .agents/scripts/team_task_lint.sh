@@ -153,11 +153,11 @@ fi
 if [[ "$lane" == "express" ]]; then
   for allowed in "${allowed_paths[@]}"; do
     case "$allowed" in
-      .agents|.agents/*|AGENTS.md|CLAUDE.md|Makefile|\**)
+      \**)
         die_rule \
-          "express task cannot own a governance path: $allowed" \
-          "express tasks skip Manager and Supervisor, so protocol, config, and harness paths stay out of scope" \
-          "route this change through a normal task, or narrow the allowed path" ;;
+          "express task cannot own a wildcard path: $allowed" \
+          "express ownership must name concrete paths" \
+          "list the exact files or directories under ## Allowed paths" ;;
     esac
   done
 fi

@@ -72,11 +72,8 @@ make team-send TO=strategist BODY_FILE=.agents/queue/state/tmp/strategy-request.
 
 - 依頼の本質が1つの変更として完結する。
 - 複数taskへの分解、設計判断、他taskとの調整が要らない。
-- `.agents/`以下、`AGENTS.md`、`CLAUDE.md`、`Makefile`に触れない。
 
 ファイル数は基準にしない。READMEなどdocsの随伴更新も含めてよい。
-
-`AGENTS.md`や`.agents/`の更新が混ざる依頼でも、その更新を切り離してexpressに収める判断はLeadがしてよい。切り離した場合は完了報告で明示する。
 
 分解や設計判断が要る場合、または迷う場合は、通常のintakeとしてManagerへ渡す。
 
